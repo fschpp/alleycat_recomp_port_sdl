@@ -1,0 +1,153 @@
+#include "cat_state.h"
+#include <stddef.h>
+
+int8_t  scroll_direction = 0;
+int8_t  prev_scroll_dir = 0;
+int8_t  prev_vert_dir = 0;
+int8_t  in_level_mode = 0;
+uint16_t scroll_speed = 0;
+uint16_t speed_ramp = 0;
+uint8_t  anim_counter = 0;
+uint8_t  anim_accumulator = 0;
+uint8_t  anim_step = 0;
+int16_t  cat_x = 0;
+uint8_t  cat_y = 0;
+uint16_t walk_frame = 0;
+uint8_t  immune_flag = 0;
+
+int16_t  level_number = 0;
+uint16_t scroll_left_bound = 0;
+uint16_t scroll_right_bound = 0;
+uint16_t difficulty_level = 0;
+const uint16_t max_swim_speed[6] = { 4, 6, 8, 10, 12, 12 };
+const uint8_t  max_dive_depth[6] = { 3, 3, 4, 4, 4, 4 };
+uint16_t anim_last_tick = 0;
+uint16_t level2_tick = 0;
+uint16_t cat_sprite_data = 0;
+
+uint8_t  entry_steps = 0;
+uint8_t  entry_delay = 0;
+uint8_t  cat_y_bottom = 0;
+uint16_t cat_draw_pos = 0;
+uint8_t  transition_timer = 0;
+uint8_t  game_mode = 0;
+uint8_t  at_platform = 0;
+uint8_t  transitioning = 0;
+uint8_t  sprite_hidden = 0;
+uint8_t  cat_died = 0;
+uint8_t  auto_walk = 0;
+uint8_t  object_hit = 0;
+uint16_t level_complete = 0;
+uint8_t  cat_caught = 0;
+uint8_t  door_contact = 0;
+int16_t  saved_cat_x = 0;
+uint8_t  saved_cat_y = 0;
+const cat_walk_frame_t *vert_sprite = NULL;
+const int16_t level_start_x_table[8] = { 160, 144, 150, 88, 256, 240, 64, 152 };
+const uint8_t level_start_y_table[8] = { 20, 96, 4, 96, 96, 96, 56, 175 };
+uint8_t level2_rise = 0;
+uint8_t meow_timer = 0;
+uint16_t ambient_freq = 0;
+
+uint16_t cat_screen_pos = 0;
+uint16_t buffer_size = 0;
+uint8_t  alley_save_buf[256] = {0};
+uint8_t  walk_anim_frame = 0;
+uint8_t l3_platform_id = 0;
+uint8_t jump_hit = 0;
+
+uint8_t  enemy_active = 0;
+int8_t   enemy_dir = 1;
+uint16_t enemy_x = 0;
+uint8_t  enemy_y_pos = 0;
+uint8_t  enemy_chasing = 0;
+uint16_t enemy_chase_delay = 0;
+uint8_t  enemy_approach_timer = 0;
+uint8_t  enemy_exit_timer = 0;
+uint16_t enemy_last_tick = 0;
+uint16_t enemy_tick_counter = 0;
+uint8_t  enemy_anim_frame = 0;
+uint16_t enemy_sprite_ptr = 0;
+uint16_t enemy_sprite_dims = 0;
+uint16_t enemy_draw_addr = 0;
+uint16_t enemy_next_addr = 0;
+uint16_t enemy_erase_dims = 0;
+uint8_t  fall_hit = 0;
+
+uint8_t  fall_counter = 0;
+uint16_t fall_last_tick = 0;
+uint16_t fall_target_x = 0;
+uint8_t  fall_target_y = 0;
+uint8_t  fall_cur_y = 0;
+uint16_t fall_cga_addr = 0;
+uint16_t fall_draw_pos = 0;
+uint16_t fall_sprite_dims = 0;
+uint16_t fall_save_dims = 0;
+uint16_t fall_save_buf[26] = {0};
+uint8_t  last_target_door = 0xff; /* original starts != any valid door index */
+
+uint8_t current_score[7] = {0};
+uint8_t high_score[7] = {0};
+uint8_t lives_display = 0xff; /* deliberately != lives_count initially, so draw_lives redraws once at startup */
+uint16_t score_draw_pos = 0;
+const uint8_t *score_buf_ptr = NULL;
+uint8_t  score_digit_idx = 0;
+uint16_t walk_note_index = 0;
+int16_t  thrown_obj_x = 0;
+uint8_t  thrown_obj_y = 0;
+
+const uint8_t enemy_spawn_chance[8] = { 2, 4, 8, 12, 16, 24, 32, 64 };
+const uint8_t enemy_chase_chance[8] = { 16, 32, 48, 64, 80, 96, 112, 128 };
+uint8_t lives_count = 3;
+uint16_t enemy_save_buf[60] = {0};
+
+uint16_t obj_x[3] = { 0, 0, 0 };
+uint8_t  obj_y[3] = { 0x00, 0x20, 0x40 };
+const uint8_t obj_score[3] = { 9, 7, 5 };
+int8_t   obj_dir[3] = { 1, 1, 1 };
+int8_t   obj_prev_dir[3] = { 0, 0, 0 };
+uint16_t obj_draw_pos[3] = { 0, 0, 0 };
+uint8_t  obj_hidden[3] = { 1, 1, 1 };
+uint16_t obj_cga_tmp = 0;
+uint8_t  obj_anim_toggle[3] = { 0, 0, 0 };
+uint8_t  obj_hit[3] = { 0, 0, 0 };
+uint16_t obj_hit_tick[3] = { 0, 0, 0 };
+uint16_t obj_last_tick = 0;
+uint16_t obj_collision_pos = 0;
+uint16_t obj_speed = 0;
+uint16_t obj_slot = 0;
+uint8_t  cycle_active = 0;
+const uint8_t obj_chase_table[8] = { 8, 32, 64, 128, 160, 192, 208, 240 };
+uint16_t current_floor = 0;
+uint8_t  gravity_y = 0;
+uint16_t gravity_x = 0;
+uint16_t obj_save_buf[3][16] = {{0}};
+
+uint16_t jump_x = 0;
+uint16_t gravity_last_tick = 0;
+uint8_t  jump_y = 0;
+uint8_t  jump_draw_y = 0;
+uint8_t  jump_anim_counter = 0;
+uint8_t  jump_tick_delay = 1;
+uint8_t  jump_spawn_param = 0;
+uint16_t jump_toss_delay = 0;
+uint16_t jump_toss_tick = 0;
+uint8_t  jump_toss_remaining = 0;
+uint8_t  gravity_drift_dir = 0;
+uint8_t  gravity_frame = 0;
+uint16_t gravity_h_speed = 0;
+uint8_t  gravity_target_height = 0;
+uint16_t gravity_cur_dims = 0;
+uint16_t gravity_cga_addr = 0;
+uint16_t gravity_prev_cga = 0;
+uint16_t gravity_save_dims = 0;
+uint16_t gravity_restore_dims = 0;
+uint16_t gravity_save_buf[24] = {0};
+uint8_t  dog_catch_flag = 0;
+uint8_t  idle_aggro_flag = 0;
+uint8_t  deduct_life = 0;
+const uint16_t jump_spawn_x_table[4] = { 24, 104, 184, 264 };
+const uint8_t  jump_spawn_y_table[4] = { 24, 56, 88, 24 };
+const uint16_t jump_pause_by_diff[8] = { 45, 36, 27, 18, 9, 18, 1, 18 };
+const uint8_t gravity_height_table[4] = { 97, 100, 94, 94 };
+const cat_walk_frame_t *gravity_cur_sprite = NULL;
