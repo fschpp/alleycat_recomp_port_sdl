@@ -1,4 +1,5 @@
 #include "cat_state.h"
+#include "alley.h"
 #include "sound.h"
 #include "cga.h"
 #include "movement.h"
@@ -17,11 +18,10 @@
 /* update_footprint (level_objects.asm) — now a real port, see
  * src/level_objects.c / PROGRESS.md. */
 
-/* spawn_window_event (alley.asm) — when the cat is fully idle, randomly
- * triggers a window opening/closing somewhere in the alley background.
- * Not ported (depends on the window-animation state machine, itself
- * stubbed in game_setup.c's reset_window_state). */
-static void spawn_window_event(void) { /* TODO: alley.asm window state machine */ }
+/* spawn_window_event / restore_alley_buffer / draw_alley_foreground are
+ * real now — see src/alley.c and PROGRESS.md §6f. The "window-animation
+ * state machine" this TODO waited on turned out to be 36 lines of
+ * alley.asm, not a separate subsystem. */
 
 /* check_dog_collision (enemy.asm) — literal name is misleading; per
  * PROGRESS.md §5o this is actually level-0-specific gravity-fall-landing
@@ -40,28 +40,11 @@ static bool check_dog_collision(void) { return false; }
  * update_enemies()'s own internal call to it. Removed the shadow; this
  * file now uses enemy.h's real check_enemy_activate() directly. */
 
-/* restore_alley_buffer — literal port of alley.asm's restore_alley_buffer.
- * Copies the background snapshot in alley_save_buf back to the screen at
- * cat_draw_pos. Structurally ported, but currently inert (see
- * cat_state.h's alley_save_buf comment) until save_alley_buffer (still a
- * stub in game_setup.c) actually populates the buffer. */
-static void restore_alley_buffer(void) {
-    if (buffer_size == 0) return;
-    /* no-op guard until save_alley_buffer gives us real data + a real
-     * width/height split to restore with */
-}
-
-/* Demo adaptation, not in the original: main.c clears the whole screen
- * every frame (since we don't have a working save_alley_buffer/
- * restore_alley_buffer background-persistence pipeline yet — see the stub
- * above), unlike the original's persistent framebuffer where an idle cat
- * simply stays on screen because nothing erases it. To keep the demo
- * usable rather than having the cat vanish whenever input stops, remember
- * the last frame/position drawn and keep redrawing it while idle. Remove
- * this once real background save/restore makes the screen-clear
- * unnecessary. */
-static const cat_walk_frame_t *g_last_frame = NULL;
-static uint16_t g_last_draw_pos = 0;
+/* The g_last_frame/g_last_draw_pos "keep redrawing the last frame" demo
+ * hack that used to live here is GONE (§6f): with a real background
+ * save/restore pipeline and a screen that is no longer wiped every frame,
+ * an idle cat simply stays on screen because nothing erases it — exactly
+ * like the original. */
 
 /* play_catch_sound comes from the real sound.asm port (src/sound.c); it
  * also clears door_contact itself, exactly as the original does. */
@@ -153,7 +136,9 @@ lab_0ef1:
      * draws right away since that separate call chain isn't wired up
      * yet, prioritizing keeping the cat visible for this demo). */
     cat_draw_pos = (uint16_t)calc_cga_addr(cat_y, (uint16_t)cat_x, NULL);
-    blit_masked(frame->data, cat_draw_pos, frame->width_words, frame->height, NULL);
+    cat_sprite_ptr  = frame->data;
+    cat_sprite_dims = (uint16_t)((frame->height << 8) | frame->width_words);
+    draw_alley_foreground();
 }
 
 /* update_alley_movement — literal port of game_loop.asm's lab_0e23
@@ -180,8 +165,6 @@ void update_alley_movement(void) {
             scroll_direction = 0;
             in_level_mode = 1;
             update_climb_transition();
-            g_last_frame = vert_sprite;
-            g_last_draw_pos = cat_draw_pos;
             return;
         }
     }
@@ -198,8 +181,6 @@ void update_alley_movement(void) {
              * (cat_y reached the exit threshold) — fall through to the
              * plain-alley path below so we still draw this frame. */
         } else {
-            g_last_frame = vert_sprite;
-            g_last_draw_pos = cat_draw_pos;
             return;
         }
     }
@@ -214,14 +195,8 @@ void update_alley_movement(void) {
     cat_screen_pos = (uint16_t)calc_cga_addr(cat_y, (uint16_t)cat_x, NULL);
 
     if (scroll_direction == 0 && in_level_mode == 0) {
-        /* fully idle: no walk animation, just maybe pop a window event.
-         * Demo adaptation: keep the cat visible using the last drawn
-         * frame — see g_last_frame's comment above. */
+        /* fully idle: no walk animation, just maybe pop a window event. */
         spawn_window_event();
-        if (g_last_frame) {
-            blit_masked(g_last_frame->data, g_last_draw_pos,
-                        g_last_frame->width_words, g_last_frame->height, NULL);
-        }
         return;
     }
 
@@ -233,8 +208,8 @@ void update_alley_movement(void) {
     if (check_dog_collision()) return;
     if (check_enemy_activate()) return;
 
-    cat_draw_pos = cat_screen_pos;
-    blit_masked(frame->data, cat_draw_pos, frame->width_words, frame->height, NULL);
-    g_last_frame = frame;
-    g_last_draw_pos = cat_draw_pos;
+    cat_draw_pos    = cat_screen_pos;
+    cat_sprite_ptr  = frame->data;
+    cat_sprite_dims = (uint16_t)((frame->height << 8) | frame->width_words);
+    draw_alley_foreground();
 }

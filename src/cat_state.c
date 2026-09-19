@@ -51,7 +51,7 @@ uint16_t ambient_freq = 0;
 
 uint16_t cat_screen_pos = 0;
 uint16_t buffer_size = 0;
-uint8_t  alley_save_buf[256] = {0};
+uint16_t alley_save_buf[128] = {0};
 uint8_t  walk_anim_frame = 0;
 uint8_t l3_platform_id = 0;
 uint8_t jump_hit = 0;

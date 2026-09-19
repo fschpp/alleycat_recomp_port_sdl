@@ -14,26 +14,27 @@ graphics assets, so it is not meant to be published or redistributed.
 
 ## 0. Current focus / todo / blockers
 
-**Current focus:** `sound.asm` is ported — the game now has real audio
-through an emulated PC speaker. Next up is the last external blocker,
-`alley.asm`'s window spawn/animation state machine, which unblocks
-`check_stairs_collision`/`check_window_landing` (§17 item (h)).
+**Current focus:** `alley.asm` is ported (§6f), so the background
+save/restore pipeline the whole alley scene rests on is finally real and the
+screen is no longer wiped every frame. Next up is `throw.asm` — which is
+what §17 item (h) is *actually* blocked on (see the correction below).
 
 - [x] `sound.asm` — full port, wired into every previously-stubbed call site (§6e)
 - [x] PC speaker / PIT channel 2 emulation + SDL2 audio backend (§6e)
 - [x] `init_sound` ported for real (it was never a sound.asm function — §6e finding 2)
-- [ ] `alley.asm` window state machine → unblocks §17 item (h)
-- [ ] §17 item (f): level-2 collectibles + bg tiles (was blocked on sound.asm — **now unblocked**)
-- [ ] `ui.asm`, `throw.asm`
-- [ ] `save_alley_buffer`/`restore_alley_buffer` for real (still inert stubs, §5f/§5h)
-- [ ] `render_sprites` (lives in sound.asm but is a *drawing* routine — §6e)
+- [x] `save_alley_buffer`/`restore_alley_buffer`/`draw_alley_foreground` for real (§6f) — inert stubs since §5f/§5h, in four different files
+- [x] `spawn_window_event`, `enter_building`, `handle_cat_death` (§6f)
+- [ ] `throw.asm` — maintains `current_floor`/`window_column`; **the real blocker for §17 item (h)**
+- [ ] `ui.asm` — `window_open_state` toggling, the other half of item (h)
+- [ ] §17 item (f): level-2 collectibles + bg tiles (unblocked since §6e)
+- [ ] `update_viewport` (alley.asm) — needs the DS 0x000e sprite scratch area modeled (§6f)
+- [ ] `render_sprites` (lives in sound.asm; a decorative-sprite drawing routine — §6f corrects §6e about this)
 
-**Latest blockers/discoveries:** `sound_enabled` was typed `bool` in this
-port but is a 0xFF/0x00 BYTE in the original, which would have silenced two
-effects permanently — see §6e finding 1. The disassembly repo had gone
-missing from the working tree again; re-cloned from
-`gmegidish/alleycat-disassembly` and re-verified byte-exact against the
-embedded `ds_pool` (28976 bytes) before any work started.
+**Latest blockers/discoveries:** item (h) was never blocked on
+`spawn_window_event` at all — two different things called "the window state
+machine" had been conflated. See §6f's corrections. Earlier: `sound_enabled`
+was typed `bool` in this port but is a 0xFF/0x00 BYTE in the original, which
+would have silenced two effects permanently (§6e finding 1).
 
 ---
 
@@ -61,6 +62,7 @@ embedded `ds_pool` (28976 bytes) before any work started.
 | Alley patrol objects (rats/mice — `objects.asm`'s `init_objects`/`cycle_animations`) | **Done, verified, unit-tested — see §5s.** Real AI (idle/patrol/chase/reversal), real sprites, real cat-collision knockback + climb-transition trigger, wired into the main loop. |
 | Fish-jump enemy + thrown-projectile gravity (`level_physics.asm`'s `update_cat_jump`/`apply_cat_gravity`) | **Surveyed, not yet ported — see §5s.** Data tables (`gravity_sprite_ptrs`/`gravity_sprite_dims_tbl`) already verified in §5i. |
 | Falling window objects (`level_physics.asm`'s `animate_falling`/`check_jump_collision`) | **Surveyed, not yet ported — see §5s.** `fall_sprite`'s dims are computed dynamically (not a lookup table) and need more work to fully verify. |
+| `alley.asm` (background save/restore, window events, death) | **Ported & verified — see §6f.** `save_alley_buffer`/`restore_alley_buffer`/`draw_alley_foreground`/`save_cat_background` are real in all four files that stubbed them, so sprites erase themselves and the demo no longer wipes the screen every frame. `spawn_window_event`/`enter_building`/`handle_cat_death` ported too. |
 | `sound.asm` (PC speaker, music, effects) | **Ported & verified — see §6e.** All ~40 routines, driving an emulated PIT channel 2 + port 0x61 (`src/speaker.c`) through SDL2 audio (`src/audio.c`). Every previously-stubbed sound call site in the project is now wired to the real thing. |
 | Game loop / physics / enemies / sound / UI / score | **Substantially advanced (§5b/5e/5f/5n/5o/5q/5r/5s/5t/5u/5v); fish-jump/gravity-toss (§5t), falling-object dodge (§5u), and score/lives HUD (§5v) all ported and verified. `draw_level_background` covers all indoor levels (1-6, §5w/§5x) except level 7's victory epilogue. `sound.asm` done (§6e); `ui.asm`/`throw.asm` still not started.** |
 
@@ -1959,6 +1961,14 @@ separately confirmed in this pass.
     external blocker for item (h) is still `alley.asm`'s window state
     machine. `render_sprites` (a drawing routine that happens to live in
     sound.asm) deliberately left for the alley-drawing work — see §6e.
+20. ~~`alley.asm`~~ — **done, see §6f.** The background save/restore
+    pipeline is real in all four files that stubbed it, the per-frame screen
+    wipe and the last-frame-redraw demo hack are gone, and
+    `spawn_window_event`/`enter_building`/`handle_cat_death` are ported.
+    **Corrects items 9/15/17(h) above**: those said item (h) was blocked on
+    `spawn_window_event`. It is not — it is blocked on `throw.asm`
+    (`current_floor`/`window_column`) and `ui.asm` (`window_open_state`).
+    `update_viewport` is the only unported routine left in `alley.asm`.
 
 ## 5x. `draw_level_background` — levels 1, 3, 4 ported; source repo re-acquired
 
@@ -2584,11 +2594,18 @@ so the call site in `enemy.asm` still has something to point at.
 `render_sprites` is in `sound.asm` but has nothing to do with sound: it
 blits the alley's decorative foreground sprites (a difficulty-indexed
 position list, RNG-picked variants from `sprite_variant_table`/
-`sprite_dims_table`/`sprite_data_ptrs`). It is very likely the real
-`draw_alley_foreground` that three files currently stub — a good next find,
-but it needs its own §3/§4 rigor pass on those three pointer tables, and
-bundling a sprite-extraction job into a sound port is how tables get
-mislabeled. Left for the alley-drawing work, flagged in §0's todo.
+`sprite_dims_table`/`sprite_data_ptrs`). It needs its own §3/§4 rigor pass
+on those three pointer tables, and bundling a sprite-extraction job into a
+sound port is how tables get mislabeled. Left for the alley-drawing work,
+flagged in §0's todo.
+
+> **CORRECTION (added in §6f):** this paragraph originally also guessed that
+> `render_sprites` "is very likely the real `draw_alley_foreground` that
+> three files currently stub". That was wrong. `draw_alley_foreground` is a
+> real, separate, 10-line routine in `alley.asm`, now ported (§6f). The two
+> are unrelated: one draws the *cat* over a saved background, the other
+> draws *scenery*. The guess was made without reading `alley.asm` — exactly
+> the shortcut §7 warns about.
 
 `show_extra_life` **was** ported (it is half cutscene, half
 `play_result_note` driver, and its four sprite extents all verified zero-gap
@@ -2647,6 +2664,146 @@ which §6d had left unmodeled) now forwards to the real routine. The
 distinctly-named wrappers in `cycle_objects.c` and `level7_epilogue.c` are
 kept rather than renamed at every call site, so the §5q static-shadowing
 hazard stays impossible.
+
+
+## 6f. `alley.asm` — the background-persistence pipeline, finally real
+
+`alley.asm` is 247 lines. It had been referenced as a blocker since §5f
+("`save_alley_buffer`/`restore_alley_buffer` still stubs"), §5h, §5n, §5q
+and §6e, and four different files were carrying their own inert copy of
+these functions. Reading it took about as long as writing this paragraph.
+**The lesson is §7's, again: a routine nobody has read is not a big routine,
+it is an unknown routine.**
+
+### What it actually contains
+
+Four of the seven routines are the "dirty rectangle" pipeline the entire
+alley scene is built on — ~50 call sites across `game_loop.asm`,
+`level_objects.asm`, `objects.asm`, `enemy.asm` and `ui.asm` use them:
+
+| Routine | What it does |
+|---|---|
+| `save_cat_background` | recompute `cat_draw_pos` from `cat_x`/`cat_y`, then ↓ |
+| `save_alley_buffer` | `save_from_cga` that rectangle into `alley_save_buf` |
+| `draw_alley_foreground` | `blit_masked` the cat over it, saving what it covers |
+| `restore_alley_buffer` | `blit_to_cga` the saved background back, erasing the cat |
+
+Plus `spawn_window_event`, `enter_building`, `handle_cat_death`. All ported
+into `src/alley.c`; every duplicate stub in `alley_movement.c`,
+`game_setup.c`, `cycle_objects.c` and `level7_epilogue.c` now forwards to
+the one real implementation.
+
+### Findings and corrections
+
+**1. `buffer_size` is not a byte count.** `cat_state.h` documented it as
+"total bytes in the current alley_save_buf snapshot". It is actually a
+packed **CX dims pair** — high byte = rows, low byte = width in WORDS —
+handed straight through to `save_from_cga`/`blit_to_cga` as the original's
+CX, exactly like every other dims word in this codebase (§4). The proof is
+in `draw_alley_foreground` itself: `mov cx,[cat_sprite_dims] /
+mov [buffer_size],cx`, and `cat_sprite_dims` is unambiguously a dims pair
+(`mov cx,0xb03 / sub cl,al` → 11 rows, 3-minus-al words). The old
+`if (buffer_size == 0) return;` guard in `alley_movement.c` was treating a
+dims word as a length. Comment corrected, code fixed.
+
+**2. §17 item (h) was never blocked on `spawn_window_event`.** Since §5n/§5r
+this document has said `check_stairs_collision`/`check_window_landing` are
+"genuinely blocked on the unported window spawn/animation state machine
+(`spawn_window_event`, `alley.asm`)". Two unrelated things were being
+called "the window state machine":
+
+- `spawn_window_event` (alley.asm) is **cosmetic**: while the cat stands
+  still it blits a random window sprite pair over the cat's position, rate-
+  limited to every 8th attempt. 36 lines. It touches no window *state*.
+- What item (h) actually reads is `window_open_state[]`, `current_floor`
+  and `window_column` — and those are maintained by **`throw.asm`**
+  (`current_floor`/`window_column`, lines 31-172), `level_objects.asm:246`
+  and `ui.asm:715` (`window_open_state` toggling), initialised in
+  `alley_drawing.asm:82`. `alley.asm` writes none of them.
+
+So porting `alley.asm` does **not** unblock item (h); `throw.asm` plus a
+slice of `ui.asm` does. §0's todo updated accordingly. This is the same
+class of error §5s caught and fixed for the alley hazard systems: a label
+name doing the work that reading the code should have done.
+
+**3. `render_sprites` is not `draw_alley_foreground`.** §6e guessed it
+probably was. It isn't — see the correction inserted in §6e above.
+
+**4. `enter_building` uses `enter_sprite[0]`, not the table.**
+`mov ax,[enter_sprite_data]` loads the first *entry* of that table, not the
+table's address — so the pose is `enter_sprite[0]`, unlike `setup_level`'s
+`enter_sprite[3]` (§5f). Easy to get backwards; noted at the call site.
+
+### Two layout facts that verify each other
+
+`spawn_window_event` blits a top window sprite at `cat_draw_pos` with mask-
+save buffer `alley_save_buf` (DS 0x5fa), then a bottom one at
+`cat_draw_pos + 0xf0` with mask-save buffer `0x612`, then sets
+`buffer_size = 0xc02` — a *single* 12-row restore for both halves.
+
+- `0x612 - 0x5fa = 0x18` = 24 bytes = exactly the first blit's 6 rows x 2
+  words. The two mask-save buffers are adjacent with zero gap.
+- `+0xf0` = 240 bytes = 3 x 80, which in CGA's even/odd bank interleave is
+  exactly **6 rows** down. So rows 6-11 of the 12-row restore land precisely
+  on the bottom sprite.
+
+Neither fact was assumed: each is implied by the other, and the test below
+checks the consequence (walking away erases all 12 rows in one pass, with
+no residue).
+
+`window_sprite_top` (DS 0x0f92, span 16 = 8 word pointers) and
+`window_sprite_bot` (0x0fa2, span 8 = 4 pointers) are read with
+`and bx,0xe` and `and bx,0x6` — 8 and 4 entries exactly. Zero slack, extent
+confirmed by the masks that read them rather than by the label boundary.
+
+### Changes this forced elsewhere
+
+- **`alley_save_buf` is now `uint16_t[128]`, not `uint8_t[256]`.**
+  `blit_masked` saves whole destination *words* into it (the original's
+  `bp`), while `save_from_cga`/`blit_to_cga` read it back bytewise. The
+  original's buffer sits at DS 0x05fa with 114 bytes to the next label; the
+  largest real use is the cat's own 11 x 3 words = 66 bytes.
+- **`cat_sprite_ptr` + `cat_sprite_dims` added.** The original keeps a DS
+  offset in `cat_sprite_data`; this port keeps a real pointer plus the
+  original's packed dims word, per the "real backing arrays, not DOS
+  scratch-RAM offsets" convention. `update_alley_movement` now sets both and
+  calls `draw_alley_foreground()` instead of calling `blit_masked` itself
+  with a NULL mask-save — which is what made the pipeline inert.
+- **`main.c` no longer clears the screen every frame.** It clears once at
+  startup (and on restart). The original never wipes per frame; it relies
+  entirely on this save/restore pair. That also let the
+  `g_last_frame`/`g_last_draw_pos` "keep redrawing the last pose so the cat
+  doesn't vanish while idle" demo hack be **deleted** — an idle cat now
+  stays on screen because nothing erases it, exactly like the original.
+- **`handle_cat_death`'s `bp = 0x000e`** is a DS scratch area (the same one
+  `update_viewport` uses). Modeled as a real 5 x 18-word array.
+
+### Not ported
+
+`update_viewport` (level-2 viewport reset) copies sprite bytes *into* that
+DS 0x000e scratch area and then points `cat_sprite_data` at it. Modeling
+that needs a writable scratch region and a decision about how it interacts
+with the real-pointer convention above — a small job, but a separate one.
+Flagged in §0.
+
+### Verification
+
+- **Full project builds clean** (`-std=c11 -Wall -Wextra -O2`, zero
+  warnings; `alley.c` also clean under `-Wshadow`), links and runs.
+- **Headless pipeline test** (`/tmp/test_alley.c`, real `cga_mem`, ASCII
+  dump + pixel counting — the §5i-style visual check), all passing:
+  - baseline: 0 black pixels on a clean background.
+  - after **24 frames of walking**: **111** black pixels — one cat
+    silhouette's worth (the sprite's bounding box is 12 x 11 = 132). A
+    leaking restore would have left ~24 sprites' worth of trail. This is the
+    check that proves the pipeline works at all.
+  - idle for 3 frames: `buffer_size` goes `0x0b03` → `0x0c02`, i.e.
+    `spawn_window_event` fired and armed the 12-row buffer.
+  - walking away again: back to **108** black pixels, no window residue —
+    the single 12-row restore erased both halves, confirming the `+0xf0`
+    contiguity above.
+  - ASCII dumps of the affected screen band inspected by eye at each step.
+- **Smoke run**: `./build/alleycat` under dummy SDL drivers runs clean.
 
 
 ## 7. General lesson for this whole project

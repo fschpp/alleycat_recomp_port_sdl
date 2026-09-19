@@ -1,4 +1,5 @@
 #include "cat_state.h"
+#include "alley.h"
 #include "sound.h"
 #include "speaker.h"
 #include "cga.h"
@@ -220,8 +221,8 @@ static uint8_t l7_obj_active[8];
  * cycle_restore_alley_buffer/cycle_start_tone). Following that same
  * established precedent here rather than introducing a new cross-file
  * dependency. */
-static void l7_restore_alley_buffer(void) { /* TODO: unify with alley_movement.c's real version */ }
-static void l7_draw_alley_foreground(void) { /* TODO: not yet ported */ }
+static void l7_restore_alley_buffer(void) { restore_alley_buffer(); }
+static void l7_draw_alley_foreground(void) { draw_alley_foreground(); }
 /* start_tone is real now (src/sound.c). The original's second argument here
  * is `mov bx,l5_sprite_ptr` — the label's own DS OFFSET used as a frequency,
  * not a pointer dereference, same trick as play_meow_sound's

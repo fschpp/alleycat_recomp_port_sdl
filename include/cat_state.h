@@ -85,11 +85,19 @@ extern uint16_t ambient_freq;
 
 /* --- newly ported for the real general alley-movement path (§5g/§5h) --- */
 extern uint16_t cat_screen_pos;
-extern uint16_t buffer_size;              /* total bytes in the current alley_save_buf snapshot */
-extern uint8_t  alley_save_buf[256];      /* scratch background-save area; sized generously —
-                                            * the original's is small (part of alley_save_buf's
-                                            * DS region, see §5g), this just needs to be big
-                                            * enough for any sprite currently drawn */
+extern uint16_t buffer_size;              /* CORRECTED (§6f): a packed CX dims pair —
+                                            * high byte = rows, low byte = width in WORDS —
+                                            * NOT a byte count, as this comment used to say.
+                                            * It is handed straight to save_from_cga /
+                                            * blit_to_cga as the original's CX. */
+extern uint16_t alley_save_buf[128];      /* background-save area. WORDS, because blit_masked
+                                            * saves whole destination words into it (the
+                                            * original's `bp`), while save_from_cga/blit_to_cga
+                                            * read it back bytewise. The original's lives at
+                                            * DS 0x05fa with 114 bytes to the next label; the
+                                            * largest real use is the cat's own 11 rows x 3
+                                            * words = 66 bytes, and spawn_window_event's two
+                                            * halves are 24 + 24 = 48. 128 words is generous. */
 extern uint8_t  walk_anim_frame;          /* 0-5 walk-cycle phase used by update_walk_frame (Pool B) */
 
 /* --- newly ported for climbing/window-transition (§5m) --- */

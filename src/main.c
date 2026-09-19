@@ -58,9 +58,19 @@ int main(int argc, char **argv) {
     printf("emulated PC speaker + PIT channel 2 through SDL audio. Press S\n");
     printf("to toggle it. %s\n", have_audio ? "Audio device opened OK."
                                               : "NO audio device - running silent.");
+    printf("Background save/restore is REAL now (alley.asm ported, see\n");
+    printf("PROGRESS.md Sec 6f) -- the screen is cleared once at startup,\n");
+    printf("not every frame, and sprites erase themselves. Stand still and\n");
+    printf("a window will pop open around the cat.\n");
     printf("Score/lives HUD is drawn top area of screen (real BCD scoring,\n");
     printf("see PROGRESS.md Sec 5v) -- score stays 0 in this demo since no\n");
     printf("gameplay event currently calls add_score() yet.\n");
+
+    /* Cleared ONCE, not every frame (§6f). The original never wipes the
+     * screen per frame — it relies on save_alley_buffer/
+     * restore_alley_buffer to erase exactly what each sprite covered. Now
+     * that that pipeline is real, so does this port. */
+    memset(cga_mem, DEMO_BG_BYTE, sizeof(cga_mem));
 
     lives_count = 3;
     clear_score();
@@ -105,6 +115,7 @@ int main(int argc, char **argv) {
         immune_flag = 0;
 
         if (restart_game) {
+            memset(cga_mem, DEMO_BG_BYTE, sizeof(cga_mem));
             cat_x = 100;
             setup_alley();
             init_cycle_objects();
@@ -113,8 +124,6 @@ int main(int argc, char **argv) {
             if (level_number == 7) init_level7_objects();
             restart_game = false;
         }
-
-        memset(cga_mem, DEMO_BG_BYTE, sizeof(cga_mem));
 
         /* The real ported per-frame dispatch: direction assignment, scroll,
          * walk-cycle frame selection, and the draw call, all in one —

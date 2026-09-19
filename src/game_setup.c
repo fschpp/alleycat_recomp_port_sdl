@@ -1,4 +1,5 @@
 #include "cat_state.h"
+#include "alley.h"
 #include "cga.h"
 #include "game_setup.h"
 #include "gen/cat_gap1_sprites.h"
@@ -12,7 +13,7 @@
  * stubs for now — called in the right places so the control flow this
  * file ports stays structurally identical to the original, ready to be
  * filled in once that pipeline exists. */
-static void save_alley_buffer(void) { /* TODO: not yet ported */ }
+/* save_alley_buffer is real now — src/alley.c, PROGRESS.md §6f. */
 static void reset_window_state(void) { /* TODO: not yet ported */ }
 
 /* setup_alley — literal port of game_loop.asm's setup_alley (lines 1-40).

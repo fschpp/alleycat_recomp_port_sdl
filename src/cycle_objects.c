@@ -1,4 +1,5 @@
 #include "cat_state.h"
+#include "alley.h"
 #include "sound.h"
 #include "cga.h"
 #include "level_collision.h"
@@ -40,8 +41,8 @@ static void cycle_silence_speaker(void) { silence_speaker(); }
  * matching the same documented simplification rather than reaching for
  * another file's static (which would risk exactly the kind of silent
  * shadowing bug §5q found and fixed). */
-static void cycle_restore_alley_buffer(void) { /* TODO: not yet ported */ }
-static void cycle_save_alley_buffer(void) { /* TODO: not yet ported */ }
+static void cycle_restore_alley_buffer(void) { restore_alley_buffer(); }
+static void cycle_save_alley_buffer(void) { save_alley_buffer(); }
 
 /* Scratch save buffer for the level-2-climb-entry "collision" splash
  * sprite (8w x 6h = 48 words). The original passes a literal low address
