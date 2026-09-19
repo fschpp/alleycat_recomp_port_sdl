@@ -37,6 +37,12 @@ extern uint8_t  immune_flag;
 extern int16_t  level_number;
 extern uint16_t scroll_left_bound;
 extern uint16_t scroll_right_bound;
+/* rom_id — hardware.asm's read_rom_id reads BIOS F000:FFFE (0xFD = PCjr,
+ * 0xFE = XT, 0xFF = PC/XT). This port targets a plain PC/XT, so 0xFF. It is
+ * not decoration: sound.asm, game_loop.asm and enemy.asm all branch on it to
+ * halve/double loop counts and animation rates for the slower PCjr. */
+extern uint8_t rom_id;
+
 extern uint16_t difficulty_level;          /* word, used as a byte-pair index (*2) into the tables below */
 extern const uint16_t max_swim_speed[6];   /* verified DS 0x066c, values (4,6,8,10,12,12) */
 extern const uint8_t  max_dive_depth[6];   /* verified DS 0x067c, values (3,3,4,4,4,4) */
