@@ -1,4 +1,6 @@
 #include "cat_state.h"
+#include "sound.h"
+#include "speaker.h"
 #include "cga.h"
 #include "level7_epilogue.h"
 #include "level_collision.h"
@@ -210,9 +212,8 @@ static uint8_t l7_obj_active[8];
  * background patch blitted over a caught heart-drop object to erase it. */
 #define L7_OBJ_ERASE_SPRITE 0x2b7a
 
-/* restore_alley_buffer / draw_alley_foreground / start_tone: real
- * implementations exist (restore_alley_buffer) or are stubbed
- * (draw_alley_foreground, start_tone/sound.asm) elsewhere in the port,
+/* restore_alley_buffer / draw_alley_foreground: real implementations exist
+ * (restore_alley_buffer) or are stubbed (draw_alley_foreground) elsewhere,
  * but aren't exposed via a shared header — alley_movement.c and
  * cycle_objects.c each already carry their own local
  * stub/near-duplicate for this exact reason (see cycle_objects.c's
@@ -221,7 +222,11 @@ static uint8_t l7_obj_active[8];
  * dependency. */
 static void l7_restore_alley_buffer(void) { /* TODO: unify with alley_movement.c's real version */ }
 static void l7_draw_alley_foreground(void) { /* TODO: not yet ported */ }
-static void l7_start_tone(uint16_t freq, uint16_t ptr) { (void)freq; (void)ptr; /* TODO: sound.asm */ }
+/* start_tone is real now (src/sound.c). The original's second argument here
+ * is `mov bx,l5_sprite_ptr` — the label's own DS OFFSET used as a frequency,
+ * not a pointer dereference, same trick as play_meow_sound's
+ * meow_sound_data. Resolved to 0x123b by tools/resolve_data_segment.py. */
+#define L5_SPRITE_PTR_AS_FREQ 0x123b
 
 /* check_l7_cupid — literal port. */
 static bool check_l7_cupid(void) {
@@ -311,7 +316,7 @@ static bool check_l7_cat_hit(void) {
     anim_step = 8;
     l7_cat_delay = 4;
     l7_cat_dir = (l7_cat_x > cat_x) ? 1 : 0xff;
-    l7_start_tone(0xce4, 0 /* l5_sprite_ptr — unused by the stub */);
+    start_tone(0xce4, L5_SPRITE_PTR_AS_FREQ);
     return true;
 }
 
@@ -497,16 +502,18 @@ static uint16_t l7_cupid_tick;
 uint16_t l7_completion_counter; /* [0x414] */
 uint16_t l7_completion_tick;    /* [0x412] */
 
-/* Sound/melody/level-complete stubs — sound.asm isn't ported, and
- * handle_level_complete belongs to a separate, large, still-unported
+/* sound.asm is ported now (src/sound.c), so these forward to the real
+ * functions instead of being no-ops. Kept as _stub-suffixed wrappers so the
+ * call sites below stay a literal match for the assembly's own call order.
+ * handle_level_complete still belongs to a separate, large, still-unported
  * scoring/HUD subsystem (level_objects.asm's score-bar animation). */
-static void play_victory_note_stub(void) { }
-static void play_swoop_sound_stub(void) { }
-static void init_victory_melody_stub(void) { }
-static void play_full_victory_stub(void) { }
+static void play_victory_note_stub(void) { play_victory_note(); }
+static void play_swoop_sound_stub(void) { play_swoop_sound(); }
+static void init_victory_melody_stub(void) { init_victory_melody(); }
+static void play_full_victory_stub(void) { play_full_victory(); }
 static void init_victory_melody_call(void) { init_victory_melody_stub(); }
 static void handle_level_complete_stub(void) { /* TODO: score-bar subsystem */ }
-static void silence_speaker_stub(void) { }
+static void silence_speaker_stub(void) { silence_speaker(); }
 
 /* move_victory_object — literal port. */
 static void move_victory_object(int slot) {
@@ -705,11 +712,12 @@ static uint16_t l7_bg_anim_tick;   /* 0x52c4 */
 static uint16_t l7_bg_anim_idx;    /* 0x52c6 */
 static uint16_t l7_bg_cur_sprite;  /* 0x52c8 */
 
-/* play_march_note — literal port. PIT/speaker programming (the actual
- * "make a sound" half, `out 0x43/0x42/0x61`) is sound.asm territory and
- * isn't modeled; the "turn it off when the note repeats" half
- * (silence_speaker) is still meaningfully stubbed via
- * silence_speaker_stub for parity with everything else in this file. */
+/* play_march_note — literal port. The PIT/speaker half is wired for real
+ * now that sound.asm is ported: `out 0x43,0xB6` then set_speaker_freq,
+ * exactly as the original does. NOTE the value being programmed is the same
+ * word the routine compares against l7_bg_cur_sprite — in this routine the
+ * sequence table's entries double as both the note divisor and the
+ * repeat-detection key, which is why the variable is named for a sprite. */
 static void play_march_note(void) {
     if (!sound_enabled) return;
     uint16_t tick = read_bios_tick();
@@ -724,7 +732,8 @@ static void play_march_note(void) {
         return;
     }
     l7_bg_cur_sprite = note;
-    /* PIT channel-2 frequency programming — not modeled, see above. */
+    pit_out_43(0xb6);
+    set_speaker_freq(note);
 }
 
 /* draw_march_frame — literal port. Walks a difficulty-selected,

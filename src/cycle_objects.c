@@ -1,4 +1,5 @@
 #include "cat_state.h"
+#include "sound.h"
 #include "cga.h"
 #include "level_collision.h"
 #include "cycle_objects.h"
@@ -25,9 +26,14 @@ static uint8_t cycle_random_byte(void) {
  * other file's stubs (no shared static-shadowing risk, see PROGRESS.md
  * §5q for why that matters). */
 static void cycle_add_score(uint8_t points) { (void)points; /* TODO: score.asm */ }
-static void cycle_start_tone(uint16_t freq, uint16_t duration) { (void)freq; (void)duration; /* TODO: sound.asm */ }
-static void cycle_play_random_noise(void) { /* TODO: sound.asm */ }
-static void cycle_silence_speaker(void) { /* TODO: sound.asm */ }
+/* sound.asm is ported now (src/sound.c), so these forward to the real
+ * thing. Kept as distinctly-named wrappers rather than renaming every call
+ * site, so the §5q shadowing hazard stays impossible here.
+ * cycle_start_tone's two arguments are the original's AX and BX — see
+ * sound.h on why start_tone takes both. */
+static void cycle_start_tone(uint16_t ax_freq, uint16_t bx_freq) { start_tone(ax_freq, bx_freq); }
+static void cycle_play_random_noise(void) { play_random_noise(); }
+static void cycle_silence_speaker(void) { silence_speaker(); }
 /* restore_alley_buffer/save_alley_buffer — real background-save pipeline
  * still isn't wired (see alley_movement.c/game_setup.c's own stubs of
  * the same functions, PROGRESS.md §5f/§5h); local no-op stand-ins here,

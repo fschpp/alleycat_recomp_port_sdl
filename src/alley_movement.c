@@ -1,4 +1,5 @@
 #include "cat_state.h"
+#include "sound.h"
 #include "cga.h"
 #include "movement.h"
 #include "alley_movement.h"
@@ -62,9 +63,8 @@ static void restore_alley_buffer(void) {
 static const cat_walk_frame_t *g_last_frame = NULL;
 static uint16_t g_last_draw_pos = 0;
 
-/* play_catch_sound (sound.asm) — plays a sound when the cat makes door
- * contact while transitioning. No-op until sound.asm is ported. */
-static void play_catch_sound(void) { /* TODO: sound.asm */ }
+/* play_catch_sound comes from the real sound.asm port (src/sound.c); it
+ * also clears door_contact itself, exactly as the original does. */
 
 /* select_vertical_sprite — table lookup for game_loop.asm's
  * climb_sprite_ptrs/climb_sprite_dims, indexed exactly as lab_0f14 does.

@@ -1,13 +1,12 @@
 #include "cat_state.h"
+#include "sound.h"
 #include "cga.h"
 #include "level_collision.h"
 #include "gen/level_geometry.h"
 #include <stdint.h>
 #include <stdbool.h>
 
-/* play_hit_sound (sound.asm) — plays a sound on door collision. No-op
- * until sound.asm is ported. */
-static void play_hit_sound(void) { /* TODO: sound.asm */ }
+/* play_hit_sound now comes from the real sound.asm port (src/sound.c). */
 
 uint16_t entrance_x = 0;
 uint8_t  entrance_y = 0;

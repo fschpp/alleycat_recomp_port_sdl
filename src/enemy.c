@@ -1,4 +1,5 @@
 #include "cat_state.h"
+#include "sound.h"
 #include "cga.h"
 #include "level_collision.h"
 #include "game_setup.h"
@@ -26,9 +27,19 @@ static uint16_t read_bios_tick(void) {
     return (uint16_t)(ms / 55); /* ~18.2 ticks/sec */
 }
 
-/* Stubs — sound.asm / alley.asm not ported yet. */
-static void silence_speaker(void) { /* TODO: sound.asm */ }
-static void init_sound(void) { /* TODO: sound.asm */ }
+/* init_sound is NOT a sound.asm function despite the name — it lives in
+ * enemy.asm (line 359) and is the enemy-state reset, which happens to end
+ * by calling sound.asm's init_chase_sound. Ported for real here now that
+ * init_chase_sound exists. silence_speaker comes from src/sound.c. */
+void init_sound(void) {
+    enemy_chasing        = 0;
+    enemy_tick_counter   = 0;
+    enemy_approach_timer = 0;
+    enemy_exit_timer     = 0;
+    enemy_active         = 0;
+    enemy_y_pos          = 0xb1;
+    init_chase_sound();
+}
 
 /* update_enemy_sprite — literal port. See PROGRESS.md §5o: this confirms
  * enemy_sprite_table's full intended layout (already partially verified

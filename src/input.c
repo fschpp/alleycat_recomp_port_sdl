@@ -1,11 +1,12 @@
 #include "input.h"
+#include "sound.h"
 #include <SDL2/SDL.h>
 
 int8_t input_horizontal = 0;
 int8_t input_vertical   = 0;
 bool   input_fire        = false;
 
-bool sound_enabled   = true;
+uint8_t sound_enabled = 0xFF;   /* `mov byte [sound_enabled],0xff` (entry.asm) */
 bool restart_game    = false;
 bool show_attract    = false;
 bool pause_requested = false;
@@ -51,7 +52,12 @@ void input_process_keys(void) {
     static bool prev_s = false, prev_r = false, prev_m = false;
 
     bool s = ks[SDL_SCANCODE_S];
-    if (s && !prev_s) sound_enabled = !sound_enabled;
+    if (s && !prev_s) {
+        /* input.asm: `not byte [sound_enabled]`, then silence the speaker if
+         * the toggle turned it off. */
+        sound_enabled = (uint8_t)~sound_enabled;
+        if (sound_enabled == 0) silence_speaker();
+    }
     prev_s = s;
 
     bool r = ks[SDL_SCANCODE_R];

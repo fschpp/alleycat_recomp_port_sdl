@@ -1,4 +1,5 @@
 #include "cat_state.h"
+#include "sound.h"
 #include "cga.h"
 #include "level_collision.h"
 #include "level3_enemy.h"
@@ -102,7 +103,7 @@ static void l3_start_escape(void) {
     uint16_t addr = (uint16_t)calc_cga_addr(dl, (uint16_t)cx, NULL);
     blit_transparent(&ds_pool[L3_BIRD_ESCAPE_SPRITE], addr, 6, 0x15, NULL);
 
-    /* init_buzz_sound (sound.asm) — not ported; plays silently. */
+    init_buzz_sound();
     l3_bird_escaping = true;
     l3_bird_escape_start_tick = read_bios_tick();
 }
@@ -120,7 +121,7 @@ void update_level3_enemy(void) {
     uint16_t tick_now = read_bios_tick();
 
     if (l3_bird_escaping) {
-        /* update_buzz_sound (sound.asm) — not ported; no-op each tick. */
+        update_buzz_sound();
         if ((uint16_t)(tick_now - l3_bird_escape_start_tick) >= 9) {
             l3_bird_escaping = false;
             l3_bird_escaped = 1;

@@ -16,6 +16,8 @@
 #include "level3_enemy.h"
 #include "level_objects.h"
 #include "level7_epilogue.h"
+#include "audio.h"
+#include "sound.h"
 
 /* Background fill used to visualize the cat's silhouette clearly (see
  * PROGRESS.md §5b: draw_alley_foreground's blit_masked is AND-only, so
@@ -33,6 +35,13 @@ int main(int argc, char **argv) {
         return 1;
     }
 
+    /* entry.asm opens with sound on and the music engine reset; the audio
+     * device is this port's stand-in for "the speaker exists". If no device
+     * can be opened the game just runs silent. */
+    bool have_audio = audio_init();
+    init_music();
+    init_sound();
+
     printf("Alley Cat C/SDL port - real general alley-movement pipeline.\n");
     printf("Arrow keys move the cat left/right along the alley. On levels\n");
     printf("1-6, climbing is now triggered by REAL level geometry (see\n");
@@ -45,6 +54,10 @@ int main(int argc, char **argv) {
     printf("will randomly appear near ground level and chase the cat.\n");
     printf("3 patrol rats/mice (real AI, see PROGRESS.md Sec 5s) roam the\n");
     printf("alley floor and knock the cat back on contact.\n");
+    printf("Sound is REAL now (sound.asm ported, see PROGRESS.md Sec 6e):\n");
+    printf("emulated PC speaker + PIT channel 2 through SDL audio. Press S\n");
+    printf("to toggle it. %s\n", have_audio ? "Audio device opened OK."
+                                              : "NO audio device - running silent.");
     printf("Score/lives HUD is drawn top area of screen (real BCD scoring,\n");
     printf("see PROGRESS.md Sec 5v) -- score stays 0 in this demo since no\n");
     printf("gameplay event currently calls add_score() yet.\n");
@@ -160,11 +173,18 @@ int main(int argc, char **argv) {
         draw_current_score();
         draw_high_score_display();
 
+        /* entry.asm calls play_sound() once per frame from the master
+         * loop — the chase siren, the one-shot tone tail, and the ambient
+         * music generator all tick from here. See PROGRESS.md §5r/§6e. */
+        play_sound();
+
         video_present();
 
         SDL_Delay(33); /* ~30Hz: fast enough to see the walk cycle, slow enough to watch it */
     }
 
+    silence_speaker();
+    audio_shutdown();
     video_shutdown();
     return 0;
 }

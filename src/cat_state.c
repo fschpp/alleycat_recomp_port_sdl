@@ -119,6 +119,7 @@ uint16_t obj_slot = 0;
 uint8_t  cycle_active = 0;
 const uint8_t obj_chase_table[8] = { 8, 32, 64, 128, 160, 192, 208, 240 };
 uint16_t current_floor = 0;
+uint8_t  rom_id = 0xFF;   /* PC/XT, not PCjr — see cat_state.h */
 uint8_t  gravity_y = 0;
 uint16_t gravity_x = 0;
 uint16_t obj_save_buf[3][16] = {{0}};
