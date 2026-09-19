@@ -12,6 +12,31 @@ graphics assets, so it is not meant to be published or redistributed.
 
 ---
 
+## 0. Current focus / todo / blockers
+
+**Current focus:** `sound.asm` is ported — the game now has real audio
+through an emulated PC speaker. Next up is the last external blocker,
+`alley.asm`'s window spawn/animation state machine, which unblocks
+`check_stairs_collision`/`check_window_landing` (§17 item (h)).
+
+- [x] `sound.asm` — full port, wired into every previously-stubbed call site (§6e)
+- [x] PC speaker / PIT channel 2 emulation + SDL2 audio backend (§6e)
+- [x] `init_sound` ported for real (it was never a sound.asm function — §6e finding 2)
+- [ ] `alley.asm` window state machine → unblocks §17 item (h)
+- [ ] §17 item (f): level-2 collectibles + bg tiles (was blocked on sound.asm — **now unblocked**)
+- [ ] `ui.asm`, `throw.asm`
+- [ ] `save_alley_buffer`/`restore_alley_buffer` for real (still inert stubs, §5f/§5h)
+- [ ] `render_sprites` (lives in sound.asm but is a *drawing* routine — §6e)
+
+**Latest blockers/discoveries:** `sound_enabled` was typed `bool` in this
+port but is a 0xFF/0x00 BYTE in the original, which would have silenced two
+effects permanently — see §6e finding 1. The disassembly repo had gone
+missing from the working tree again; re-cloned from
+`gmegidish/alleycat-disassembly` and re-verified byte-exact against the
+embedded `ds_pool` (28976 bytes) before any work started.
+
+---
+
 ## 1. Status summary
 
 | Layer | Status |
@@ -36,12 +61,16 @@ graphics assets, so it is not meant to be published or redistributed.
 | Alley patrol objects (rats/mice — `objects.asm`'s `init_objects`/`cycle_animations`) | **Done, verified, unit-tested — see §5s.** Real AI (idle/patrol/chase/reversal), real sprites, real cat-collision knockback + climb-transition trigger, wired into the main loop. |
 | Fish-jump enemy + thrown-projectile gravity (`level_physics.asm`'s `update_cat_jump`/`apply_cat_gravity`) | **Surveyed, not yet ported — see §5s.** Data tables (`gravity_sprite_ptrs`/`gravity_sprite_dims_tbl`) already verified in §5i. |
 | Falling window objects (`level_physics.asm`'s `animate_falling`/`check_jump_collision`) | **Surveyed, not yet ported — see §5s.** `fall_sprite`'s dims are computed dynamically (not a lookup table) and need more work to fully verify. |
-| Game loop / physics / enemies / sound / UI / score | **Substantially advanced (§5b/5e/5f/5n/5o/5q/5r/5s/5t/5u/5v); fish-jump/gravity-toss (§5t), falling-object dodge (§5u), and score/lives HUD (§5v) all now ported and verified. `draw_level_background` now covers all indoor levels (1-6, §5w/§5x) except level 7's victory epilogue. `sound.asm`/`ui.asm`/`throw.asm` still not started.** |
+| `sound.asm` (PC speaker, music, effects) | **Ported & verified — see §6e.** All ~40 routines, driving an emulated PIT channel 2 + port 0x61 (`src/speaker.c`) through SDL2 audio (`src/audio.c`). Every previously-stubbed sound call site in the project is now wired to the real thing. |
+| Game loop / physics / enemies / sound / UI / score | **Substantially advanced (§5b/5e/5f/5n/5o/5q/5r/5s/5t/5u/5v); fish-jump/gravity-toss (§5t), falling-object dodge (§5u), and score/lives HUD (§5v) all ported and verified. `draw_level_background` covers all indoor levels (1-6, §5w/§5x) except level 7's victory epilogue. `sound.asm` done (§6e); `ui.asm`/`throw.asm` still not started.** |
 
 Build: `make` (needs `libsdl2-dev`). Run: `make run` or `./build/alleycat`.
-Currently renders a placeholder bouncing blob, not real sprites yet — the
-real cat sprite data is extracted and ready, but not wired into `main.c`'s
-render loop (blocked on §3 below).
+
+**Stale-paragraph correction:** this spot used to say the build "renders a
+placeholder bouncing blob, not real sprites yet". That has been untrue since
+§5c — the demo renders real sprites, real movement, real enemies, real
+patrol objects, a real HUD, and (as of §6e) real sound. Left as a note
+rather than silently deleted, since the §1 table above is the live status.
 
 ---
 
@@ -1923,6 +1952,13 @@ separately confirmed in this pass.
     ledges/tiles), ported for levels 2/5/6, see §5w. ~~Levels 1/3/4~~ —
     **done, see §5x.** The level-7 victory epilogue (`draw_love_scene_bg`)
     still remains.
+19. ~~`sound.asm`~~ — **done, see §6e.** Full port plus an emulated PC
+    speaker/PIT and an SDL2 audio backend; every stubbed sound call site in
+    the project is wired to the real routine. This unblocks §17 item (f)
+    (level-2 collectibles), which was waiting on nothing else. Remaining
+    external blocker for item (h) is still `alley.asm`'s window state
+    machine. `render_sprites` (a drawing routine that happens to live in
+    sound.asm) deliberately left for the alley-drawing work — see §6e.
 
 ## 5x. `draw_level_background` — levels 1, 3, 4 ported; source repo re-acquired
 
@@ -2373,6 +2409,245 @@ victory-wave cutscene, and this march-music sequencer. Remaining
 `sound.asm`) and (h) (`check_stairs_collision`/`check_window_landing`,
 blocked on the window state machine) — both external blockers, not
 scope still to investigate.
+
+## 6e. `sound.asm` — fully ported, with a real emulated PC speaker
+
+The last big external blocker. `sound.asm` (940 lines, ~40 routines) was the
+thing §17 item (f) was waiting on, and the reason ~30 call sites across
+`enemy.c`/`level_collision.c`/`alley_movement.c`/`cycle_objects.c`/
+`level3_enemy.c`/`level7_epilogue.c` were carrying local no-op stubs. All of
+it is ported and wired in; the game has sound.
+
+**Ground truth re-acquired first.** The `alleycat-disassembly` source had
+gone missing from the working tree again (same as §5x). Re-cloned from
+`gmegidish/alleycat-disassembly`, re-ran `tools/resolve_data_segment.py`,
+and confirmed it reproduces the exact 28976-byte data segment already
+embedded in `src/gen_ds_pool.c` — byte-exact, diff-checked — before writing
+a line of C. Per §7, nothing gets ported against a remembered table.
+
+### The architecture: model the ports, not the notes
+
+`sound.asm` never calls a "play a note" API. It writes hardware directly,
+in three distinct ways, and every routine mixes them freely:
+
+1. **tone mode** — `out 0x43,0xB6` (ch2, lo/hi, mode 3 square wave), two
+   `out 0x42` writes for the divisor, then `in 0x61 / or al,3 / out 0x61`.
+2. **direct PWM** — `in 0x61`, XOR/AND/OR with bit 1, `out 0x61`, with the
+   gate bit left clear so the cone follows the data bit itself. This is what
+   `play_explosion_effect`, `play_hiss_sound`, `update_noise` and
+   `update_buzz_sound` actually are. Their pattern tables
+   (`explode_pattern`, `buzz_pattern`) contain nothing but `0x00` and
+   `0x02` — i.e. speaker-data-bit values — which is the confirmation.
+3. **sub-tick timing** — `read_pit_timer` latches PIT channel 0 and reads
+   its 16-bit *down*-counter, used as a ~1.19 MHz clock by
+   `play_timed_tone`/`play_falling_sound`/`play_crash_sound`.
+
+So the port models the three ports and lets everything audible fall out of
+that, instead of trying to recognize each routine's musical intent:
+
+- `src/speaker.c` + `include/speaker.h` — **pure C, no SDL**: `pit_out_43`,
+  `pit_ch2_out`, `port61_in`, `port61_out`, `read_pit_timer`, plus a
+  timestamped ring buffer of port writes and a square-wave renderer that
+  replays them. The timestamping is what makes the direct-PWM effects
+  audible at all: a "read the current state once per audio callback" design
+  would flatten a 110 ms explosion into one constant level.
+  Speaker output is modelled as `data_bit AND (gate ? ch2_square : 1)`,
+  which is what makes both mode 1 and mode 2 fall out of one generator.
+- `src/audio.c` — the only SDL-aware piece: opens a 44.1 kHz mono S16
+  device with a 512-sample (~11.6 ms) buffer and pumps `speaker_render()`.
+- `src/sound.c` — literal, label-for-label translation of the assembly,
+  writing the same byte values to the same port numbers in the same order.
+
+Keeping `speaker.c` SDL-free is deliberate: it makes the whole sound path
+unit-testable with no audio device (see Verification).
+
+### Data tables: straight off `ds_pool`, and here's why
+
+The sound parameter block (DS `0x59c2`–`0x5b12`) is the densest field of
+**split labels** in the whole data segment. `ambient_note_mask` has a
+2-byte label span but is indexed `[si + ...]` with si up to 3;
+`ambient_base_dur` (4-byte span) is indexed `[di + ...]` with di up to 6 and
+runs straight into `ambient_accent_dur`; the same for
+`ambient_rhythm_base`, `ambient_pitch_step`, `ambient_octave_mask`. A
+per-label extraction pass would have produced exactly the §3/§7 failure this
+project keeps catching. Reading through `ds_pool` at resolved offsets makes
+the adjacency a non-issue — no new extraction was needed at all, same as
+§5x/§5y/§5z.
+
+**Zero-gap extent verifications performed** (each table's size derived from
+how the code indexes it, then checked against the next label's offset):
+
+| Table | Derivation | Next label | Slack |
+|---|---|---|---|
+| `extralife_sprites[0]` @0x5b20 | 4 words x 68 rows = 544 B | 0x5d40 = `[1]` | 0 |
+| `extralife_sprites[1]` @0x5d40 | 544 B | 0x5f60 | 0 |
+| `extralife_icon_data` @0x5f68 | 4 words x 16 rows = 128 B | 0x5fe8 | 0 |
+| `extralife_text_data` @0x5fe8 | 6 words x 21 rows = 252 B | 0x60e4 | 0 |
+| `ambient_rhythm_pattern` @0x59c2 | deepest reachable read 0x2f | 0x59f2 (48 B) | 0 |
+
+That last one is the nicest: `ambient_rhythm_base` is `{0, 0x10, 0x200,
+0x600}`, but only si=0 and si=1 can ever reach the rhythm-gate code (si=2
+returns early via the `gravity_y` branch, si=3 always diverts to the
+footstep-note branch). si=0 masks the note position to ≤ 0x0f with base 0;
+si=1 masks it to ≤ 0x1f with base 0x10. Deepest byte touched: 0x10+0x1f =
+0x2f — the 48th and last byte of the table. The code's own reachability
+proves the table's extent.
+
+### Findings and corrections
+
+**1. `sound_enabled` was the wrong type, and it mattered.** This port
+declared it `bool sound_enabled = true`. The original inits it with
+`mov byte [sound_enabled],0xff` (entry.asm:71) and toggles it with
+`not byte [sound_enabled]` (input.asm:180) — it is a 0xFF/0x00 **byte**.
+That is not cosmetic: `update_noise` and `play_hiss_sound` do
+`and dl,byte [sound_enabled]` where `dl` holds the speaker **data bit**
+(0x02). With a boolean 1, `0x02 & 0x01 == 0` — both effects would have been
+silent forever while every check of "is sound on?" still passed. Changed to
+`uint8_t` with the original's semantics, and the toggle in `input.c` is now
+the literal `~` plus the `silence_speaker()` call input.asm makes when the
+toggle turns sound off (which this port was also missing). There is a
+regression test for exactly this.
+
+**2. `init_sound` is not a sound.asm function.** Despite the name and
+despite being called 7 times from `entry.asm`, it lives in `enemy.asm:359`:
+it resets `enemy_chasing`/`enemy_tick_counter`/`enemy_approach_timer`/
+`enemy_exit_timer`/`enemy_active`/`enemy_y_pos` and *then* calls
+`init_chase_sound`. `enemy.c` had it as a no-op stub, so every level entry
+was silently skipping an enemy-state reset. Now ported for real.
+sound.asm's own reset entry point is `init_music`.
+
+**3. `start_tone` takes two different frequencies, on purpose.** It stores
+BX into `[tone_freq]` but programs the PIT with **AX**. The first tick of a
+tone therefore sounds at AX, and every later tick — reprogrammed by
+`play_sound`'s tone-tail branch from `[tone_freq]` — sounds at BX.
+`play_random_chirp` (BX, then AX = BX+0x1e) and `play_meow_sound` rely on
+this. The C signature is `start_tone(ax_freq, bx_freq)` with the quirk
+documented at the declaration, and there's a test asserting both halves.
+
+**4. Two labels are used as frequencies, not pointers.** `play_meow_sound`
+does `mov bx,meow_sound_data` and `level_objects.asm:3303` does
+`mov bx,l5_sprite_ptr` — in both cases the label's own DS **offset**
+(0x1312 and 0x123b) is the tone value, with no dereference anywhere. There
+is no such thing as "meow sound data"; the label name is a disassembler
+guess. Ported as the literal constants, with the resolution noted at both
+sites. (`level7_epilogue.c`'s `l7_start_tone(0xce4, 0)` stub had been
+passing a placeholder 0 for this; now correct.)
+
+**5. A stale-flags artifact in the ambient generator.** At `lab_5653` the
+original ends a block with `mov`/`mov`/`jnz lab_568d`. Neither `mov` touches
+flags, so the `jnz` is testing the `cmp byte [auto_walk],0` from three
+instructions earlier — on that path it is an unconditional jump. Translated
+as such, with the reasoning in a comment so nobody "fixes" it later.
+
+**6. `wipe_sound_start` is a bare `ret`** in the original — a hook that was
+never filled in. Ported as an empty function rather than quietly dropped,
+so the call site in `enemy.asm` still has something to point at.
+
+### Documented simplifications (modeled, not guessed)
+
+- **Busy-wait loop rate.** On a 4.77 MHz 8088 the *execution rate of the
+  loop was the timbre* — which is precisely why the game checks `rom_id`
+  and halves/doubles its loop counts for the PCjr. That rate is not
+  reproducible on a modern CPU, and running those loops flat out would
+  toggle the speaker far above the audio Nyquist rate and produce nothing
+  but aliasing. So they are paced against an emulated 8088 cycle clock
+  (`speaker_spin_cycles`), with the per-iteration cost written out as a
+  named sum of instruction costs at each call site. The `int 0x1a` figure
+  (400 cycles) is an estimate, flagged as such in `speaker.h` — it sets the
+  timbre of the explosion/hiss/crash effects and is the one number here that
+  is judgement rather than evidence.
+- **`rom_id` added** (`cat_state.c`, value 0xFF = PC/XT). It was missing
+  from the port entirely even though `sound.asm`, `game_loop.asm` and
+  `enemy.asm` all branch on it. Not PCjr, so all the `0xFD` branches take
+  their non-PCjr path — but they are ported, not elided.
+- **The explosion's CGA border flash** (`mov ah,0xB / int 0x10`, border to
+  red then back to black) has no counterpart: `cga.c` models the
+  framebuffer only, with no border/palette register. Left as an explicit
+  commented gap rather than silently dropped.
+- **PIT channel 0 is modeled from the host clock**, not from a real free-
+  running counter, so `read_pit_timer` is a 16-bit down-counter at
+  1193182 Hz derived from `CLOCK_MONOTONIC`. The original's `prev - now`
+  elapsed-time arithmetic works unchanged against it.
+- **Blocking is preserved where the original blocks.** `play_timed_tone`
+  blocks for `[ambient_duration]` PIT ticks (0x1000–0x2000 ≈ 3.4–6.9 ms),
+  and `play_tone`/`play_hiss_sound`/`play_crash_sound`/
+  `play_explosion_effect`/`play_swoop_sound` are genuine one-shots — same
+  reasoning as §6c/§6d's cutscenes. Measured cost of the per-frame path
+  below.
+- **A one-pole low-pass** sits on the renderer output, modelling a speaker
+  cone that cannot reproduce a mathematically sharp square edge. It also
+  takes the worst of the aliasing off the direct-PWM effects. This is a
+  modelling choice, not something derived from the original.
+
+### Not ported from sound.asm (deliberately)
+
+`render_sprites` is in `sound.asm` but has nothing to do with sound: it
+blits the alley's decorative foreground sprites (a difficulty-indexed
+position list, RNG-picked variants from `sprite_variant_table`/
+`sprite_dims_table`/`sprite_data_ptrs`). It is very likely the real
+`draw_alley_foreground` that three files currently stub — a good next find,
+but it needs its own §3/§4 rigor pass on those three pointer tables, and
+bundling a sprite-extraction job into a sound port is how tables get
+mislabeled. Left for the alley-drawing work, flagged in §0's todo.
+
+`show_extra_life` **was** ported (it is half cutscene, half
+`play_result_note` driver, and its four sprite extents all verified zero-gap
+above), so the only sound.asm routine left is `render_sprites`.
+
+### Verification
+
+- **Full project builds clean**: `make` with `-std=c11 -Wall -Wextra -O2`,
+  zero warnings, and for the first time in this project's history the SDL2
+  link and run actually work in the sandbox — `libsdl2-dev` 2.30.0 installs
+  fine now, so §5x's "could not verify the SDL-dependent files" caveat is
+  lifted. `sound.c`/`speaker.c` are also clean under `-Wshadow`.
+- **18-assertion test suite** (`/tmp/test_sound.c`, links only the pure-C
+  files — no SDL, no audio device), all passing:
+  - port programming: `silence_speaker` clears gate+data;
+    `start_tone` programs AX and sets both bits; `play_sound`'s tone tail
+    then reprograms with BX (finding 3, asserted end to end).
+  - `play_music_note` walks `title_music_seq` correctly, including the
+    byte-offset-into-a-word-table indexing and the `0` = rest case —
+    checked against `title_music_freqs` values pulled independently from
+    `ds_pool`.
+  - `play_victory_note` reproduces the first four notes of
+    `victory_melody` exactly (0x1800, 0x1562, 0x142e, 0x11fa).
+  - **regression test for finding 1**: with `sound_enabled = 0xFF`,
+    `update_noise` drives the data bit high on 384/400 samples; with a
+    boolean `1` it is 0/400. The bug is pinned.
+  - **end-to-end audio**: program divisor 0x400, capture 300 ms, render to
+    PCM offline, count zero crossings → **1166.0 Hz measured vs 1165.2 Hz
+    expected** (1193182/1024), 0.07% error, peak amplitude 7000. The whole
+    chain — port writes → event log → square-wave renderer — is verified
+    numerically, not by ear.
+  - a longer capture (hit sound + death melody + 12 victory notes) is
+    written to `/tmp/alleycat_sound_demo.wav` for listening.
+- **Frame-budget check** (`/tmp/test_frametime.c`): `play_sound()` in the
+  per-frame alley configuration costs **0.01 ms average, 0.43 ms worst**
+  over 200 calls, against a 33 ms frame budget. The ambient tempo gate means
+  `play_timed_tone`'s blocking wait fires rarely, so preserving the
+  original's blocking here costs nothing.
+- **Smoke run**: `./build/alleycat` under dummy SDL drivers runs to
+  completion with the audio device open, no crash.
+
+### Wired in
+
+`main.c` now calls `audio_init()` + `init_music()` + `init_sound()` at
+startup and `play_sound()` once per frame from the master loop (matching
+`entry.asm`'s 7 `play_sound` call sites), and `silence_speaker()` +
+`audio_shutdown()` on exit. Every local sound stub in
+`level_collision.c` (`play_hit_sound`), `alley_movement.c`
+(`play_catch_sound`), `cycle_objects.c` (`cycle_start_tone`/
+`cycle_play_random_noise`/`cycle_silence_speaker`), `enemy.c`
+(`silence_speaker`/`init_sound`), `level3_enemy.c` (`init_buzz_sound`/
+`update_buzz_sound`) and `level7_epilogue.c` (`play_victory_note`/
+`play_swoop_sound`/`init_victory_melody`/`play_full_victory`/
+`silence_speaker`/`start_tone`, plus `play_march_note`'s PIT programming,
+which §6d had left unmodeled) now forwards to the real routine. The
+distinctly-named wrappers in `cycle_objects.c` and `level7_epilogue.c` are
+kept rather than renamed at every call site, so the §5q static-shadowing
+hazard stays impossible.
+
 
 ## 7. General lesson for this whole project
 
