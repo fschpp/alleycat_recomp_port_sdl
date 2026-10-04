@@ -26,6 +26,10 @@ uint8_t pixel_to_bitmask(uint16_t px, uint16_t *byte_index);
  * sobre una ventana del callejón (nivel 0). Devuelve el carry. */
 bool check_window_landing(void);
 
+/* check_stairs_collision (level_objects.asm L302-342): colisión con las
+ * escaleras/ventanas del nivel 7. Devuelve el carry. */
+bool check_stairs_collision(void);
+
 /* check_level_collision — the real dispatcher game_loop.asm calls above
  * lab_0e78 to decide whether the cat is at valid ladder/platform/door
  * geometry before allowing a climb transition. Level 0 (window landing)

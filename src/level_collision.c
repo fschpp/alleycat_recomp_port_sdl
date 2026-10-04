@@ -248,15 +248,47 @@ lab_17fc: {
     return true;
 }
 
+/* --- T11: check_stairs_collision (nivel 7) ------------------------------- */
+
+#define DS_WINDOW_ROW_Y_TABLE      0x2bd4u  /* 7 bytes const: b0 98 80 68 50 38 20 */
+#define DS_WINDOW_ROW_COL_OFFSET   0x2bdbu  /* 7 bytes const: 00 12 24 36 48 5a 6c */
+
+/* check_stairs_collision — literal port de level_objects.asm L302-342.
+ * El bucle `mov cx,7 / mov bx,cx / dec bx / ... / loop` prueba las filas
+ * bx = 6,5,...,0 (el loop sale cuando cx llega a 0, tras probar bx=0). */
+bool check_stairs_collision(void) {
+    uint8_t al = (uint8_t)((uint8_t)(cat_y - 5) & 0xf8);
+    uint16_t cx = 7;
+    uint16_t bx;
+    do {                                      /* lab_3104 */
+        bx = (uint16_t)(cx - 1);
+        if (al == ds_pool[DS_WINDOW_ROW_Y_TABLE + bx]) goto lab_3111;
+    } while (--cx != 0);
+    return false;                             /* jmp lab_314d: clc */
+
+lab_3111: {
+        uint8_t ch = al;
+        uint16_t ax = (uint16_t)((uint16_t)cat_x + 7);
+        ax = (uint16_t)(ax >> 4);
+        if (ax < 2) ax = 0; else ax = (uint16_t)(ax - 2);   /* sub ax,2 / jnc / sub ax,ax */
+        if (ax >= 0x12) ax = 0x11;                          /* cmp ax,0x12 / jc (sin signo) */
+        ax = (uint16_t)(ax + ds_pool[DS_WINDOW_ROW_COL_OFFSET + bx]);
+        if (window_open_state[ax] != 0) return false;       /* lab_314d: clc */
+        ch = (uint8_t)(ch + 5);
+        cat_y = ch;
+        cat_y_bottom = (uint8_t)(ch + 0x32);
+        return true;
+    }
+}
+
 /* check_level_collision — literal port of level_physics.asm's dispatcher.
  *
  * Nivel 0 (lab_161e) ya completo: rama cat_y&0xf8==0x60 (game_mode),
  * check_door_position y check_window_landing. Nivel 7 (check_stairs_collision)
- * sigue sin portar -> T11. */
+ * T11 hecho (check_stairs_collision). */
 bool check_level_collision(void) {
     if (level_number == 7) {
-        /* check_stairs_collision — T11 */
-        return false;
+        return check_stairs_collision();
     }
     if (level_number != 0) {
         return check_level_platform();

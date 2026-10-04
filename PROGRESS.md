@@ -14,9 +14,8 @@ graphics assets, so it is not meant to be published or redistributed.
 
 ## 0. Current focus / todo / blockers
 
-**Current focus:** `tareas.md` execution has started: T00 (tooling) and T10
-(`check_window_landing` + level-0 dispatcher, §6g) are done. Next up is T11
-(`check_stairs_collision`) and then T12/T13 (`throw.asm`), which is what
+**Current focus:** `tareas.md` execution: T00 (tooling), T10 (§6g) and T11
+(`check_stairs_collision`, §6h) are done. Next up is T12/T13 (`throw.asm`), which is what
 §17 item (h) is *actually* blocked on (see the correction below).
 
 - [x] `sound.asm` — full port, wired into every previously-stubbed call site (§6e)
@@ -26,7 +25,7 @@ graphics assets, so it is not meant to be published or redistributed.
 - [x] `spawn_window_event`, `enter_building`, `handle_cat_death` (§6f)
 - [x] T00 — `tools/setup.sh`, `asm_range.sh`, `asm_label.sh`; `resolve_data_segment.py` reads `ALLEYCAT_ASM` (§6g)
 - [x] T10 — `pixel_to_bitmask`, `check_window_landing`, level-0 branch of `check_level_collision` (§6g)
-- [ ] T11 — `check_stairs_collision` (level 7)
+- [x] T11 — `check_stairs_collision` (level 7), `window_open_state[126]` state array (§6h)
 - [ ] `throw.asm` — maintains `current_floor`/`window_column`; **the real blocker for §17 item (h)**
 - [ ] `ui.asm` — `window_open_state` toggling, the other half of item (h)
 - [ ] §17 item (f): level-2 collectibles + bg tiles (unblocked since §6e)
@@ -2865,6 +2864,42 @@ dispatcher's 0x60 branch for `game_mode` 0/1/2 and level 7. All pass
 ("T10 OK"). Smoke: `./build/alleycat` under dummy SDL drivers runs 5 s clean.
 
 Suggested commit: `T00 tooling + T10: check_window_landing, pixel_to_bitmask, level-0 dispatcher`
+
+
+## 6h. T11 `check_stairs_collision` (level 7)
+
+**Ported** (`level_objects.asm` L302-342) into `src/level_collision.c`, and the
+level-7 branch of `check_level_collision` now calls it (the last "not ported"
+stub in that dispatcher is gone).
+
+Logic: `al = (cat_y-5) & 0xf8`; scan `window_row_y_table` (DS 0x2bd4, 7 bytes:
+b0 98 80 68 50 38 20) for a match. The `mov cx,7 / mov bx,cx / dec bx / loop`
+idiom tests rows **bx = 6,5,...,0** (the loop exits after bx=0). Then
+`ax = ((cat_x+7)>>4) - 2` clamped to 0 on borrow and to 0x11 when `>= 0x12`
+(unsigned), plus `window_row_col_offset[bx]` (DS 0x2bdb: 00 12 24 36 48 5a 6c,
+stride 18). If `window_open_state[ax] != 0` -> no collision; else
+`cat_y = row+5`, `cat_y_bottom = cat_y+0x32`, carry set.
+
+**Correction to tareas.md:** T11 lists `current_floor` as an input; the ASM does
+NOT read it. Only `window_open_state` is used.
+
+**State added:** `window_open_state[126]` (DS 0x2be2) in `cat_state`. The label
+gap to the next label (`l7_bg_tile_ptrs`, 0x2e20) is large, but by indexing the
+real extent is 7 rows x 18 cols = 126 (max index 0x6c+0x11 = 125), verified in
+the test. It is mutable (`init_alley_objects`/T14 writes it, `ui.asm` toggles
+bit 1) so it lives in `cat_state.c`, not in the const `ds_pool`; initial value
+is all 0 in the original too. The two const tables are read from `ds_pool`.
+
+**Verification.** Build clean, 0 warnings. `/tmp/t11/test_t11.c` (not
+committed): ds_pool table bytes; hit on row 6 (`cat_y=0x28,cat_x=0x40` -> idx
+110 -> `cat_y=0x25`, `bottom=0x57`); occupied cell -> false with no side
+effects; occupied neighbours (109/111) do not matter; `cat_x=0` borrow clamp
+(row 0, idx 0, `cat_y=0xb5`, `bottom=0xe7`); `cat_x=0x1000` and the 0x11/0x12
+clamp edge (idx 53 and 125); non-matching `cat_y` (0x10, and 0x04 which wraps to
+0xf8); dispatcher on level 7. All pass ("T11 OK"). Smoke run under dummy SDL
+runs clean.
+
+Suggested commit: `T11: check_stairs_collision (level 7) + window_open_state`
 
 
 ## 7. General lesson for this whole project

@@ -121,6 +121,7 @@ const uint8_t obj_chase_table[8] = { 8, 32, 64, 128, 160, 192, 208, 240 };
 uint16_t current_floor = 0;
 uint8_t  window_column = 0;
 uint8_t  throw_col_data[15] = {0};
+uint8_t  window_open_state[126] = {0};
 uint16_t mode_start_tick = 0;
 uint8_t  rom_id = 0xFF;   /* PC/XT, not PCjr — see cat_state.h */
 uint8_t  gravity_y = 0;
