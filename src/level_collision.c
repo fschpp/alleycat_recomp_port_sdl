@@ -3,6 +3,8 @@
 #include "cga.h"
 #include "level_collision.h"
 #include "gen/level_geometry.h"
+#include "gen/ds_pool.h"
+#include <time.h>
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -165,25 +167,113 @@ bool check_level_platform(void) {
     }
 }
 
+/* --- T10: window landing (nivel 0) ------------------------------------- */
+
+#define DS_THROW_COL_DATA   0x1016u  /* 15 bytes mutables (throw_col_data[]) */
+#define DS_WINDOW_ROW_OFFS  0x1025u  /* 3 bytes const: 00 05 0a */
+
+static uint16_t read_bios_tick_lc(void) { /* int 0x1a, ver alley.c */
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    uint64_t ms = (uint64_t)ts.tv_sec * 1000 + (uint64_t)(ts.tv_nsec / 1000000);
+    return (uint16_t)(ms / 55);
+}
+
+/* Lectura de un byte DS en [bx+si+0x1016]. Normalmente cae dentro de
+ * throw_col_data[15]; si el índice se sale (cat_x fuera de rango, el original
+ * leería DS vecino) se devuelve el byte const de ds_pool, o 0 fuera del pool. */
+static uint8_t ds_read_throw(uint32_t idx) {
+    uint32_t off = DS_THROW_COL_DATA + idx;
+    if (idx < sizeof(throw_col_data)) return throw_col_data[idx];
+    if (off < DS_POOL_SIZE) return ds_pool[off];
+    return 0;
+}
+
+/* pixel_to_bitmask — literal.
+ *   mov cl,3 / shr bx,cl      ; bx = px>>3
+ *   mov ch,bl                 ; ch = (px>>3) low byte
+ *   mov cl,3 / shr bx,cl      ; bx = px>>6  (índice de byte)
+ *   mov cl,ch / and cl,7      ; cl = (px>>3)&7
+ *   mov ch,0x80 / shr ch,cl   ; máscara */
+uint8_t pixel_to_bitmask(uint16_t px, uint16_t *byte_index) {
+    uint16_t bx = (uint16_t)(px >> 3);
+    uint8_t ch = (uint8_t)bx;
+    bx = (uint16_t)(bx >> 3);
+    uint8_t cl = (uint8_t)(ch & 7);
+    if (byte_index) *byte_index = bx;
+    return (uint8_t)(0x80u >> cl);
+}
+
+/* check_window_landing — literal port de level_physics.asm L209-262. */
+bool check_window_landing(void) {
+    uint8_t dl = (uint8_t)(cat_y & 0xf8);
+    uint16_t bx = 0;
+    if (dl == 0x08) goto lab_17c9;
+    bx++;
+    if (dl == 0x28) goto lab_17c9;
+    bx++;
+    if (dl != 0x48) return false;           /* lab_1810: clc; ret */
+
+lab_17c9: {
+        uint16_t ax = (uint16_t)cat_x;
+        if (bx != current_floor) goto lab_17fc;
+        if (window_column > 0x3) goto lab_17fc;   /* ja: sin signo */
+        if ((uint8_t)bx == 1) goto lab_17ee;
+        {
+            uint8_t cl = (uint8_t)(4 - window_column);
+            cl = (uint8_t)(cl << 1);
+            cl = (uint8_t)(cl << 1);
+            ax = (uint16_t)(ax + cl);       /* ch = 0 (mov cx,4) */
+        }
+        goto lab_17fc;
+lab_17ee:
+        {
+            uint8_t cl = (uint8_t)(window_column + 1);
+            cl = (uint8_t)(cl << 1);
+            cl = (uint8_t)(cl << 1);
+            ax = (uint16_t)(ax - cl);       /* ch = 0 (sub ch,ch) */
+        }
+lab_17fc: {
+            uint16_t si = ds_pool[DS_WINDOW_ROW_OFFS + (bx & 0xff)]; /* mov bl,[bx+window_row_offset] */
+            uint16_t idx_bx;
+            uint8_t ch = pixel_to_bitmask((uint16_t)(ax + 0xa), &idx_bx);
+            if (!(ds_read_throw((uint32_t)idx_bx + si) & ch)) return false; /* lab_1810 */
+        }
+    }
+    /* lab_1812 */
+    cat_y = dl;
+    cat_y_bottom = (uint8_t)(dl + 0x32);
+    cat_x = (int16_t)((uint16_t)cat_x & 0xfff8);
+    at_platform = 1;
+    return true;
+}
+
 /* check_level_collision — literal port of level_physics.asm's dispatcher.
  *
- * NOT PORTED (needs the window-animation state machine — window_open_state/
- * window_row_offset/current_floor/window_column, itself dependent on
- * spawn_window_event, still a stub per §5h/§5m): check_stairs_collision
- * (level 7) and check_window_landing (level 0). Both are honestly left
- * unported rather than guessed — calling check_level_collision on level 0
- * or 7 currently just returns "no collision" via this stub path. */
+ * Nivel 0 (lab_161e) ya completo: rama cat_y&0xf8==0x60 (game_mode),
+ * check_door_position y check_window_landing. Nivel 7 (check_stairs_collision)
+ * sigue sin portar -> T11. */
 bool check_level_collision(void) {
     if (level_number == 7) {
-        /* check_stairs_collision — not ported, see above */
+        /* check_stairs_collision — T11 */
         return false;
     }
     if (level_number != 0) {
         return check_level_platform();
     }
-    /* level 0: original checks `cat_y & 0xf8 == 0x60` for a specific
-     * ledge, else falls to check_door_position/check_window_landing.
-     * check_window_landing not ported (see above) — check_door_position
-     * alone is still meaningful and ported. */
-    return check_door_position();
+    /* lab_161e */
+    uint8_t al = (uint8_t)(cat_y & 0xf8);
+    if (al != 0x60) {
+        if (check_door_position()) return true;   /* jc lab_1656: ret con carry */
+        return check_window_landing();
+    }
+    /* lab_1630 */
+    if (game_mode >= 2) return false;             /* jnc lab_1655: clc */
+    cat_y = al;
+    cat_y_bottom = (uint8_t)(al + 0x32);
+    if (game_mode != 1) {
+        game_mode = 1;
+        mode_start_tick = read_bios_tick_lc();
+    }
+    return true;
 }

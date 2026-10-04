@@ -10,7 +10,12 @@ import re
 import sys
 import os
 
-ROOT = "/home/claude/work/alleycat-disassembly/alleycat-disassembly-main"
+# Raíz del repo del ASM (el que contiene cat.asm). Se configura con la variable
+# de entorno ALLEYCAT_ASM; por defecto, ../alleycat-disassembly junto al port.
+ROOT = os.environ.get(
+    "ALLEYCAT_ASM",
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "alleycat-disassembly"),
+)
 
 LABEL_RE = re.compile(r'^([A-Za-z_][A-Za-z0-9_]*):\s*$')
 INCLUDE_RE = re.compile(r'%include\s+"([^"]+)"')

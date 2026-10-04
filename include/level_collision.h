@@ -17,6 +17,15 @@ bool check_door_position(void);
 bool check_fence_collision(void);
 bool check_level_platform(void);
 
+/* pixel_to_bitmask (level_physics.asm L197-207): bx = x+10 -> byte index
+ * (bx>>6) y máscara (0x80 >> ((bx>>3)&7)). Devuelve la máscara (ch) y el
+ * índice de byte por out param (bx final). */
+uint8_t pixel_to_bitmask(uint16_t px, uint16_t *byte_index);
+
+/* check_window_landing (level_physics.asm L209-262): aterrizaje del gato
+ * sobre una ventana del callejón (nivel 0). Devuelve el carry. */
+bool check_window_landing(void);
+
 /* check_level_collision — the real dispatcher game_loop.asm calls above
  * lab_0e78 to decide whether the cat is at valid ladder/platform/door
  * geometry before allowing a climb transition. Level 0 (window landing)

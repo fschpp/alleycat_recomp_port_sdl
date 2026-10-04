@@ -66,7 +66,7 @@ Parar en el `lab_XXXX` más cercano, dejar `/* TODO(<ID>-cont): continuar en lab
 
 ## FASE 0: herramientas (todas S)
 
-### T00 — Script de setup y utilidades [S]
+### T00 — Script de setup y utilidades [S] ✅ HECHO (PROGRESS.md §6g)
 - **Destino:** `tools/setup.sh`, `tools/asm_range.sh`, parche de `tools/resolve_data_segment.py`.
 - **Qué hacer:**
   1. `resolve_data_segment.py` tiene `ROOT` fijo en `/home/claude/work/...`. Cambiarlo para leer `ALLEYCAT_ASM` del entorno (default `../alleycat-disassembly`).
@@ -92,7 +92,7 @@ Parar en el `lab_XXXX` más cercano, dejar `/* TODO(<ID>-cont): continuar en lab
 
 ## FASE 1: callejón jugable (nivel 0)
 
-### T10 — `pixel_to_bitmask` + `check_window_landing` [S · 72]
+### T10 — `pixel_to_bitmask` + `check_window_landing` [S · 72] ✅ HECHO (PROGRESS.md §6g)
 - **ASM:** `level_physics.asm` L197–268.
 - **Destino:** `src/level_collision.c` (+ `include/level_collision.h`); enganchar en `check_level_collision` para `level_number==0`, hoy comentado como "no portado" (L172–186).
 - **Datos:** `window_column=0x0525`, `current_floor=0x052f`, `window_row_offset=0x1025`, bitmap de ventanas `throw_col_data=0x1016` (el `test byte [bx+si+0x1016],ch`).

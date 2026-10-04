@@ -208,6 +208,13 @@ extern uint16_t obj_slot;
 extern uint8_t  cycle_active;
 extern const uint8_t obj_chase_table[8]; /* DS 0x1f6e, verified:
                                            * 8,32,64,128,160,192,208,240 */
+extern uint8_t  window_column;        /* DS 0x0525 (byte). Columna de la ventana activa; la mantiene
+                                       * throw.asm (T13). Inicial en el original: 0x00 */
+extern uint8_t  throw_col_data[15];   /* DS 0x1016..0x1024: 3 filas x 5 bytes de bitmap de ventanas
+                                       * (40 bits/fila, 1 bit por 8 px). Mutable -> no va en ds_pool.
+                                       * Inicial en el original: todo 0 */
+extern uint16_t mode_start_tick;      /* DS 0x0556 (word, sin label): tick BIOS en que game_mode
+                                       * pasó a 1 (check_level_collision, lab_1630) */
 extern uint16_t current_floor; /* which floor row the cat is on; set by the
                                  * unported window state machine — stays 0
                                  * here, matching this port's existing
