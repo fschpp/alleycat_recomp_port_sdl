@@ -14,23 +14,28 @@ graphics assets, so it is not meant to be published or redistributed.
 
 ## 0. Current focus / todo / blockers
 
-**Current focus:** `alley.asm` is ported (§6f), so the background
-save/restore pipeline the whole alley scene rests on is finally real and the
-screen is no longer wiped every frame. Next up is `throw.asm` — which is
-what §17 item (h) is *actually* blocked on (see the correction below).
+**Current focus:** `tareas.md` execution has started: T00 (tooling) and T10
+(`check_window_landing` + level-0 dispatcher, §6g) are done. Next up is T11
+(`check_stairs_collision`) and then T12/T13 (`throw.asm`), which is what
+§17 item (h) is *actually* blocked on (see the correction below).
 
 - [x] `sound.asm` — full port, wired into every previously-stubbed call site (§6e)
 - [x] PC speaker / PIT channel 2 emulation + SDL2 audio backend (§6e)
 - [x] `init_sound` ported for real (it was never a sound.asm function — §6e finding 2)
 - [x] `save_alley_buffer`/`restore_alley_buffer`/`draw_alley_foreground` for real (§6f) — inert stubs since §5f/§5h, in four different files
 - [x] `spawn_window_event`, `enter_building`, `handle_cat_death` (§6f)
+- [x] T00 — `tools/setup.sh`, `asm_range.sh`, `asm_label.sh`; `resolve_data_segment.py` reads `ALLEYCAT_ASM` (§6g)
+- [x] T10 — `pixel_to_bitmask`, `check_window_landing`, level-0 branch of `check_level_collision` (§6g)
+- [ ] T11 — `check_stairs_collision` (level 7)
 - [ ] `throw.asm` — maintains `current_floor`/`window_column`; **the real blocker for §17 item (h)**
 - [ ] `ui.asm` — `window_open_state` toggling, the other half of item (h)
 - [ ] §17 item (f): level-2 collectibles + bg tiles (unblocked since §6e)
 - [ ] `update_viewport` (alley.asm) — needs the DS 0x000e sprite scratch area modeled (§6f)
 - [ ] `render_sprites` (lives in sound.asm; a decorative-sprite drawing routine — §6f corrects §6e about this)
 
-**Latest blockers/discoveries:** item (h) was never blocked on
+**Latest blockers/discoveries:** (§6g) `check_level_platform` in
+`level_collision.c` deviates from the ASM in three ways that T10 did NOT touch
+(see §6g "Open deviations"). Before that: item (h) was never blocked on
 `spawn_window_event` at all — two different things called "the window state
 machine" had been conflated. See §6f's corrections. Earlier: `sound_enabled`
 was typed `bool` in this port but is a 0xFF/0x00 BYTE in the original, which
@@ -2804,6 +2809,62 @@ Flagged in §0.
     contiguity above.
   - ASCII dumps of the affected screen band inspected by eye at each step.
 - **Smoke run**: `./build/alleycat` under dummy SDL drivers runs clean.
+
+
+## 6g. T00 tooling + T10 `check_window_landing` / level-0 dispatcher
+
+**Tooling (T00).** `tools/setup.sh` clones both repos as siblings (`--depth 1`),
+exports `ALLEYCAT_ASM`, runs the resolver and tries `apt-get install
+libsdl2-dev`. `tools/asm_range.sh <file> <a> <b>` prints an ASM range with line
+numbers; `tools/asm_label.sh <label>` greps `/tmp/data_segment_labels.txt`.
+`resolve_data_segment.py` no longer has a hard-coded `/home/claude/work/...`
+root: it reads `ALLEYCAT_ASM` (default `../alleycat-disassembly`). Note the ASM
+repo is flat: files live in `src/` and `cat.asm` is at the repo root (the
+`asm/src/` prefix in `tareas.md` does not exist). Verified: resolver prints
+**28976 bytes / 783 labels**.
+
+**Ported (level_physics.asm L26-62, L197-262):**
+- `pixel_to_bitmask(px, &byte_index)`: `bx=px>>6`, mask `0x80 >> ((px>>3)&7)`.
+- `check_window_landing()`: the three floor bands `cat_y&0xf8` = 0x08/0x28/0x48
+  map to floor 0/1/2; if `current_floor` matches and `window_column <= 3`
+  (unsigned) the probe x is shifted (floor 1: `-(col+1)*4`; floors 0/2:
+  `+(4-col)*4`), then bit `(x+10)` of row `window_row_offset[floor]` in
+  `throw_col_data` decides. On hit: `cat_y=dl`, `cat_y_bottom=dl+0x32`,
+  `cat_x &= 0xfff8`, `at_platform=1`.
+- `check_level_collision` level 0 is now complete: the `cat_y&0xf8==0x60`
+  branch (`game_mode>=2` -> no; else snap `cat_y`, set `game_mode=1` and store
+  the BIOS tick in the word at DS 0x0556), then `check_door_position`, then
+  `check_window_landing`. Level 7 still returns false (T11).
+
+**State added** (`cat_state.[ch]`): `window_column` (DS 0x0525, byte, init 0),
+`throw_col_data[15]` (DS 0x1016..0x1024, 3 rows x 5 bytes, init 0 — it is
+runtime-mutable so it cannot live in the const `ds_pool`), `mode_start_tick`
+(DS 0x0556, unnamed word). `window_row_offset` (DS 0x1025 = 00 05 0a) is const
+and read from `ds_pool`. `current_floor` already existed (uint16).
+
+**Deviation (documented):** the original's `test [bx+si+0x1016]` can index past
+the 15-byte bitmap if `cat_x` is out of range; `ds_read_throw` returns the
+const `ds_pool` byte there (or 0 past the pool) instead of UB.
+
+**Open deviations found in `check_level_platform` (NOT fixed, out of T10 scope):**
+1. ASM L115 clears `l3_platform_id` at entry; the C does not.
+2. ASM L116-131 does the `in_level_mode==1` entrance `check_rect_collision`
+   FIRST and, on hit, sets `cat_died` (`[0x551]=1`) and returns no-carry; the
+   C returns true and never sets `cat_died`.
+3. ASM runs `check_fence_collision` (level 3) AFTER that rect test and
+   `mov [at_platform],1; ret` (carry from the fence call); the C runs the
+   fence first and does not set `at_platform`.
+Suggested follow-up task: "T10b — realign check_level_platform with L114-194".
+
+**Verification.** Build clean (`-Wall -Wextra`, 0 warnings). Unit test
+`/tmp/t10/test_t10.c` (not committed): hand-computed `pixel_to_bitmask` cases;
+`check_window_landing` positive on floors 0/1/2 with exact `cat_y`,
+`cat_y_bottom`, `cat_x` and `at_platform` effects, the `window_column>3` and
+`current_floor` mismatch paths, negatives (bit clear, `cat_y` 0x10 / 0x60); the
+dispatcher's 0x60 branch for `game_mode` 0/1/2 and level 7. All pass
+("T10 OK"). Smoke: `./build/alleycat` under dummy SDL drivers runs 5 s clean.
+
+Suggested commit: `T00 tooling + T10: check_window_landing, pixel_to_bitmask, level-0 dispatcher`
 
 
 ## 7. General lesson for this whole project
