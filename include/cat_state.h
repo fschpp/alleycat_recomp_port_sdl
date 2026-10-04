@@ -213,6 +213,10 @@ extern uint8_t  window_column;        /* DS 0x0525 (byte). Columna de la ventana
 extern uint8_t  throw_col_data[15];   /* DS 0x1016..0x1024: 3 filas x 5 bytes de bitmap de ventanas
                                        * (40 bits/fila, 1 bit por 8 px). Mutable -> no va en ds_pool.
                                        * Inicial en el original: todo 0 */
+extern uint8_t  window_open_state[126]; /* DS 0x2be2: 7 filas x 18 columnas de estado de ventana
+                                       * (0 = abierta/transitable en nivel 7). Mutable (init_alley_objects
+                                       * T14, ui.asm). Extensión por indexado: max idx = 0x6c+0x11 = 125.
+                                       * Inicial en el original: todo 0 */
 extern uint16_t mode_start_tick;      /* DS 0x0556 (word, sin label): tick BIOS en que game_mode
                                        * pasó a 1 (check_level_collision, lab_1630) */
 extern uint16_t current_floor; /* which floor row the cat is on; set by the

@@ -99,7 +99,7 @@ Parar en el `lab_XXXX` más cercano, dejar `/* TODO(<ID>-cont): continuar en lab
 - **Notas:** `pixel_to_bitmask` devuelve `ch` (máscara) y ajusta `bx`/`si`; leer sus 13 líneas antes de portar. Si la lógica sale `stc`: `cat_y=dl`, `cat_y_bottom=dl+0x32`, `cat_x &= 0xfff8`, `at_platform=1`.
 - **Verificar:** test que fija `cat_y=0x08/0x28/0x48`, `current_floor`, `window_column` y un bit de `throw_col_data` y comprueba carry y efectos; caso negativo con `cat_y` distinto.
 
-### T11 — `check_stairs_collision` (nivel 7) [S · 46]
+### T11 — `check_stairs_collision` (nivel 7) [S · 46] ✅ HECHO (PROGRESS.md §6h; no lee `current_floor`)
 - **ASM:** `level_objects.asm` L302–347.
 - **Destino:** `src/level_collision.c`; enganchar para `level_number==7`.
 - **Datos:** leer `window_open_state=0x2be2`, `current_floor`.
