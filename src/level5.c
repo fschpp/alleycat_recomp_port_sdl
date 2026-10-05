@@ -5,6 +5,8 @@
 #include "cga.h"
 #include "gen/ds_pool.h"
 #include "sound.h"
+#include "speaker.h"
+#include "alley.h"
 #include <time.h>
 
 uint16_t l5_dat_40a8 = 0;
@@ -69,7 +71,9 @@ bool check_l5_thrown(void) {
 #define L5_PERCH_SPRITE 0x3fbe  /* 3 words x 16 filas = 96 bytes en el DS */
 
 uint16_t l5_dat_40a6 = 0;
-static uint16_t l5_perch_save[48];  /* DS 0x401e: fondo guardado (3 words x 16 filas = 96 bytes) */
+/* DS 0x401e..0x40a5 = 0x88 bytes = 68 words. El perch usa 3x16 = 48 words; el sprite de lo que queda
+ * al aterrizar (T28, 4 words x 17 filas = 68 words) usa el buffer entero (dat_401e + 0x88 = dat_40a6). */
+static uint16_t l5_perch_save[68];
 
 bool check_l5_perch_hit(void) {
     /* ax=dat_40a8, dl=dat_40aa, si=0x18 | bx=cat_x, dh=cat_y, di=si=0x18, cx=0x0e10 (cl=0x10, ch=0x0e) */
@@ -132,7 +136,11 @@ int32_t  l5_tick_override = -1;
 
 /* `sub ah,ah / int 0x1a` -> dx (mismo sustituto que en el resto del port). */
 static uint16_t read_bios_tick(void) {
-    if (l5_tick_override >= 0) return (uint16_t)l5_tick_override;
+    if (l5_tick_override >= 0) {
+        uint16_t t = (uint16_t)l5_tick_override;
+        l5_tick_override += l5_tick_advance;
+        return t;
+    }
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     uint64_t ms = (uint64_t)ts.tv_sec * 1000 + (uint64_t)(ts.tv_nsec / 1000000);
@@ -273,4 +281,134 @@ lab_4486:
     if (l5_dat_40b7 == 0xff) si = (uint16_t)(si + 0x1e);
     l5_dat_40ba = l5_dat_40bc;
     blit_transparent(&ds_pool[si], l5_dat_40bc, 1, 5, l5_dat_3f2c);
+}
+
+/* ---- T28: update_level5_objects (level_objects.asm L2438-2602) ---- */
+
+uint16_t l5_dat_40ad = 0;   /* DS 0x40ad (word): ultimo tick BIOS procesado por update_level5_objects */
+uint8_t  l5_dat_40b0 = 0;   /* DS 0x40b0 (byte): direccion del empujon al gato (1 = izq., 0xff = der.) */
+int32_t  l5_tick_advance = 0; /* hook de pruebas: se suma a l5_tick_override tras cada lectura */
+
+#define L5_LANDED_SPRITE 0x3f36   /* 4 words x 17 filas = 0x88 bytes (dat_3f36..dat_3fbe) */
+
+void update_level5_objects(void) {
+    uint16_t dx = read_bios_tick();                    /* sub ah,ah / int 0x1a */
+    uint16_t ax;
+    uint8_t al, dl;
+    uint16_t cx;
+    if (dx != l5_dat_40ad) goto lab_45b6;
+lab_45b5:
+    return;
+lab_45b6:
+    l5_dat_40ad = dx;
+    if (l5_dat_40aa >= 0xa4) goto lab_45b5;            /* jnb */
+    if (!check_l5_thrown_near()) goto lab_45d6;        /* jnb */
+    if (!check_l5_landing()) goto lab_45b5;            /* jnb */
+    in_level_mode = 0x1;
+    transition_timer = 0x10;
+    return;
+lab_45d6:
+    if (!check_l5_perch_hit()) goto lab_4649;          /* jnb */
+    if (l5_dat_40af != 0x0) goto lab_45fa;
+    al = (uint8_t)scroll_direction;                    /* mov al,[0x56e] */
+    if (al != 0x0) goto lab_45f7;
+    al++;
+    if (l5_dat_40a8 > (uint16_t)cat_x) goto lab_45f7;  /* ja (sin signo) */
+    al = 0xff;
+lab_45f7:
+    l5_dat_40b0 = al;
+lab_45fa:
+    l5_dat_40af = 0x1;
+    cx = 0x20;
+lab_4602:
+    ax = (uint16_t)cat_x;
+    dl = 0x1;
+    if (l5_dat_40b0 != 0x1) goto lab_4615;
+    ax = (uint16_t)(ax - 0x8);                         /* db 0x2d,0x08,0x00 = sub ax,8 */
+    dl = 0xff;
+    goto lab_4618;
+lab_4615:
+    ax = (uint16_t)(ax + 0x8);                         /* db 0x05,0x08,0x00 = add ax,8 */
+lab_4618:
+    cat_x = (int16_t)ax;
+    scroll_direction = (int8_t)dl;                     /* mov [0x56e],dl */
+    al = cat_y;
+    if ((uint8_t)in_level_mode < 0x1) goto lab_4639;   /* jb */
+    if ((uint8_t)in_level_mode != 0x1) goto lab_462f;  /* jnz (jb no toca flags) */
+    al = (uint8_t)(al - 0x3);
+    goto lab_4631;
+lab_462f:
+    al = (uint8_t)(al + 0x3);
+lab_4631:
+    cat_y = al;
+    al = (uint8_t)(al + 0x32);
+    cat_y_bottom = al;                                 /* mov [0x57c],al */
+lab_4639:
+    if (!check_l5_perch_hit()) goto lab_4642;          /* push cx / call / pop cx / jnb */
+    if (--cx != 0) goto lab_4602;                      /* loop */
+lab_4642:
+    restore_alley_buffer();
+    save_cat_background();
+lab_4648:
+    return;
+lab_4649:
+    if (l5_dat_40b1 != 0x0) goto lab_46a2;
+    if (l5_dat_40af == 0x0) goto lab_4648;
+    ax = l5_dat_40a8;
+    if (l5_dat_40b0 != 0x1) goto lab_4666;
+    ax = (uint16_t)(ax + 0x8);                         /* db 0x05,0x08,0x00 */
+    goto lab_4669;
+lab_4666:
+    ax = (uint16_t)(ax - 0x8);                         /* db 0x2d,0x08,0x00 */
+lab_4669:
+    l5_dat_40a8 = ax;
+    if (check_l5_perch_hit()) return;                  /* jnb lab_4672 / ret */
+    start_tone(0xc00, 0xb54);
+    l5_dat_40af = 0x0;
+    l5_dat_40ab = (uint16_t)calc_cga_addr(l5_dat_40aa, l5_dat_40a8, NULL);
+    erase_l5_perch();
+    draw_l5_perch();
+    ax = l5_dat_40a8;
+    if (ax < 0x78) goto lab_46a2;                      /* db 0x3d,0x78,0x00 = cmp ax,0x78 / jb */
+    if (ax > 0xa8) goto lab_46a2;                      /* ja */
+    return;
+lab_46a2:
+    l5_dat_40b1 = 0x1;
+    if (enemy_chasing == 0x0) goto lab_46be;
+    if (check_l5_landing()) {                          /* jnb lab_46bd */
+        in_level_mode = 0x1;
+        transition_timer = 0x10;
+    }
+    return;
+lab_46be:
+    /* Espera bloqueante (cutscene de una vez): baja el perch de a 5 filas por tick BIOS. */
+    dx = read_bios_tick();
+    if (dx == l5_dat_40ad) goto lab_46a2;              /* jz (vuelve a lab_46a2, como el original) */
+    l5_dat_40ad = dx;
+    if (sound_enabled == 0x0) goto lab_46ec;           /* cmp byte [0x0],0 */
+    pit_out_43(0xb6);
+    ax = (uint16_t)l5_dat_40aa;                        /* mov al,[40aa] / sub ah,ah */
+    ax = (uint16_t)(ax << 1);                          /* db 0xd1,0xe0 = shl ax,1 (x2) */
+    ax = (uint16_t)(ax << 1);
+    pit_ch2_out((uint8_t)(ax & 0xff));
+    pit_ch2_out((uint8_t)(ax >> 8));                   /* mov al,ah / out 0x42 */
+    port61_out((uint8_t)(port61_in() | 0x3));
+lab_46ec:
+    dl = l5_dat_40aa;
+    if (dl >= 0xa4) goto lab_470e;                     /* jnb */
+    dl = (uint8_t)(dl + 0x5);
+    l5_dat_40aa = dl;
+    l5_dat_40ab = (uint16_t)calc_cga_addr(dl, l5_dat_40a8, NULL);
+    erase_l5_perch();
+    draw_l5_perch();
+    goto lab_46be;
+lab_470e:
+    silence_speaker();
+    erase_l5_perch();
+    l5_dat_40a6 = (uint16_t)(l5_dat_40a6 - 1);         /* dec word [40a6] */
+    blit_masked(&ds_pool[L5_LANDED_SPRITE], l5_dat_40a6, 4, 17, l5_perch_save);  /* bp=dat_401e, cx=0x1104 */
+    l5_dat_40b2 = l5_dat_40a8;
+    l5_dat_40b4 = l5_dat_40aa;
+    calc_l5_direction();
+    l5_dat_40b7 = l5_dat_40ca;
 }

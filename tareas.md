@@ -209,7 +209,7 @@ Estado compartido de los niveles 4 y 5: **los dos usan las variables `l5_obj_*`*
 - **Notas:** usa `blit_transparent`, `play_random_chirp`, `random`. Mantener el orden de `random()`.
 - **Verificar:** 150 ticks con semilla fija; imprimir la secuencia de `l5_obj_frame` y anotarla en el test como regresión.
 
-### T28 — `update_level5_objects` [L · 165]
+### T28 — `update_level5_objects` [L · 165] ✅ HECHO (PROGRESS.md §6y; `l5_perch_save` pasa a 68 words: el sprite aterrizado 4x17 comparte `dat_401e`)
 - **ASM:** `level_objects.asm` L2438–2602.
 - **Destino:** `src/level5.c`.
 - **Verificar:** como T27, además de un caso de aterrizaje (`check_l5_landing`) y de captura (`check_l5_cat_catch`).

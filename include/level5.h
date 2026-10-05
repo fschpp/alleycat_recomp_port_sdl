@@ -74,4 +74,17 @@ extern int32_t l5_tick_override;
  * (3 sprites de 1 word x 5 filas en dat_40c0[], espejados +0x1e si va a la izquierda). El orden y el
  * número de llamadas a random() es el del original. */
 void update_level5_anim(void);
+
+/* --- T28: update_level5_objects (level_objects.asm L2438-2602) --- */
+extern uint16_t l5_dat_40ad;  /* DS 0x40ad (word): ultimo tick BIOS procesado */
+extern uint8_t  l5_dat_40b0;  /* DS 0x40b0 (byte): direccion del empujon al gato (1 = izq., 0xff = der.) */
+extern int32_t  l5_tick_advance; /* hook de pruebas: se suma a l5_tick_override tras cada lectura (0 = fijo) */
+
+/* update_level5_objects: un paso por tick BIOS del perch del nivel 5. (a) Un objeto lanzado cerca del
+ * perch y el gato aterrizado -> fin de nivel (in_level_mode=1, transition_timer=0x10). (b) El gato
+ * pisa el perch -> lo empuja hasta 0x20 pasos de 8 px. (c) Si el perch fue empujado, se desplaza y
+ * suena un tono. (d) Si no, lo baja de 5 en 5 filas hasta 0xa4 (espera bloqueante de una vez, un paso
+ * por tick, con tono de pitch variable) y al llegar deja el sprite aterrizado (dat_3f36, 4x17) y
+ * activa al objeto movil de update_level5_anim. */
+void update_level5_objects(void);
 #endif
