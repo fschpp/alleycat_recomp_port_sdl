@@ -16,9 +16,9 @@ graphics assets, so it is not meant to be published or redistributed.
 
 **Current focus:** `tareas.md` execution: T00 (tooling), T10 (§6g) and T11
 (`check_stairs_collision`, §6h), T12 (`throw.asm` helpers + RNG fix, §6i) and
-T13 (`update_thrown_objects` + real `reset_window_state`, §6j) are done. Next up
-is T14 (`alley_drawing` A: difficulty icon + object rows), then T15-T19 to close
-the alley loop; `throw.asm` is now fully ported but still not called from `main.c` (T19).
+T13 (`update_thrown_objects` + real `reset_window_state`, §6j) and T14
+(`alley_drawing` A, §6k) are done. Next up is T15 (windows + buildings), then
+T16-T19 to close the alley loop; `throw.asm` is now fully ported but still not called from `main.c` (T19).
 
 - [x] `sound.asm` — full port, wired into every previously-stubbed call site (§6e)
 - [x] PC speaker / PIT channel 2 emulation + SDL2 audio backend (§6e)
@@ -30,7 +30,7 @@ the alley loop; `throw.asm` is now fully ported but still not called from `main.
 - [x] T11 — `check_stairs_collision` (level 7), `window_open_state[126]` state array (§6h)
 - [x] T12 — `throw.asm` helpers: `rotate_throw_bits`, `check_throw_range`, `generate_throw_object`, `generate_throw_pattern` + **`cga_random` fix** (§6i)
 - [x] T13 — `update_thrown_objects` + real `reset_window_state` (rest of `throw.asm`); `throw.asm` fully ported (§6j)
-- [ ] T14 — `alley_drawing` A (`draw_difficulty_icon`, `init_alley_objects`, `draw_object_row`)
+- [x] T14 — `alley_drawing` A (`draw_difficulty_icon`, `init_alley_objects`, `draw_object_row`) (§6k)
 - [ ] `ui.asm` — `window_open_state` toggling, the other half of item (h)
 - [ ] §17 item (f): level-2 collectibles + bg tiles (unblocked since §6e)
 - [ ] `update_viewport` (alley.asm) — needs the DS 0x000e sprite scratch area modeled (§6f)
@@ -3035,6 +3035,55 @@ every 4th frame, or every frame with an active enemy). Build note: this sandbox 
 `throw.c` + `cga.c` + `cat_state.c` + `gen_ds_pool.c` link into the test.
 
 Suggested commit: `T13: throw.asm update_thrown_objects + real reset_window_state`
+
+
+## 6k. T14 `alley_drawing.asm` A: difficulty icon + object rows (new `src/alley_drawing.c`)
+
+**Ported (alley_drawing.asm L53-125):** `draw_difficulty_icon`, `init_alley_objects`,
+`draw_object_row`. New `include/alley_drawing.h`, `src/alley_drawing.c` (added to `Makefile`),
+and `diff_icon_idx` (DS 0x6df8, word, initial 0) in `cat_state.[ch]`.
+
+**Corrections to `tareas.md`/`plan.md` (found by reading the ASM, not assumed):**
+- `init_alley_objects` does **NOT** initialise `window_open_state` (the T14 note said so).
+  It zeroes `alley_obj_state[1..15]` — a label at DS 0x1015 that overlaps `throw_col_data`
+  (0x1016..0x1024) byte for byte — i.e. it clears **`throw_col_data`**; `draw_object_row` then
+  ORs each generated object's `throw_bits` into it. So the window bitmap that
+  `check_window_landing` / `rotate_throw_bits` read is *built here*. The loop is `bx=0xf; ...;
+  dec bx; jnz`, so it clears bx = 15..1 (alley_obj_state[0], DS 0x1015, is left untouched,
+  and it is not part of `throw_col_data`).
+- `window_open_state` (DS 0x2be2) is still written only by `ui.asm` (~715) and
+  `level_objects.asm` (~246), not by this file.
+- `mov di,diff_icon_cga_pos` has no brackets: `0x1902` is the **CGA destination offset** (bank 0,
+  scanline 160, byte column 2), not data. The label sits in `result_sprites.asm`'s region (rule 3).
+- `diff_icon_idx` is `equ difficulty_counter` (cat.asm L2657, DS 0x6df8), not its own variable.
+  Who writes it (the KHTA difficulty keys in `ui.asm`) is not ported yet; it stays 0.
+
+**DS verified:** `diff_icon_table 0x2ad1` = {0x2890, 0x27e0, 0x2820, 0x2810} (4 entries,
+exactly what `and bx,3; shl bl,1` can index; the 5th word is 0 and belongs to the next label);
+each icon is 16 bytes (`cx=0x801`: 1 word x 8 rows). Their extents come from the blit size, so
+there is no zero-gap pointer-delta check as in §3/§4 (the 4 icons are not contiguous).
+`draw_row_param/draw_loop_count/draw_row_offset` (0x2ac9/0x2ac4/0x2aca) are scratch only used
+here: replaced by arguments/locals (`draw_object_row(di, bh, row_offset)`).
+
+**Behaviour:** `draw_object_row` draws 20 objects 4 CGA bytes apart (2 words x 16 rows, so
+each overlaps its neighbour's right half — faithful), each from
+`generate_throw_object(throw_chance[difficulty], bh)`, and ORs `throw_bits << (((~n)&3)*2)`
+(8-bit) into `throw_col_data[(n>>2) + row_offset]`. Rows: di/bh/offset = 0x140/0x80/0,
+0x640/0x30/5, 0xb40/0x00/10. Ends with `window_column=0x10`, `current_floor=0`, `throw_timer=1`.
+
+**Verification (`/tmp/t14/test_t14.c`, not committed; ASan/UBSan clean):**
+- Icon: for `diff_icon_idx` 0..7 (checks the `&3` mask) `cga_mem` equals an independent layout
+  (rows alternate banks, `+0x50` per bank-0 row) of the 16 icon bytes at 0x1902.
+- `init_alley_objects` with seed 0xFA59, difficulty 5 and `throw_col_data` pre-filled with 0xff:
+  result `throw_col_data = 00 cc 0b 0c 30 0f 00 04 00 ef d3 cc fc 30 33` and final seed `0x8548`
+  match **byte for byte** an independent Python model written from the ASM (same `random` order,
+  so it also checks the exact number of `random` calls: 60 objects).
+- `window_column==0x10`, `current_floor==0`, `throw_timer==1` at the end.
+
+**Not wired yet:** nothing calls these from `main.c` (T16 `clear_screen`/`draw_alley_scene` and
+T19). Build note: no `libsdl2-dev` in the sandbox; changed files compile with `-Wall -Wextra`.
+
+Suggested commit: `T14: alley_drawing A (difficulty icon, init_alley_objects, draw_object_row)`
 
 
 ## 7. General lesson for this whole project

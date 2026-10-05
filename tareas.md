@@ -119,7 +119,7 @@ Parar en el `lab_XXXX` más cercano, dejar `/* TODO(<ID>-cont): continuar en lab
 - **Notas:** el código pasa por `reloc_2` (L69), es solo un marcador, el código continúa. Usa `check_vsync` (no-op) y `random`.
 - **Verificar:** harness que corre 200 ticks simulados y comprueba que `current_floor` ∈ {0,1,2} y `window_column` cambian, y que no se sale de rango. Mostrar el volcado ASCII de una frame con un objeto en vuelo.
 
-### T14 — `alley_drawing` A: ícono de dificultad y filas de objetos [S · 75]
+### T14 — `alley_drawing` A: ícono de dificultad y filas de objetos [S · 75] ✅ HECHO (PROGRESS.md §6k; init_alley_objects limpia `throw_col_data`, no `window_open_state`)
 - **ASM:** `alley_drawing.asm` L53–127 (`draw_difficulty_icon` 53–63, `init_alley_objects` 64–87, `draw_object_row` 88–127).
 - **Destino:** nuevo `src/alley_drawing.c` + `include/alley_drawing.h`.
 - **Datos:** `throw_chance=0x2aba`, `throw_timer`, `current_floor`, `window_column`; sprites del ícono en `result_sprites`/`ds_pool` (verificar extensión).
