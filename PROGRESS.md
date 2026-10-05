@@ -3851,6 +3851,37 @@ goto) written from the ASM, a model screen (tracker AND-blit + save/restore, 2x8
 Suggested commit: `T32: update_level6_movement (level 6 tracker/auto-walk toward tiles)`
 
 
+## 6ad. T33 — Nivel 2: helpers y datos (`src/level2.c`, `include/level2.h`; level_objects.asm L806-871 y L1001-1016)
+
+Ported literally (label per label): `init_level2_objects`, `reset_caught_objects` (the "self jump" is a restart of the scan: `lab_reset`), `erase_level_object`.
+State lives in C arrays, all zero at start (checked in `/tmp/data_segment.bin`): `l2_obj_x` / `l2_obj_cga_addr` are word[24] (48 bytes in the DS, indexed with `slot*2`),
+`l2_obj_y`, `l2_obj_hit`, `l2_obj_active`, `dat_3417` (X direction 1 / 0xff), `dat_342f` are byte[24] (0x18 apart, confirmed against how they are indexed), plus
+`dat_3410` (byte), `l2_anim_toggle`, `dat_3415` (word), `l2_obj_cur_addr` (word), `dat_351b` (byte). Read-only DS tables stay in `ds_pool`: `l2_obj_init_y` (0x34f1, 24 bytes)
+and `dat_351c` (0x351c: objects to activate per difficulty `{10,8,6,4,3,2,2,1,0,0}`, indexed by `[0x8]` = `difficulty_level` WITHOUT masking). Erase pattern = `dat_3404`
+(12 bytes of 0x55 for 6 rows x 1 word, then 8 bytes for 2 rows x 2 words).
+
+**Flow.** `init`: toggle = `dat_3415` = 0, `dat_3410` = 0xc; for slot 23..0: hit = 1, active = 0, y = init_y, `dat_342f` = 1, direction = `(random() & 1) ? 1 : 0xff`, x = `random()` low byte
+(`sub dh,dh`), in that order (the RNG call order matters). Then activate `dat_351c[difficulty_level]` DISTINCT slots in 12..23 with `(random() & 0xf)`, retrying if >= 12 or already active.
+`reset_caught_objects`: scan `cx = 12..1` (slot `cx+11` = 23..12); first active one: active = 0, and `cat_x > 0xa0` (unsigned `ja`) -> dir 1, x = 0, else dir 0xff, x = 0x12e; `--dat_351b` (byte, wraps
+from 0 to 0xff) and, if non-zero, restart the scan; else return. `erase_level_object(slot)`: nothing if `hit != 0`; else blit the pattern at `l2_obj_cga_addr[slot]`,
+1x6 for slots 0..11 (`cmp bx,0x18` on the doubled index), 2x2 for 12..23.
+
+**Observations.** (1) `difficulty_level` >= 8 reads `dat_351c` = 0 -> `cx = 0` -> the `loop` runs 65536 times and once the 12 slots are active the retry never ends: the original HANGS. The port is
+identical for 0..7; for >= 8 it returns as soon as all 12 slots are active (the only deviation, documented in `level2.h`). The title screen only produces 0..3. (2) The LFSR of `random` has state 0 as a fixed point
+(`random` then always returns 0): a seed that falls there would also hang the retry in the original. (3) Restarting the scan after each catch vs continuing it is equivalent in effect (everything above the
+handled slot is already inactive).
+
+**Verified:** `tests/test_level2.c` (`make test-level2`, part of `make test`). Independent STRUCTURED model with its own LFSR written from `cga.asm`, a model screen with CGA bank interleave (odd start rows too) and
+hand-copied data tables (not read from `ds_pool`). Cases: initial state zero + both DS tables; `init` for difficulty 0..9 x 300 seeds (all arrays, scalars and final RNG state identical; exactly `dat_351c[d]`
+active, all in 12..23; 12 for d >= 8); `reset_caught_objects` 3000 random scenarios (active subsets, `dat_351b` incl. 0/wrap, `cat_x` at the `ja` edge 0xa0/0xa1, negative) plus two hand cases;
+`erase_level_object` 2000 random scenarios (hit / slot / odd and even start banks, whole CGA memory compared). Seeds that reach the LFSR zero state are excluded by a table built in the test.
+**Mutation check:** 17 deliberate edits (not-dl, `>=` vs `>`, +0xb vs +0xc, `dat_3410`, x width, slot count, difficulty masking, `ja` edge, signed compare, 0x12e, `bx <= 0x18`, swapped blit dims, hit test
+inverted, `dat_351b` step...) are all caught except 2 equivalent ones (swapping two independent stores; continuing the scan instead of restarting it). `-Wall -Wextra` clean, full `make test` passes.
+**Caveat:** no x86 emulator; the model is written from the ASM text, so a shared misreading would not be caught. Not wired into `main.c` yet.
+
+Suggested commit: `T33: level 2 helpers and data (init_level2_objects, reset_caught_objects, erase_level_object)`
+
+
 ## 7. General lesson for this whole project
 
 **Never trust a same-file label as a data region's end boundary, and never
