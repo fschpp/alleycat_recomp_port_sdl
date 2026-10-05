@@ -198,7 +198,7 @@ Estado compartido de los niveles 4 y 5: **los dos usan las variables `l5_obj_*`*
 - **Datos:** `thrown_obj_x=0x327d`, `thrown_obj_y=0x327f`, `l5_*` (T21).
 - **Verificar:** `calc_l5_direction` con cuatro posiciones relativas del gato; colisiones con casos límite.
 
-### T26 — Nivel 5: helpers B [M · 63]
+### T26 — Nivel 5: helpers B [M · 63] ✅ HECHO (PROGRESS.md §6w; reemplaza el stub de `draw_l5_perch`)
 - **ASM:** `level_objects.asm` L2603–2665 (`check_l5_perch_hit`, `draw_l5_perch`, `erase_l5_perch`, `check_l5_thrown_near`, `check_thrown_near_cat`).
 - **Destino:** `src/level5.c`. `check_thrown_near_cat` también lo usa el nivel 6 (T32): exportarlo.
 - **Verificar:** dibujar/borrar el perch y comprobar que el fondo vuelve idéntico (round-trip como en §5p).

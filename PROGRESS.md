@@ -14,8 +14,8 @@ graphics assets, so it is not meant to be published or redistributed.
 
 ## 0. Current focus / todo / blockers
 
-**Current focus:** `tareas.md` execution: T00, T10-T22 (§6g-§6s), T23 (§6t), T24 (§6u) and **T25** (level-5 helpers A,
-§6v) are done. Next up: T26 (level-5 helpers B; also replaces the `draw_l5_perch` stub), then T27/T28.
+**Current focus:** `tareas.md` execution: T00, T10-T22 (§6g-§6s), T23 (§6t), T24 (§6u) **T25** (level-5 helpers A,
+§6v) and **T26** (level-5 helpers B, §6w) are done. Next up: T27 (`update_level5_anim`), then T28.
 T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-level4`, `test-level4-state`, `test-level5`). The death
 handler (`entry.asm` lab_01b7+, T41) is still replaced in `main.c` by "re-enter the alley".
 
@@ -3555,6 +3555,34 @@ existing tests still pass; compiled with `-Wall -Wextra` without warnings. No SD
 **Not verified:** behaviour inside the real level-5 loop (needs T27/T28/T42).
 
 Suggested commit: `T25: level-5 helpers A (landing, direction, catch/thrown collisions, init); draw_l5_perch stub for T26`
+
+
+## 6w. T26 — level-5 helpers B (`src/level5.c`; level_objects.asm L2603-2665)
+
+Ported literally: `check_l5_perch_hit`, `draw_l5_perch`, `erase_l5_perch`, `check_l5_thrown_near`,
+`check_thrown_near_cat` (exported in `level5.h`; level 6 / T32 uses it). The T25 `draw_l5_perch` stub is gone
+(replaced by the real routine, single definition).
+
+**Data.** `dat_3fbe` (DS 0x3fbe) = perch sprite, 3 words x 16 rows = 96 bytes, read from `ds_pool`; `dat_401e`
+(DS 0x401e) = saved background, same 96 bytes (static `l5_perch_save`); `dat_40a6` (DS 0x40a6, word, new
+`l5_dat_40a6`) = CGA address of the last draw. `cx = 0x1003` is cl=3 words, ch=16 rows.
+
+**Translation notes.** `draw` copies `dat_40ab` into `dat_40a6` and then `blit_masked` (AND-blit, background saved
+into `dat_401e`); `erase` uses `dat_40a6`, NOT `dat_40ab` (tested by zeroing `dat_40ab` before erase).
+`check_l5_perch_hit`: `cx = 0x0e10` -> A.h = 0x10, B.h = 0x0e, both widths 0x18. `check_l5_thrown_near`: all 16-bit
+unsigned; `perch_x - 0x14` and `+ 0x30` wrap like the original (the `ja`/`jb` tests are unsigned). `check_thrown_near_cat`:
+`cat_x - 8` with unsigned borrow clamps `bx` to 0 (`jnb` skips the `sub bx,bx`), `dh = cat_y + 3` is 8-bit
+(wraps), box 0x28 x 0x0e, thrown rect 0x10 x 0x1e (`cx = 0x0e1e`).
+
+**Verified:** `tests/test_level5.c` (extended, `make test-level5`): 1-pixel boundary cases on every side for the
+three collision checks, the `y >= 0x66` threshold, unsigned wrap, the `cat_x < 8` clamp and the 8-bit `dh` wrap;
+draw/erase round-trip over a non-uniform background restores `cga_mem` byte-exact, and row 0 of the draw equals
+`bg & sprite` byte by byte. Hand-computed expectations (no x86 emulator here, as T24/T25). Two of my first
+expectations were wrong (I forgot the width term 0x28 and the height term of `check_rect_collision`); fixed
+against the ASM, not the C. All six tests pass, `-Wall -Wextra` clean, no SDL build (no libsdl2-dev).
+**Not verified:** the perch inside the real level-5 loop (T27/T28/T42).
+
+Suggested commit: `T26: level-5 helpers B (perch hit/draw/erase, thrown-near checks); real draw_l5_perch`
 
 
 ## 7. General lesson for this whole project

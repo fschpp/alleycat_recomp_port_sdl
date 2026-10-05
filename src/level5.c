@@ -3,6 +3,7 @@
 #include "level_collision.h"
 #include "cat_state.h"
 #include "cga.h"
+#include "gen/ds_pool.h"
 
 uint16_t l5_dat_40a8 = 0;
 uint8_t  l5_dat_40aa = 0;
@@ -61,8 +62,44 @@ void check_l5_thrown(void) {
     l5_dat_40b8 = 0xff;
 }
 
+/* ---- T26: helpers B ---- */
+#define L5_PERCH_SPRITE 0x3fbe  /* 3 words x 16 filas = 96 bytes en el DS */
+
+uint16_t l5_dat_40a6 = 0;
+static uint8_t l5_perch_save[96];   /* DS 0x401e: fondo guardado (3 words x 16 filas) */
+
+bool check_l5_perch_hit(void) {
+    /* ax=dat_40a8, dl=dat_40aa, si=0x18 | bx=cat_x, dh=cat_y, di=si=0x18, cx=0x0e10 (cl=0x10, ch=0x0e) */
+    return check_rect_collision((int16_t)l5_dat_40a8, l5_dat_40aa, 0x18, 0x10,
+                                (uint16_t)cat_x, cat_y, 0x18, 0x0e);
+}
+
 void draw_l5_perch(void) {
-    /* TODO(T26): L2613-2622 — blit_masked(dat_3fbe, dat_40ab, 3 words x 16 filas, save en dat_401e) */
+    l5_dat_40a6 = l5_dat_40ab;
+    blit_masked(&ds_pool[L5_PERCH_SPRITE], l5_dat_40ab, 3, 16, (uint16_t *)(void *)l5_perch_save);
+}
+
+void erase_l5_perch(void) {
+    blit_to_cga(l5_perch_save, l5_dat_40a6, 3, 16);
+}
+
+bool check_l5_thrown_near(void) {
+    if (thrown_obj_y < 0x66) return false;                         /* jb lab_47a4 */
+    uint16_t ax = (uint16_t)(l5_dat_40a8 - 0x14);
+    if (ax > (uint16_t)thrown_obj_x) return false;                 /* ja */
+    ax = (uint16_t)(ax + 0x30);
+    if (ax < (uint16_t)thrown_obj_x) return false;                 /* jb */
+    return true;
+}
+
+bool check_thrown_near_cat(void) {
+    uint16_t bx = (uint16_t)cat_x;
+    bool borrow = bx < 0x8;
+    bx = (uint16_t)(bx - 0x8);
+    if (borrow) bx = 0;                                            /* jnb salta el `sub bx,bx` */
+    uint8_t dh = (uint8_t)(cat_y + 0x3);
+    /* ax=thrown_obj_x, dl=thrown_obj_y, si=0x10 | bx, dh, di=0x28, cx=0x0e1e (cl=0x1e, ch=0x0e) */
+    return check_rect_collision(thrown_obj_x, thrown_obj_y, 0x10, 0x1e, bx, dh, 0x28, 0x0e);
 }
 
 void init_level5_objects(void) {
