@@ -2,6 +2,7 @@
 #include "cga.h"
 #include "level_collision.h"
 #include "jump_gravity.h"
+#include "enemy.h"
 #include "gen/enemy_verified_sprites.h"
 #include <stdint.h>
 #include <stdbool.h>
@@ -67,7 +68,7 @@ static bool check_trashcan_near(void) {
 }
 
 /* restore_gravity_bg — literal port, using the already-verified blit_to_cga. */
-static void restore_gravity_bg(void) {
+void restore_gravity_bg(void) {
     uint8_t width_words = (uint8_t)(gravity_restore_dims & 0xff);
     uint8_t height = (uint8_t)(gravity_restore_dims >> 8);
     blit_to_cga((const uint8_t *)gravity_save_buf, gravity_prev_cga, width_words, height);
@@ -78,13 +79,10 @@ static void restore_gravity_bg(void) {
  * gravity_target_height), and draws the projectile via the now-fixed
  * blit_transparent once armed.
  *
- * NOT ported (documented, not guessed): the original calls
- * check_dog_collision at this point — per §5o, that's actually level-0
- * gravity-fall LANDING detection, not the dog. This port always treats
- * the fall as "not yet landed on that special target" and proceeds with
- * the normal draw, which is correct for the vast majority of cases (the
- * projectile just falls toward gravity_target_height and eventually
- * lands via the height check below). */
+ * check_dog_collision (level_physics.asm L355, T18) — per §5o that's the
+ * level-0 gravity-fall LANDING detection, not the dog. It is real now
+ * (src/enemy.c) and called here exactly where the original does: after the
+ * background restore and before the transparent draw (carry => return). */
 void apply_cat_gravity(void) {
     if (gravity_y == 0) return;
 
@@ -136,6 +134,8 @@ void apply_cat_gravity(void) {
     if (gravity_frame != 2) {
         restore_gravity_bg();
     }
+
+    if (check_dog_collision()) return;                  /* lab_18fd: call / jc lab_18e0 (ret) */
 
     gravity_prev_cga = gravity_cga_addr;
     gravity_restore_dims = gravity_save_dims;

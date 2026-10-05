@@ -153,3 +153,38 @@ void setup_level(void) {
         meow_timer = 0x1;
     }
 }
+
+/* start_auto_walk — literal port of game_loop.asm L108-152 (T18, PROGRESS.md §6o).
+ * Arma el auto-walk hacia la entrada (entrance_x/entrance_y) del nivel.
+ * Nota: `db 0xd0,0xeb` que el desensamblado comenta como "shr bl,0x0" es SHR BL,1 (D0 /5):
+ * dos desplazamientos de 1 bit, no de 0. */
+void start_auto_walk(void) {
+    ambient_freq = 0x400;
+    if (auto_walk != 0) return;                         /* cmp [auto_walk],0 / jz */
+    anim_counter = 0x8;
+    uint8_t dl = 0xff;
+    if (!(cat_y >= entrance_y)) dl = 0x1;               /* cmp al,[entrance_y] / jnb (sin signo) */
+    in_level_mode = (int8_t)dl;
+    uint16_t ax = (uint16_t)((uint16_t)cat_x - entrance_x);   /* sub ax,[entrance_x] */
+    if ((uint16_t)cat_x > entrance_x) {                 /* ja: CF=0 y ZF=0 */
+        dl = 0xff;
+    } else {
+        dl = 0x1;
+        ax = (uint16_t)~ax;                             /* not ax */
+    }
+    scroll_direction = (int8_t)dl;
+    uint8_t al = (uint8_t)(ax & 0xff);
+    if ((uint8_t)(ax >> 8) != 0) al = 0xff;             /* cmp ah,0 / jz / mov ax,0xff */
+    al = (uint8_t)~al;                                  /* not al */
+    if (al < 0x30) al = 0x30;                           /* cmp al,0x30 / jnb */
+    uint8_t bl = (uint8_t)(al >> 1);                    /* mov bl,al / shr bl,1 */
+    bl = (uint8_t)(bl >> 1);                            /* shr bl,1 */
+    al = (uint8_t)(al - bl);
+    anim_step = al;
+    scroll_speed = (uint16_t)(al >> 5);                 /* ah==0 aquí; shr al,5 */
+    at_platform = 0x0;
+    l3_platform_id = 0x0;
+    anim_accumulator = 0x1;
+    transition_timer = 0x10;
+    auto_walk = 0x1;
+}

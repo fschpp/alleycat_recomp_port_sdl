@@ -4,6 +4,8 @@
 #include "level_collision.h"
 #include "game_setup.h"
 #include "enemy.h"
+#include "alley.h"
+#include "jump_gravity.h"
 #include "gen/enemy_sprites_ex.h"
 #include <stdint.h>
 #include <stdbool.h>
@@ -353,4 +355,31 @@ lab_2013:
     draw_enemy();
 lab_2021:
     return;
+}
+
+/* check_dog_collision — literal port of enemy.asm L69-107 (T18, PROGRESS.md §6o). Pese al nombre
+ * es la comprobación de aterrizaje del proyectil (gravity_*) sobre el gato del nivel 0 (§5o).
+ * Devuelve el carry del original: true si el proyectil ya está sobre el gato (o ya estaba
+ * capturado, dog_catch_flag != 0), false si no aplica o no hay solape. */
+bool check_dog_collision(void) {
+    if (level_number != 0x0) return false;              /* lab_1be1: clc */
+    if (gravity_y == 0x0) return false;
+    /* ax=gravity_x, dl=gravity_y, si=0x10, cl=alto (byte alto de gravity_cur_dims tras
+     * `xchg ch,cl`; ch se pisa con 0xe); bx=cat_x, dh=cat_y, di=0x18, ch=0xe. */
+    bool hit = check_rect_collision((int16_t)gravity_x, gravity_y, 0x10,
+                                    (uint8_t)(gravity_cur_dims >> 8),
+                                    (uint16_t)cat_x, cat_y, 0x18, 0xe);
+    if (!hit) return false;                             /* jnc lab_1be2 (clc) */
+    restore_alley_buffer();
+    restore_gravity_bg();
+    enter_building();
+    if (dog_catch_flag == 0x0) {
+        dog_catch_flag = 0x1;
+        handle_cat_death();
+        gravity_drift_dir = (gravity_drift_dir == 0xff) ? 0x1 : 0xff;
+        gravity_h_speed = 0x60;
+        gravity_frame = 0x1;
+        at_platform = 0x0;
+    }
+    return true;                                        /* lab_1bdf: stc */
 }

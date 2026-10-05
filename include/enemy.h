@@ -11,5 +11,7 @@ void update_enemies(void);
 void init_sound(void);
 bool check_enemy_activate(void);
 bool check_enemy_object_hit(void);
+/* check_dog_collision (enemy.asm L69-107, T18) — aterrizaje del proyectil en el nivel 0. */
+bool check_dog_collision(void);
 
 #endif

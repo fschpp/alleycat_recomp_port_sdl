@@ -144,7 +144,7 @@ Parar en el `lab_XXXX` más cercano, dejar `/* TODO(<ID>-cont): continuar en lab
 - **Notas:** `update_viewport` copia bytes al área scratch DS `0x000e` y apunta `cat_sprite_data` a ella: modelarlo como `uint8_t scratch_000e[N]` y que `cat_sprite_ptr` apunte ahí (convención de puntero real de §6f). `render_sprites` usa `sprite_variant_table`, `sprite_dims_table`, `sprite_data_ptrs`: aplicar el método de verificación de §3/§4 (diferencias de punteros = ancho×2×alto) antes de extraer.
 - **Verificar:** `update_viewport` llamada una vez deja `cat_sprite_ptr == scratch_000e`; `render_sprites` dibuja y el número de píxeles coincide en dos ejecuciones con la misma semilla.
 
-### T18 — `init_player`, `start_auto_walk`, `check_dog_collision` real [M · 100]
+### T18 — `init_player`, `start_auto_walk`, `check_dog_collision` real [M · 100] ✅ HECHO (PROGRESS.md §6o; verificado contra x86 emulado; `shr bl,0x0` del ASM es `shr bl,1`)
 - **ASM:** `level_physics.asm` L269–283; `game_loop.asm` L108–157; `enemy.asm` L69–113.
 - **Destino:** `src/fall_object.c` (`init_player`, junto a `reset_jump`), `src/game_setup.c` (`start_auto_walk`), `src/enemy.c` (`check_dog_collision` real, hoy stub en `game_setup.c`).
 - **Notas:** `check_dog_collision` solo actúa si `level_number==0` y `gravity_y!=0` (es la landing del proyectil sobre el gato); llama `restore_alley_buffer`, `restore_gravity_bg`, `enter_building`, `handle_cat_death`. `init_player`: `jump_anim_counter=0`, `gravity_y=0`, `idle_aggro_flag=0`, `deduct_life=0`, `jump_toss_delay=9`.
