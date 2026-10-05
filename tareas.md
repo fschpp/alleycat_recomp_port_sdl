@@ -112,7 +112,7 @@ Parar en el `lab_XXXX` más cercano, dejar `/* TODO(<ID>-cont): continuar en lab
 - **Notas:** `generate_*` llama `random()` en orden fijo: respetar el número exacto de llamadas.
 - **Verificar:** semilla fija del LFSR, ejecutar `generate_throw_pattern` N veces y comparar contra una traza escrita a mano de las 3 primeras salidas.
 
-### T13 — `update_thrown_objects` + `reset_window_state` real [L · 165]
+### T13 — `update_thrown_objects` + `reset_window_state` real [L · 165] ✅ HECHO (PROGRESS.md §6j)
 - **ASM:** `throw.asm` L5–169 y L277–281 (`reset_window_state`).
 - **Destino:** `src/throw.c`; reemplazar el stub `reset_window_state` de `src/game_setup.c` (L17).
 - **Datos:** `window_column=0x0525`, `throw_col_init=0x0526`, `throw_col_step=0x0529`, `throw_y_param=0x052c`, `current_floor=0x052f`, `throw_timer=0x0531`, `throw_delay=0x0532`, `throw_last_tick=0x0544`, `throw_draw_col=0x051d`, `throw_scroll_src=0x0517`.

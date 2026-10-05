@@ -4,12 +4,14 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-/* Helpers de throw.asm (T12) — ver PROGRESS.md §6i.
- * update_thrown_objects / reset_window_state reales llegan en T13. */
+/* throw.asm: helpers (T12, PROGRESS.md §6i) + update_thrown_objects y
+ * reset_window_state (T13, PROGRESS.md §6j). */
 
 extern uint8_t throw_obj_buf[64]; /* DS 0x04d7..0x0516: sprite de 16 filas x 4 bytes */
 extern uint8_t throw_bits;        /* DS 0x0540 */
 extern uint8_t in_throw_range;    /* DS 0x04d6 */
+extern uint8_t throw_timer;       /* DS 0x0531: cuenta de llamadas hasta el próximo paso (inicial 0) */
+extern uint16_t throw_last_tick;  /* DS 0x0544: último tick BIOS procesado (inicial 0) */
 
 /* rotate_throw_bits (L170-190). El original guarda CF con lahf al entrar y lo
  * propaga por 5 bytes de throw_col_data: rcr hacia arriba (pisos 0 y 2,
@@ -34,5 +36,15 @@ uint8_t generate_throw_pattern(uint16_t *di_off);
  * bh = throw_y_param[piso]. Orden fijo de random(): 1 (umbral) [+1 (tipo)]
  * [+2 patrones, cada uno 1 random]. */
 void generate_throw_object(uint8_t bl, uint8_t bh);
+
+/* update_thrown_objects (L5-167): paso por frame de los objetos lanzados desde
+ * ventanas. Sale pronto salvo cuando throw_timer llega a 0, hay tick BIOS nuevo,
+ * !transitioning y gravity_y==0. Puede mover cat_x/cat_draw_pos, armar la
+ * transición de climb, scrollear la franja del piso en cga_mem y dibujar la
+ * columna del objeto. check_vsync se trata como "listo" (ZF=1). */
+void update_thrown_objects(void);
+
+/* reset_window_state (L277-280): anim_last_tick = 0; pcjr_delay = 0. */
+void reset_window_state(void);
 
 #endif
