@@ -36,7 +36,21 @@ void check_l5_thrown(void);
  * flags en sus valores iniciales. */
 void init_level5_objects(void);
 
-/* draw_l5_perch (L2613-2622, T26): AÚN NO PORTADA. Stub vacío con TODO(T26) en level5.c; T26 lo
- * sustituye por la rutina real (blit_masked 3x16 de dat_3fbe en dat_40ab, guarda el fondo en dat_401e). */
+/* --- T26: helpers B (level_objects.asm L2603-2665) --- */
+extern uint16_t l5_dat_40a6;  /* DS 0x40a6 (word): dirección CGA del último dibujo del perch (la usa erase) */
+
+/* check_l5_perch_hit (L2603-2612): perch (40a8,40aa; 0x18 x 0x10) vs. gato (0x18 x 0x0e). Devuelve CF. */
+bool check_l5_perch_hit(void);
+/* draw_l5_perch (L2613-2622): guarda dat_40ab en dat_40a6 y hace blit_masked de 3 words x 16 filas de
+ * dat_3fbe (DS 0x3fbe, 96 bytes) en dat_40ab, guardando el fondo en dat_401e (DS 0x401e, 96 bytes). */
 void draw_l5_perch(void);
+/* erase_l5_perch (L2623-2630): blit_to_cga del fondo guardado (dat_401e) en dat_40a6 (3 x 16). */
+void erase_l5_perch(void);
+/* check_l5_thrown_near (L2631-2645): CF si thrown_obj_y >= 0x66 y perch_x-0x14 <= thrown_x <= perch_x+0x28
+ * (comparaciones de 16 bits sin signo; perch_x-0x14 y +0x30 envuelven como en el original). */
+bool check_l5_thrown_near(void);
+/* check_thrown_near_cat (L2651-2665): objeto lanzado (0x10 x 0x1e) vs. caja alrededor del gato
+ * (x = max(cat_x-8, 0) con clamp por préstamo sin signo, y = cat_y+3, 0x28 x 0x0e). CF. También la usa
+ * el nivel 6 (T32). */
+bool check_thrown_near_cat(void);
 #endif
