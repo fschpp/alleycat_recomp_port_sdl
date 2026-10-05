@@ -238,7 +238,7 @@ Estado compartido de los niveles 4 y 5: **los dos usan las variables `l5_obj_*`*
 - **Notas:** usa `draw_l1_thrown`/`erase_l1_thrown` (equivalentes de `draw_thrown_sprite`), `check_thrown_near_cat` (T26). Si no cabe: cortar a mitad por `lab_`.
 - **Verificar:** 100 ticks con el gato fijo y un objeto lanzado; confirmar movimiento y borrado limpio.
 
-### T33 — Nivel 2: helpers y datos [M · 82]
+### T33 — Nivel 2: helpers y datos [M · 82] ✅ HECHO (PROGRESS.md §6ad; `src/level2.c`, `include/level2.h`; sin cablear hasta T42/T75)
 - **ASM:** `level_objects.asm` L806–871 (`init_level2_objects`, `reset_caught_objects`) y L1001–1016 (`erase_level_object`).
 - **Destino:** nuevo `src/level2.c` + `include/level2.h`.
 - **Datos:** `l2_anim_toggle=0x3411`, `l2_obj_x=0x3447`, `l2_obj_y=0x3477`, `l2_obj_hit=0x348f`, `l2_obj_active=0x34a7`, `l2_obj_cga_addr=0x34bf`, `l2_obj_cur_addr=0x34ef`, `l2_obj_init_y=0x34f1`. Cada array tiene 24 bytes (separación entre offsets): confirmarlo contra cómo se indexa.
