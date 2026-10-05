@@ -64,6 +64,13 @@ build/test_level5_anim: tests/test_level5_anim.c tests/test_level5_anim.inc $(TE
 test-level5-anim: build/test_level5_anim
 	./build/test_level5_anim
 
-test: test-alley test-l3doors test-level4 test-level4-state test-level5 test-level5-anim
+build/test_level5_objects: tests/test_level5_objects.c $(TEST_SRC) include/*.h
+	@mkdir -p build
+	$(CC) $(CFLAGS) -Wl,--wrap=restore_alley_buffer,--wrap=save_cat_background,--wrap=start_tone,--wrap=silence_speaker tests/test_level5_objects.c $(TEST_SRC) -o $@
 
-.PHONY: all run clean test test-alley test-l3doors test-level4 test-level4-state test-level5 test-level5-anim
+test-level5-objects: build/test_level5_objects
+	./build/test_level5_objects
+
+test: test-alley test-l3doors test-level4 test-level4-state test-level5 test-level5-anim test-level5-objects
+
+.PHONY: all run clean test test-alley test-l3doors test-level4 test-level4-state test-level5 test-level5-anim test-level5-objects

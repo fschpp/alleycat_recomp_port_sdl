@@ -15,8 +15,8 @@ graphics assets, so it is not meant to be published or redistributed.
 ## 0. Current focus / todo / blockers
 
 **Current focus:** `tareas.md` execution: T00, T10-T22 (§6g-§6s), T23 (§6t), T24 (§6u) **T25** (level-5 helpers A,
-§6v) and **T26** (level-5 helpers B, §6w) and **T27** (`update_level5_anim`, §6x) are done. Next up: T28 (`update_level5_objects`).
-T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-level4`, `test-level4-state`, `test-level5`). The death
+§6v) and **T26** (level-5 helpers B, §6w) and **T27** (`update_level5_anim`, §6x) and **T28** (`update_level5_objects`, §6y) are done. Next up: T29 (level-6 helpers A).
+T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-level4`, `test-level4-state`, `test-level5`, `test-level5-anim`, `test-level5-objects`). The death
 handler (`entry.asm` lab_01b7+, T41) is still replaced in `main.c` by "re-enter the alley".
 
 - [x] `sound.asm` — full port, wired into every previously-stubbed call site (§6e)
@@ -40,6 +40,7 @@ handler (`entry.asm` lab_01b7+, T41) is still replaced in `main.c` by "re-enter 
 - [x] T22 — `check_l4_obj_cat`, `check_l4_obj_thrown`, `init_level4_bg` tail (`init_level4_bg_tail`), `l3_door_anim_frame` (§6s)
 - [x] T24 — `update_level4_state` (`level4.c`), door/teleport state vars in `level45_state.c`, `joy_button` (§6u)
 - [x] T23 — `update_level4_anim` (`level4.c`), `l5_last_tick`/`l5_obj_sprite_ptr` state, 2-aligned save buffers (§6t)
+- [x] T28 — `update_level5_objects` (`level5.c`): perch push / move / blocking descent; `l5_perch_save` grows to 68 words (§6y)
 - [ ] T01 — full headless harness (`tests/harness.h`, `make test`); only `tests/test_alley_loop.c` exists so far
 - [ ] T41 — death handler / level selector (`entry.asm` lab_01b7+); `main.c` just re-enters the alley meanwhile
 - [ ] `ui.asm` — `window_open_state` toggling, the other half of item (h)
@@ -3628,6 +3629,52 @@ instead of calling the C. **Not verified:** the routine inside the real level-5 
 only through `check_l5_cat_catch` (T25 test), not end-to-end.
 
 Suggested commit: `T27: update_level5_anim (level-5 object movement/draw); check_l5_thrown now returns CF`
+
+
+## 6y. T28 — `update_level5_objects` (`src/level5.c`; level_objects.asm L2438-2602)
+
+Ported literally (label per label, `goto`). One step per BIOS tick of the level-5 perch, in four branches:
+(a) a thrown object near the perch (`check_l5_thrown_near`) ends the level only if the cat has landed
+(`check_l5_landing` -> `in_level_mode=1`, `transition_timer=0x10`), and returns either way; (b) cat on the perch
+(`check_l5_perch_hit`): pushes the cat 8 px per step (up to 0x20 steps, until it no longer overlaps) in direction
+`dat_40b0`, adjusts `cat_y` by -3/+3 per step depending on `in_level_mode` (1 / other; 0 leaves it) and
+`cat_y_bottom = cat_y + 0x32`, then `restore_alley_buffer` + `save_cat_background`; (c) cat off the perch but pushed
+earlier (`dat_40af`): moves the perch 8 px, plays `start_tone(0xc00, 0xb54)` and redraws it; it stays in this state while
+`0x78 <= x <= 0xa8`; (d) otherwise (`lab_46a2`): `dat_40b1 = 1`; with `enemy_chasing` it only checks the landing, without
+it runs the one-off BLOCKING descent (`lab_46be`): one step per BIOS tick, perch Y += 5 (0x86 -> 0xa4 = 6 steps, 7th pass
+triggers `lab_470e`), PIT ch2 programmed with `dat_40aa * 4` while `sound_enabled != 0`. At the end it silences the
+speaker, erases the perch, does `dec word [dat_40a6]` and draws the landed sprite (`dat_3f36`, 4 words x 17 rows, AND-blit)
+there, and hands over to `update_level5_anim`: `dat_40b2/b4` = perch X/Y, `calc_l5_direction`, `dat_40b7 = dat_40ca`.
+
+**Data (checked in `/tmp/data_segment_labels.txt`).** `[0x56e]` = `scroll_direction` (int8_t), `[0x57c]` = `cat_y_bottom`,
+`[0x0]` = `sound_enabled`. `dat_3f36`..`dat_3fbe` = 0x88 bytes = 4 x 2 x 17 (matches `cx=0x1104`). **`dat_401e`..`dat_40a6` is
+also 0x88 bytes**, so the landed sprite's 4x17-word save buffer is the same buffer the perch uses (3x16 words): `l5_perch_save`
+grows from 48 to 68 words (T26 had sized it for the perch only). New state: `dat_40ad` (last tick, word), `dat_40b0` (push
+direction, byte; 1 = left, 0xff = right). Both 0 at start.
+
+**Translation notes.**
+- `dat_40b0` is set from `scroll_direction` when it is non-zero (stored as-is, 1 or 0xff); if it is 0, it is 1 when
+  `dat_40a8 > cat_x` (unsigned `ja`) and 0xff otherwise (including equal).
+- `db 0x2d/0x05,0x08,0x00` = `sub/add ax,8`; `db 0x3d,0x78,0x00` = `cmp ax,0x78`; `db 0xd1,0xe0` = `shl ax,1` (listing shows
+  `shl ax,0x0`, same artefact as T18/T24/T25/T27).
+- `in_level_mode` is `int8_t` here but the ASM compares with `jb`/`jnz`: compared as `uint8_t`.
+- In `lab_46be`, an unchanged tick goes back to `lab_46a2` (re-sets `dat_40b1`, re-checks `enemy_chasing`), not to a plain
+  wait: kept literally. The wait is a busy loop, as in the original (one-off cutscene).
+- Test hook: `l5_tick_advance` is added to `l5_tick_override` after each read, otherwise the descent would spin forever
+  with a fixed tick in tests (0 = fixed tick, previous behaviour).
+
+**Verified:** `tests/test_level5_objects.c` (`make test-level5-objects`, part of `make test`), expected values computed by
+hand branch by branch from the ASM: early returns, thrown-near boundaries (0x7c..0xbc, y >= 0x66), push in both directions
+and with all three `in_level_mode` values (cat_x/cat_y/cat_y_bottom after the loop; restore/save called once), `dat_40af`
+already set keeps `dat_40b0`, perch move right/left including the 0x78 / 0xa8 limits (inclusive) and the exit to `lab_46a2` with
+and without `enemy_chasing`/landing, and the full blocking descent (8 tick reads, final divisor `0xa4*4 = 0x290` at the moment of
+silencing, port 0x61 bits 0-1 set before and cleared after, landed sprite row 0 = sprite AND background at `dat_40a6`, no residue
+of the perch on its first row, `calc_l5_direction` results copied to `dat_40b7`); also with sound off (PIT untouched).
+`-Wall -Wextra` clean; full `make test` passes. No SDL build here (no libsdl2-dev), so `main.c` was not recompiled.
+**Caveat:** no x86 emulator available (unlike T21/T23), so the expectations come from my own reading of the ASM; a shared
+misreading would not be caught. **Not verified:** the routine inside the real level-5 loop (T42) and the audible result.
+
+Suggested commit: `T28: update_level5_objects (level-5 perch push/move/descent); l5_perch_save grows to 68 words`
 
 
 ## 7. General lesson for this whole project
