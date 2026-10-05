@@ -2,6 +2,7 @@
 #define ALLEY_H
 
 #include <stdint.h>
+#include "sprite.h"
 
 /* Literal port of src/alley.asm's background-persistence, window-event and
  * death routines. See PROGRESS.md §6f.
@@ -41,5 +42,13 @@ void handle_cat_death(void);
  * not DOS scratch-RAM offsets" convention. */
 extern const uint8_t *cat_sprite_ptr;
 extern uint16_t       cat_sprite_dims;
+
+/* update_viewport (alley.asm L1-29, T17) — recorta el sprite de caminata de 3 words x 11 filas
+ * cuando el gato entra/sale del borde del callejón. Entradas del original: al = entry_steps,
+ * ah = scroll_direction (0xff = derecha); el original recibe el sprite en cat_sprite_data (bx de
+ * update_walk_frame), aquí se pasa como `frame`. Efecto: copia (3-al) words x 11 filas (saltando
+ * al words a la izquierda si ah != 0xff) al scratch DS 0x000e, deja cat_sprite_ptr = scratch,
+ * cat_sprite_dims = 0x0b00|(3-al), cat_sprite_data = 0xe y cat_x = al*8+0x128 (ah==0xff) o 0. */
+void update_viewport(uint8_t al, uint8_t ah, const cat_walk_frame_t *frame);
 
 #endif

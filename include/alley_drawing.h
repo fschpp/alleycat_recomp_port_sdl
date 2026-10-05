@@ -44,4 +44,9 @@ void draw_alley_details(void);
 void clear_screen(void);
 void draw_alley_scene(void);
 
+/* render_sprites (sound.asm L40-68, T17) — sprites decorativos del callejón: recorre la lista de
+ * posiciones CGA de sprite_list_ptrs[difficulty&7] hasta 0xffff; por cada una un random() (&0xe)
+ * elige una de 8 variantes de sprite_variant_table (8 por dificultad) y la blitea. */
+void render_sprites(void);
+
 #endif
