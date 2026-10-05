@@ -47,6 +47,7 @@ extern uint16_t difficulty_level;          /* word, used as a byte-pair index (*
 extern const uint16_t max_swim_speed[6];   /* verified DS 0x066c, values (4,6,8,10,12,12) */
 extern const uint8_t  max_dive_depth[6];   /* verified DS 0x067c, values (3,3,4,4,4,4) */
 extern uint16_t anim_last_tick;
+extern uint16_t diff_icon_idx;  /* DS 0x6df8 (alias difficulty_counter en el ASM); lo lee draw_difficulty_icon (T14). Inicial 0 */
 extern uint16_t pcjr_delay;     /* DS 0x0684: solo lo pone a 0 reset_window_state (T13); inicial 0 */
 extern uint16_t level2_tick;
 extern uint16_t cat_sprite_data;

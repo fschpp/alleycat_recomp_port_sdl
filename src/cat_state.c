@@ -23,6 +23,7 @@ const uint16_t max_swim_speed[6] = { 4, 6, 8, 10, 12, 12 };
 const uint8_t  max_dive_depth[6] = { 3, 3, 4, 4, 4, 4 };
 uint16_t anim_last_tick = 0;
 uint16_t pcjr_delay = 0;
+uint16_t diff_icon_idx = 0;
 uint16_t level2_tick = 0;
 uint16_t cat_sprite_data = 0;
 
