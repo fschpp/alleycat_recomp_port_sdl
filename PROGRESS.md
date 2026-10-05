@@ -14,8 +14,8 @@ graphics assets, so it is not meant to be published or redistributed.
 
 ## 0. Current focus / todo / blockers
 
-**Current focus:** `tareas.md` execution: T00, T10-T33 (§6g-§6ad) and **T34** (`check_level_objects`, §6ae) are done. Next up: T35 (`update_level2_objects`).
-T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-level4`, `test-level4-state`, `test-level5`, `test-level5-anim`, `test-level5-objects`, `test-level6`, `test-level6b`, `test-level6c`, `test-level6d`, `test-level2`, `test-level2b`). The death
+**Current focus:** `tareas.md` execution: T00, T10-T34 (§6g-§6ae) and **T35** (`update_level2_objects`, §6af) are done. Next up: T36 (level-2 animations: `animate_level2_blocks`, `update_entrance_anim`).
+T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-level4`, `test-level4-state`, `test-level5`, `test-level5-anim`, `test-level5-objects`, `test-level6`, `test-level6b`, `test-level6c`, `test-level6d`, `test-level2`, `test-level2b`, `test-level2c`). The death
 handler (`entry.asm` lab_01b7+, T41) is still replaced in `main.c` by "re-enter the alley".
 
 - [x] `sound.asm` — full port, wired into every previously-stubbed call site (§6e)
@@ -46,6 +46,7 @@ handler (`entry.asm` lab_01b7+, T41) is still replaced in `main.c` by "re-enter 
 - [x] T32 — `update_level6_movement` (`level6.c`) (§6ac)
 - [x] T33 — level-2 helpers and data (`level2.c`): `init_level2_objects`, `reset_caught_objects`, `erase_level_object` (§6ad)
 - [x] T34 — `check_level_objects` (`level2.c`): 24-slot catch scan, fatal-hit blocking noise loop with simulated retrace (§6ae)
+- [x] T35 — `update_level2_objects` (`level2.c`): one slot per call, time-sliced by the BIOS tick; `dat_3509` becomes shared state (§6af)
 - [ ] T01 — full headless harness (`tests/harness.h`, `make test`); only `tests/test_alley_loop.c` exists so far
 - [ ] T41 — death handler / level selector (`entry.asm` lab_01b7+); `main.c` just re-enters the alley meanwhile
 - [ ] `ui.asm` — `window_open_state` toggling, the other half of item (h)
@@ -3919,6 +3920,39 @@ byte address, because `calc_cga_addr` drops the 2 low bits). `-Wall -Wextra` cle
 targets (`TEST_SRC`) were built; `main.c` was not linked this time.
 
 Suggested commit: `T34: check_level_objects (level 2 catch scan + fatal-hit noise loop)`
+
+
+## 6af. T35 — `update_level2_objects` (`src/level2.c`, `include/level2.h`; level_objects.asm L872-998)
+
+Literal port (`lab_367f` ... `lab_37b6`, `goto`s kept). Not wired into `main.c` yet (T42/T75).
+
+**DS data verified in `/tmp/data_segment.bin`:** `dat_3413`, `dat_350b`, `dat_3509`, `dat_3411` (`l2_anim_toggle`), `dat_3415` all zero at start; `l1_anim_sprite_a` = 0x3300
+(blocks, 1 word x 6 rows = 12 bytes per frame, 4 frames at +0/+0xc/+0x18/+0x24), `l1_anim_sprite_b` = 0x3330 (objects, 2 words x 2 rows = 8 bytes per frame, `& 0x18` -> 4 frames).
+`[0x697]` is `rom_id` (0xfd = PCjr), the same byte `sound.c` already tests; this port has `rom_id = 0xff`.
+
+**Flow.** One slot per call and only when the BIOS tick differs from `dat_3509`: `dat_3415` is incremented FIRST and the new value is the slot (1..23; at 0x18 it wraps to 0, flips
+`l2_anim_toggle ^= 0xc`, `dat_3413 += 8` and marks the tick done). The tick is marked done (`dat_3509 = dat_350b`) only on the wrap and at slot 12 (and at slot 12 only if
+`rom_id != 0xfd` or `cat_y >= 0x30`; otherwise slot 12 still moves but the tick stays "pending"). So after a new tick, calls advance one slot each (1..12) until the mark is set at slot 12;
+the next tick resumes at 13..23 and the wrap. An ACTIVE slot (`l2_obj_active != 0`) only advances the counter (no random, no draw).
+If `random() <= 0x10` (unsigned): X direction `dat_3417 = (random() & 1) ? 1 : 0xff`, then Y direction `dat_342f` likewise (2 random calls, in that order); otherwise no random after the first.
+X step 4 (slot < 12) or 2 (slot >= 12), bounces at 0 (`sub` borrow -> x = 0, dir 1) and at 0x12e (`>= 0x12f` -> x = 0x12e, dir 0xff). Y step +-1 inside `[init_y, init_y + 0x18]`
+(`jbe` / `jnb`, unsigned, bounce flips `dat_342f`). Then `calc_cga_addr(y, x)` -> `l2_obj_cur_addr`, `erase_level_object(slot)` (at the OLD address), store the new address, `hit = 0`, draw:
+slot >= 12: `sprite_b + ((slot*8 + dat_3413) & 0x18)` 2x2; slot < 12: `sprite_a + ((toggle ^ (slot even ? 0xc : 0)) + (dir_x != 1 ? 0x18 : 0))` 1x6.
+
+**Findings / fixes.**
+1. The two listing oddities `shl si,0x0` and `shr cl,0x0` are really `shl si,1` / `shr cl,1` (bytes `d1 e6`, `d0 e9`), same family as the `shr bl,0x0` of §6o: X step is 4 / 2, not 4 / 4, and the slot index doubles.
+2. **T34 fix:** `dat_3509` is NOT a scratch of the fatal-hit noise loop, it is the same word `update_level2_objects` compares against, so `check_level_objects` now writes the shared `l2_dat_3509`
+   (and `test_level2b` asserts it). Before this the tick mark was lost after a fatal hit.
+3. In the port `rom_id = 0xff`, so the slot-12 mark is gated only by the `rom_id != 0xfd` test (always true): `cat_y` matters only on a PCjr.
+
+**Verified:** `tests/test_level2c.c` (`make test-level2c`, part of `make test`). Independent model written from the ASM with its own LFSR, a model screen with CGA bank interleave and the read-only
+sprite tables taken at the verified DS offsets. 3000 random scenarios x 60 calls (180000 calls; 122165 draws, 7107 counter wraps, 9501 X bounces, 14910 Y bounces): every array, every scalar, the RNG state
+and the WHOLE CGA memory compared after each call; random slot/direction/edge/`rom_id`/`cat_y`/active/hit states, plus a hand case (slot 1, `rng_seed = 0` fixed point -> both directions 0xff).
+**Mutation check:** 23 deliberate edits (wrap `<`/`<=`, toggle/phase constants, slot 12 and its `rom_id`/`cat_y` gate, `ja` edge 0x10/0x11, `shr cl`, 0x12f/0x12e, borrow edge, Y bounds
+and `+0x18`, skipped erase, `hit`, `& 0x18`, `<< 3`, parity, `+0x18` frame, active skip, `dat_342f` store) are all caught. `-Wall -Wextra` clean, full `make test` passes.
+**Caveat:** no x86 emulator (model from the ASM text); SDL2 is not installable here so `main.c` was not linked. Out-of-range Y (> 199) is not exercised: it cannot happen in the original either.
+
+Suggested commit: `T35: update_level2_objects (level 2 falling/bouncing objects) + share dat_3509 with check_level_objects`
 
 
 ## 7. General lesson for this whole project

@@ -105,6 +105,9 @@ void erase_level_object(uint16_t slot) {
 #define L2_HIT_SPRITE 0x3350   /* DS: l1_anim_sprite_c (5 palabras x 0x12 filas) */
 
 uint16_t l2_dat_3511 = 0;                 /* DS 0x3511 (word): slot en curso del barrido */
+uint16_t l2_dat_3509 = 0;                 /* DS 0x3509 (word): ultimo tick procesado por update_level2_objects; check_level_objects lo pisa */
+uint16_t l2_dat_350b = 0;                 /* DS 0x350b (word): tick de la pasada en curso de update_level2_objects */
+uint16_t l2_dat_3413 = 0;                 /* DS 0x3413 (word): fase del sprite de los objetos 12..23 (+8 por vuelta, & 0x18) */
 uint8_t  l2_border_color = 0;             /* ultimo color de borde pedido con `int 0x10 ah=0xb` (sin efecto visible en el port) */
 uint16_t (*l2_tick_fn)(void) = NULL;      /* solo tests: sustituye a `int 0x1a` */
 bool     (*l2_vsync_fn)(void) = NULL;     /* solo tests: sustituye al bit 3 de 0x3da */
@@ -169,7 +172,8 @@ lab_34d0:
     if (dl >= 0xb5) dl = 0xb4;
     blit_to_cga(&ds_pool[L2_HIT_SPRITE], calc_cga_addr(dl, cx, NULL), 5, 0x12);   /* cx = 0x1205 */
     reset_noise();
-    tick0 = l2_read_bios_tick();                       /* dat_3509 */
+    tick0 = l2_read_bios_tick();
+    l2_dat_3509 = tick0;                               /* mov [dat_3509],dx */
     dx = tick0;
     do {                                               /* lab_3543 (push dx) */
         uint16_t pushed = dx;
@@ -178,7 +182,7 @@ lab_34d0:
         dx = pushed;                                   /* pop dx */
         l2_set_border((dx & 1) ? 0x1 : 0xf);           /* mov bx,1 / test dl,1 / jnz / mov bl,0xf / int 0x10 */
         update_noise();
-        dx = (uint16_t)(l2_read_bios_tick() - tick0);
+        dx = (uint16_t)(l2_read_bios_tick() - l2_dat_3509);   /* sub dx,[dat_3509] */
     } while (dx < 0xd);                                /* cmp dx,0xd / jc lab_3543 */
     return false;                                      /* ret con CF=0 (salio por el cmp) */
 lab_356f:
@@ -206,4 +210,114 @@ lab_35bb:
     return true;                                       /* stc */
 lab_35c7:
     return false;                                      /* clc */
+}
+
+/* ===== T35: update_level2_objects (level_objects.asm L872-998) ===== */
+#define L2_SPRITE_A 0x3300   /* DS: l1_anim_sprite_a (bloques 0..11: 1 palabra x 6 filas, 12 bytes por frame) */
+#define L2_SPRITE_B 0x3330   /* DS: l1_anim_sprite_b (objetos 12..23: 2 palabras x 2 filas, 8 bytes por frame) */
+
+void update_level2_objects(void) {
+    uint16_t bx, ax, cx, si, dx;
+    uint8_t al, dl;
+    dx = l2_read_bios_tick();                          /* sub ah,ah / int 0x1a */
+    if (dx != l2_dat_3509) goto lab_3680;
+lab_367f:
+    return;
+lab_3680:
+    l2_dat_350b = dx;
+    l2_dat_3415 = (uint16_t)(l2_dat_3415 + 1);
+    bx = l2_dat_3415;
+    if (bx < 0x18) goto lab_36a4;
+    bx = 0;                                            /* sub bx,bx */
+    l2_dat_3415 = bx;
+    l2_anim_toggle = (uint16_t)(l2_anim_toggle ^ 0xc);
+    l2_dat_3413 = (uint16_t)(l2_dat_3413 + 0x8);
+    goto lab_36b7;
+lab_36a4:
+    if (bx != 0xc) goto lab_36bd;
+    if (rom_id != 0xfd) goto lab_36b7;                 /* cmp byte [0x697],0xfd (rom_id) / jnz */
+    if (cat_y < 0x30) goto lab_36bd;
+lab_36b7:
+    l2_dat_3509 = l2_dat_350b;
+lab_36bd:
+    si = (uint16_t)(bx << 1);                          /* db 0xd1,0xe6 = shl si,1 (el listado dice shl si,0x0) */
+    if (l2_obj_active[bx] != 0x0) goto lab_367f;
+    dl = l2_random_dl();
+    if (dl > 0x10) goto lab_36e9;                      /* cmp dl,0x10 / ja (sin signo) */
+    dl &= 0x1;
+    if (dl != 0) goto lab_36d7;
+    dl = (uint8_t)~dl;
+lab_36d7:
+    l2_dat_3417[bx] = dl;
+    dl = l2_random_dl();
+    dl &= 0x1;
+    if (dl != 0) goto lab_36e5;
+    dl = (uint8_t)~dl;
+lab_36e5:
+    l2_dat_342f[bx] = dl;
+lab_36e9:
+    cx = 0x4;
+    if (bx < 0xc) goto lab_36f3;
+    cx = (uint16_t)(cx & 0xff00) | (uint8_t)((uint8_t)cx >> 1);   /* db 0xd0,0xe9 = shr cl,1 (el listado dice shr cl,0x0) */
+lab_36f3:
+    ax = l2_obj_x[bx];                                 /* [si + l2_obj_x] */
+    if (l2_dat_3417[bx] == 0x1) goto lab_370b;
+    {
+        bool borrow = ax < cx;                         /* sub ax,cx / jnb */
+        ax = (uint16_t)(ax - cx);
+        if (!borrow) goto lab_371a;
+    }
+    ax = 0;                                            /* sub ax,ax */
+    l2_dat_3417[bx] = 0x1;
+    goto lab_371a;
+lab_370b:
+    ax = (uint16_t)(ax + cx);
+    if (ax < 0x12f) goto lab_371a;                     /* jb (sin signo) */
+    ax = 0x12e;
+    l2_dat_3417[bx] = 0xff;
+lab_371a:
+    l2_obj_x[bx] = ax;
+    al = l2_obj_y[bx];
+    if (l2_dat_342f[bx] == 0x1) goto lab_373c;
+    al = (uint8_t)(al - 1);
+    if (al >= ds_pool[L2_OBJ_INIT_Y + bx]) goto lab_3750;   /* cmp al,[init_y] / jnb */
+    al = ds_pool[L2_OBJ_INIT_Y + bx];
+    l2_dat_342f[bx] = 0x1;
+    goto lab_3750;
+lab_373c:
+    al = (uint8_t)(al + 1);
+    dl = (uint8_t)(ds_pool[L2_OBJ_INIT_Y + bx] + 0x18);
+    if (al <= dl) goto lab_3750;                       /* cmp al,dl / jbe */
+    al = dl;
+    l2_dat_342f[bx] = 0xff;
+lab_3750:
+    l2_obj_y[bx] = al;
+    dl = al;
+    cx = l2_obj_x[bx];
+    ax = (uint16_t)calc_cga_addr(dl, cx, NULL);
+    l2_obj_cur_addr = ax;
+    bx = l2_dat_3415;
+    erase_level_object(bx);
+    bx = l2_dat_3415;
+    si = (uint16_t)(bx << 1);
+    l2_obj_cga_addr[bx] = l2_obj_cur_addr;             /* mov di,[cur_addr] / mov [si+l2_obj_cga_addr],di */
+    l2_obj_hit[bx] = 0x0;
+    if (bx < 0xc) goto lab_379f;
+    si = (uint16_t)(bx << 3);                          /* mov cl,3 / shl si,cl */
+    si = (uint16_t)(si + l2_dat_3413);
+    si = (uint16_t)(si & 0x18);
+    si = (uint16_t)(si + L2_SPRITE_B);
+    blit_to_cga(&ds_pool[si], l2_obj_cur_addr, 2, 2);  /* cx = 0x202 */
+    return;
+lab_379f:
+    si = l2_anim_toggle;
+    if (bx & 0x1) goto lab_37ac;                       /* test bl,1 / jnz */
+    si = (uint16_t)(si ^ 0xc);
+lab_37ac:
+    if (l2_dat_3417[bx] == 0x1) goto lab_37b6;
+    si = (uint16_t)(si + 0x18);
+lab_37b6:
+    si = (uint16_t)(si + L2_SPRITE_A);
+    blit_to_cga(&ds_pool[si], l2_obj_cur_addr, 1, 6);  /* cx = 0x601 */
+    return;
 }
