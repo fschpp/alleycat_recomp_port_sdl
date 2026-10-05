@@ -162,7 +162,7 @@ Parar en el `lab_XXXX` más cercano, dejar `/* TODO(<ID>-cont): continuar en lab
 
 Estado compartido de los niveles 4 y 5: **los dos usan las variables `l5_obj_*`** (el nivel 4 las reutiliza). Declararlas una sola vez en un `.h` común (`include/level45_state.h`) en T21.
 
-### T20 — Puertas del nivel 3 [S · 65]
+### T20 — Puertas del nivel 3 [S · 65] ✅ HECHO (PROGRESS.md §6q; los labels `l3_door_*` de esta tarea no son los reales: usa `dat_37a3..37b8`)
 - **ASM:** `level_objects.asm` L1376–1440 (`init_level3_doors`, `update_level3_doors`, `close_level3_door`).
 - **Destino:** `src/level3_enemy.c` (mismo nivel).
 - **Datos:** `l3_door_toggle=0x396b`, `l3_door_anim_frame=0x39e1`, `l3_door_cga_1/2/3=0x39e2/4/6`, `l3_door_sprite_base=0x39e8`.

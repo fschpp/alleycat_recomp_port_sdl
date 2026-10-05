@@ -29,4 +29,11 @@ build/test_alley: tests/test_alley_loop.c $(TEST_SRC) include/*.h
 test-alley: build/test_alley
 	./build/test_alley
 
-.PHONY: all run clean test-alley
+build/test_l3doors: tests/test_level3_doors.c $(TEST_SRC) include/*.h
+	@mkdir -p build
+	$(CC) $(CFLAGS) -Isrc tests/test_level3_doors.c $(TEST_SRC) -o $@
+
+test-l3doors: build/test_l3doors
+	./build/test_l3doors
+
+.PHONY: all run clean test-alley test-l3doors

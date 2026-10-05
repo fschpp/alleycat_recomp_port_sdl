@@ -3,6 +3,7 @@
 #include "cga.h"
 #include "level_collision.h"
 #include "level3_enemy.h"
+#include "alley.h"
 #include "gen/ds_pool.h"
 #include <stdint.h>
 #include <stdbool.h>
@@ -46,8 +47,7 @@ static uint8_t  l3_bird_saved_y;        /* dat_39c5 */
 static uint16_t l3_bird_last_tick;      /* dat_39c8 */
 static uint16_t l3_bird_next_draw_addr; /* dat_39ca */
 
-uint8_t l3_bird_escaped = 0;      /* [0x552] */
-uint8_t enemy_escape_active = 0;  /* [0x553] */
+/* [0x552] = object_hit, [0x553] = cat_caught (cat_state.h) — ver nota en level3_enemy.h (T20). */
 
 /* Non-blocking stand-in for the original's synchronous 9-tick busy-wait
  * (init_buzz_sound + a spin loop on int 0x1a calling update_buzz_sound
@@ -93,7 +93,7 @@ static void draw_l3_bird(void) {
  * saved background, matching the original's mask_save pointer being a
  * throwaway literal 0xe rather than a real buffer) plus a sound cue. */
 static void l3_start_escape(void) {
-    if (enemy_escape_active != 0) return;
+    if (cat_caught != 0) return;
 
     int32_t cx = (int32_t)cat_x - 0xc;
     if (cx < 0) cx = 0;
@@ -124,7 +124,7 @@ void update_level3_enemy(void) {
         update_buzz_sound();
         if ((uint16_t)(tick_now - l3_bird_escape_start_tick) >= 9) {
             l3_bird_escaping = false;
-            l3_bird_escaped = 1;
+            object_hit = 1;
         }
         return;
     }
@@ -219,4 +219,69 @@ void update_level3_enemy(void) {
     }
 
     draw_l3_bird();
+}
+
+/* ---------------------------------------------------------------------------------------------
+ * T20 — puertas del nivel 3 (level_objects.asm L1376-1440). PROGRESS.md §6q.
+ * Los labels `l3_door_*` de tareas.md NO corresponden a estas variables (0x396b es el toggle de
+ * alas del pájaro); el ASM usa dat_37a3.. :
+ *   dat_37af (byte)      puertas abiertas que quedan (init 3)
+ *   dat_37b0/2/4 (words) puerta i activa (init 1); índice = bx>>1, bx = 0,2,4
+ *   dat_37b6 (word)      índice de bucle bx;  dat_37b8 (word) último tick procesado
+ *   dat_37a3 (3 words, ds_pool)  X de cada puerta = 0x00c0, 0x00e0, 0x0100
+ *   dat_37a9 (3 words, ds_pool)  offset CGA de cada puerta = 0x03f0, 0x03f8, 0x0400
+ * ------------------------------------------------------------------------------------------- */
+#define L3_DOOR_X_TABLE   0x37a3
+#define L3_DOOR_CGA_TABLE 0x37a9
+
+static uint8_t  l3_doors_left;        /* dat_37af */
+static uint16_t l3_door_active[3];    /* dat_37b0, dat_37b2, dat_37b4 */
+static uint16_t l3_door_loop_bx;      /* dat_37b6 */
+static uint16_t l3_door_last_tick;    /* dat_37b8 */
+
+static uint16_t l3_ds_word(uint16_t ofs) {
+    return (uint16_t)(ds_pool[ofs] | (ds_pool[ofs + 1] << 8));
+}
+
+void init_level3_doors(void) {
+    l3_doors_left = 0x3;
+    l3_door_active[0] = 1;
+    l3_door_active[1] = 1;
+    l3_door_active[2] = 1;
+}
+
+/* close_level3_door: desactiva la puerta, rellena su hueco (2 words x 16 filas) con 0xAAAA tomado
+ * del scratch DS 0x000e (que primero se llena con 0xAAAA: rep stosw cx=0x20 = 64 bytes), y si era
+ * la última puerta y !object_hit marca cat_caught (que es el flag de fin de nivel de entry.asm). */
+void close_level3_door(uint16_t bx) {
+    uint8_t scratch[64];
+    l3_door_active[bx >> 1] = 0;
+    for (int i = 0; i < 64; i++) scratch[i] = 0xaa;
+    blit_to_cga(scratch, l3_ds_word((uint16_t)(L3_DOOR_CGA_TABLE + bx)), 2, 0x10);
+    if (--l3_doors_left == 0 && object_hit == 0) {   /* dec byte / jnz / cmp [0x552],0 */
+        cat_caught = 0x1;
+    }
+}
+
+void update_level3_doors(void) {
+    uint16_t tick = read_bios_tick();
+    if (tick == l3_door_last_tick) return;           /* cmp dx,[dat_37b8] / jnz */
+    l3_door_last_tick = tick;
+
+    /* bx = 4, 2, 0 (sub 2 / jnb: sale al pasar de 0) */
+    for (int bx = 4; bx >= 0; bx -= 2) {
+        l3_door_loop_bx = (uint16_t)bx;
+        if (l3_door_active[bx >> 1] == 0) continue;
+        /* A: ax=x puerta, dl=0x18 (y), si=0x10 (ancho), cl=0x10 (alto);
+         * B: bx=cat_x, dh=cat_y, di=0x18, ch=0x0e (cx=0x0e10) */
+        if (!check_rect_collision((int16_t)l3_ds_word((uint16_t)(L3_DOOR_X_TABLE + bx)), 0x18, 0x10, 0x10,
+                                  (uint16_t)cat_x, cat_y, 0x18, 0x0e)) continue;
+        start_tone(0xc00, 0x8fd);
+        restore_alley_buffer();
+        erase_l3_bird();
+        close_level3_door(l3_door_loop_bx);
+        save_alley_buffer();
+        draw_l3_bird();
+        return;
+    }
 }

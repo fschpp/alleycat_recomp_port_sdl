@@ -300,9 +300,9 @@ static bool check_l7_cat_hit(void) {
 
     if (l7_heart_index == 6) {
         /* [0x553] — the same shared "enemy escaping" guard byte as
-         * level3_enemy.c's enemy_escape_active; the cupid slot (index 6)
+         * cat_caught (= [0x553], antes `enemy_escape_active`); the cupid slot (index 6)
          * getting caught marks the epilogue's finale as in progress. */
-        enemy_escape_active = 1;
+        cat_caught = 1;
         l7_restore_alley_buffer();
         erase_l7_sprite();
         return true;

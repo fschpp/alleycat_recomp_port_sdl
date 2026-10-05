@@ -11,18 +11,15 @@
 void init_level3_enemy(void);
 void update_level3_enemy(void);
 
-/* [0x552] in the original — set once the bird's "buzz away" escape
- * sequence finishes. Shared byte-address in the original but only ever
- * written by this subsystem in the currently-ported code; exposed in
- * case a future port of enemy.asm's dog-catch sequence needs to read
- * it (see the comment above enemy_escape_active in level3_enemy.c). */
-extern uint8_t l3_bird_escaped;
+/* init_level3_doors / update_level3_doors / close_level3_door (level_objects.asm L1376-1440,
+ * T20 — PROGRESS.md §6q). Llamadas desde el loop del nivel 3 (entry.asm L377/L386).
+ * close_level3_door recibe bx = 2*índice de puerta (0, 2, 4), igual que el ASM. */
+void init_level3_doors(void);
+void update_level3_doors(void);
+void close_level3_door(uint16_t bx);
 
-/* [0x553] in the original — a guard shared across several not-yet-ported
- * "enemy escaping" sequences in level_objects.asm (levels 4/5/6 each have
- * their own analogous fence-creature). Always 0 until those are ported,
- * so this subsystem's escape sequence can never be blocked by another
- * one yet — a documented simplification, see PROGRESS.md. */
-extern uint8_t enemy_escape_active;
+/* NOTA (T20): [0x552] y [0x553] son `object_hit` y `cat_caught` de cat_state.h (entry.asm L21-22).
+ * Antes este módulo tenía copias propias (`l3_bird_escaped`, `enemy_escape_active`) que nadie leía;
+ * se eliminaron y ahora se usan directamente `object_hit` / `cat_caught`. */
 
 #endif
