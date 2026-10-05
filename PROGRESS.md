@@ -3812,6 +3812,45 @@ level-6 game (T32/T42/T75: `update_level6_timing` is not wired into `main.c` yet
 Suggested commit: `T31: update_level6_timing (level 6 object timing/alert pass); export activate_enemy_chase`
 
 
+## 6ac. T32 — `update_level6_movement` (`src/level6.c`, `include/level6.h`; level_objects.asm L2817-2983)
+
+Ported literally (label per label, `goto`): `update_level6_movement`. New globals in `level6.c` (initial values checked in `/tmp/data_segment.bin`, all 0):
+`l6_dat_44d3` (word, last BIOS tick processed), `l6_dat_44bf` (word, best X distance to a tile), `l6_dat_44c1` (word, slot of the nearest tile; >= 0xc = none),
+`l6_dat_44c3` (byte, direction toward the tile: 0xff = cat to its right, 1 = left), `l6_dat_44d5` (byte, carry of `dat_44d0 += 0x30`). Read-only table
+`dat_44a5` (DS 0x44a5, word[12]: tracker sprite 0x4184/0x410c per tile). Raw DS addresses are named in C: `[0x698]` = `input_horizontal`, `[0x699]` =
+`input_vertical`, `[0x69a]` = `joy_button`, `[0x584]` = `auto_walk`, `[0x56e]` = `scroll_direction`, `[0x572]` = `scroll_speed` (only the LOW byte is written, `mov byte`),
+`[0x553]` = `cat_caught`. The tick uses the same `read_bios_tick()` / `l6_tick_override` as T31.
+
+**Flow.** `enemy_active != 0` -> return **before** touching anything (not even the inputs). `dat_44be != 0` -> `input_horizontal = dat_44be`, `input_vertical = 0`.
+Same BIOS tick as `dat_44d3` -> return; else store it. `auto_walk != 0` -> if the tracker is drawn (`dat_44bd`): erase tracker, `erase_l1_thrown`,
+`save_alley_buffer`, `draw_l1_thrown`, clear `dat_44bd/dat_44be`, `dat_43e0 = 1`; return. `joy_button != 0` skips the search and retires the tracker
+(`lab_49f9`). Search: `cx = 12..1` (slot = cx-1), tiles with type >= 1 on row `cat_y + 8`; distance = `cat_x - X` (dir 0xff) or `~(cat_x - X)` (= X - cat_x - 1, dir 1)
+on borrow; strict-`>` skip so a tie goes to the LOWER slot (also sets `dat_44d1` = sprite). No tile -> retire. Distance 4..8 -> `scroll_speed` low byte = 4; distance >= 4 ->
+`input_horizontal = scroll_direction = dat_44be = dir`, `input_vertical = 0`, `in_level_mode = 0` then retire (`dat_44be` is zeroed again in `lab_4a0b`, so that store is
+dead). Distance < 4 -> tracker: `dat_44be = 0`, first time `restore_alley_buffer + save_alley_buffer`, `dat_44bd = 1`, `dat_44d0 += 0x30` (carry -> `dat_44d5 = 1`), tracker X =
+`cat_x & 0xffc` (+8 clamped to 0x126, or -8 clamped to 0 if the sprite is 0x410c), Y = `cat_y + 3`. With `dat_44d5 != 0` and tile type != 0: type--, at 0 -> `start_tone(0x8fd,
+0x723)`, `input_horizontal = 0`, `dat_44be = 0`, `joy_button = 0x10`, `dat_44d6--` and `cat_caught = 1` when it reaches 0; then `check_thrown_near_cat()`: CF ->
+`erase_l1_thrown`, `draw_l6_tile`, `draw_l1_thrown`; else only `draw_l6_tile`. Always ends with `draw_l6_tracker`.
+`check_vsync` (`lab_4aa2`) is a no-op, as before. `db 0xd0,0xe3` / `db 0xd0,0xeb` are `shl bl,1` / `shr bl,1` (listing shows `,0x0`, same artefact as T18-T31).
+
+**Observations (not changed).** (1) With the real tables the two X clamps in `lab_4a95/lab_4a9c` (`0x126` and `-8 -> 0`) are unreachable: a tile with sprite 0x4184 is never
+within 3 px of cat_x >= 0x11f, and no 0x410c tile is within 3 px of cat_x < 8. They are ported anyway. (2) A tie in the nearest-tile search cannot happen with these tables (all tile X
+are multiples of 4, parity rules it out), so `>` vs `>=` is untestable here. (3) Not wired into `main.c` yet (T42/T75).
+
+**Verified:** `tests/test_level6d.c` (`make test-level6d`, part of `make test`; Makefile links it with `--wrap` on `erase/draw_l1_thrown`, `save/restore_alley_buffer`,
+`draw_alley_foreground`, `start_tone`, `check_thrown_near_cat` to record the ORDER of external calls). Expected values do not come from the C: a STRUCTURED model (nested ifs, not
+goto) written from the ASM, a model screen (tracker AND-blit + save/restore, 2x8 tiles, CGA bank interleave starting on odd rows) and the model's own call log. Cases: guards
+(`enemy_active`, same tick, `dat_44be` 0/non-0), `auto_walk` with and without tracker, `joy_button`, no tile / wrong row, distances 0..9 on both sides of a tile (thresholds 4 and 8,
+`scroll_speed` low byte only), all 12 tiles x `dat_44d0` carry values x sprite, exhausting a tile with `dat_44d6` 1 and 2 (`cat_caught`) and both results of
+`check_thrown_near_cat`, and 4000 random scenarios: all variables, whole CGA memory and call order identical to the model. **Mutation check:** 21 deliberate edits (thresholds,
+`~` vs `-`, `cat_y+8`, carry `>` vs `>=`, tone argument, `cat_caught`, `joy_button` stores, inverted `check_thrown_near_cat`/`auto_walk`/`joy_button`, sprite selection, missing
+`save_alley_buffer`, ...) are caught except the 4 equivalent ones described above (tie `>=`, the dead `dat_44be` store, and the two unreachable clamps). `-Wall -Wextra` clean, full
+`make test` passes. No SDL build here (no libsdl2-dev).
+**Caveat:** no x86 emulator here; the model is written from the ASM text, so a shared misreading would not be caught. **Not verified:** the routine inside the real level-6 loop.
+
+Suggested commit: `T32: update_level6_movement (level 6 tracker/auto-walk toward tiles)`
+
+
 ## 7. General lesson for this whole project
 
 **Never trust a same-file label as a data region's end boundary, and never

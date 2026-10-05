@@ -232,7 +232,7 @@ Estado compartido de los niveles 4 y 5: **los dos usan las variables `l5_obj_*`*
 - **Notas:** llama `activate_enemy_chase` (ya portado en `enemy.c`) y `play_explosion_effect` (sonido bloqueante, ya portado).
 - **Verificar:** test con tick simulado que dispara la transición de estado de un objeto y comprueba `l6_obj_state`.
 
-### T32 — `update_level6_movement` [L · 167]
+### T32 — `update_level6_movement` [L · 167] ✅ HECHO (PROGRESS.md §6ac; sin cablear en `main.c` hasta T75; `0x698/0x699` = `input_horizontal/vertical`)
 - **ASM:** `level_objects.asm` L2817–2983.
 - **Destino:** `src/level6.c`.
 - **Notas:** usa `draw_l1_thrown`/`erase_l1_thrown` (equivalentes de `draw_thrown_sprite`), `check_thrown_near_cat` (T26). Si no cabe: cortar a mitad por `lab_`.

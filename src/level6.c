@@ -6,6 +6,8 @@
 #include "enemy.h"
 #include "sound.h"
 #include "level_objects.h"
+#include "level5.h"
+#include "input.h"
 #include <time.h>
 #include "gen/ds_pool.h"
 #include <string.h>
@@ -24,6 +26,7 @@
 #define L6_DAT_4100       0x4100   /* words: sprite de 1 word del indicador de alerta */
 #define L6_DAT_44DC       0x44dc   /* word[8] por dificultad: ticks entre pases {18,16,15,14,13,12,11,10} (solo lectura) */
 #define L6_DAT_44EC       0x44ec   /* word[8] por dificultad: distancia X maxima {40,50,60,70,85,80,85,90} (solo lectura) */
+#define L6_DAT_44A5       0x44a5   /* word[12]: offset DS del sprite del tracker por tile (0x4184 / 0x410c); solo lectura */
 #define L6_SPRITE_B       0x429c   /* offset DS del sprite de objeto "B" (el otro es 0x431e) */
 
 uint16_t l6_obj_flag[12];
@@ -42,6 +45,11 @@ uint16_t l6_dat_44d7 = 0;
 uint8_t  l6_dat_44fc = 0;
 int32_t  l6_tick_override = -1;
 uint16_t l6_dat_44da = 0;
+uint16_t l6_dat_44d3 = 0;
+uint16_t l6_dat_44bf = 0;
+uint16_t l6_dat_44c1 = 0;
+uint8_t  l6_dat_44c3 = 0;
+uint8_t  l6_dat_44d5 = 0;
 
 static uint16_t l6_tracker_save[30];   /* DS 0x43a0..0x43dc = 0x3c bytes = 3 words x 10 filas */
 
@@ -239,4 +247,143 @@ lab_487d:
     play_explosion_effect();
 lab_4889:
     return;
+}
+
+/* ---- T32: update_level6_movement (level_objects.asm L2817-2983). ---- */
+
+void update_level6_movement(void) {
+    uint16_t cx, bx, ax, si;
+    uint8_t dl, dh, al;
+    if (enemy_active != 0x0) goto lab_4966;            /* cmp byte [enemy_active],0 / jnz */
+    if (l6_dat_44be == 0x0) goto lab_495c;             /* cmp byte [dat_44be],0 / jz */
+    al = l6_dat_44be;
+    input_horizontal = (int8_t)al;                     /* mov [0x698],al  (input_horizontal) */
+    input_vertical = 0x0;                              /* mov byte [0x699],0 (input_vertical) */
+lab_495c:
+    {
+        uint16_t dx = read_bios_tick();                /* sub ah,ah / int 0x1a */
+        if (dx != l6_dat_44d3) { l6_dat_44d3 = dx; goto lab_4967; }   /* cmp dx,[dat_44d3] / jnz; mov [dat_44d3],dx */
+    }
+lab_4966:
+    return;
+lab_4967:
+    if (auto_walk == 0x0) goto lab_4995;               /* cmp byte [0x584],0 (auto_walk) / jz */
+    if (l6_dat_44bd == 0x0) goto lab_4994;
+    erase_l6_tracker();
+    erase_l1_thrown();                                 /* call erase_thrown_sprite */
+    save_alley_buffer();
+    draw_l1_thrown();                                  /* call draw_thrown_sprite */
+    l6_dat_44bd = 0x0;
+    l6_dat_43e0 = 0x1;
+    l6_dat_44be = 0x0;
+lab_4994:
+    return;
+lab_4995:
+    if (joy_button != 0x0) goto lab_49f9;              /* cmp byte [0x69a],0 / jz lab_499f / jmp lab_49f9 */
+    l6_dat_44c1 = 0xffff;
+    l6_dat_44bf = 0xffff;
+    cx = 0xc;
+    si = (uint16_t)cat_x;
+    dl = (uint8_t)(cat_y + 0x8);
+lab_49b6:
+    bx = (uint16_t)(cx - 1);                           /* mov bx,cx / dec bx (bx = slot, <= 11) */
+    if (l6_tile_type[bx] < 0x1) goto lab_49f0;         /* cmp byte [bx+dat_44c4],1 / jb */
+    if (dl != ds_pool[L6_OBJ_Y + bx]) goto lab_49f0;   /* cmp dl,[bx+l6_obj_y] / jnz */
+    ax = si;                                           /* mov ax,si */
+    bx = (uint16_t)((bx & 0xff00) | (uint8_t)(bx << 1));   /* db 0xd0,0xe3 = shl bl,1 (listing: shl bl,0x0) */
+    dh = 0xff;
+    {
+        uint16_t tile_x = ds_word((uint16_t)(L6_OBJ_DIMS + bx));
+        bool borrow = ax < tile_x;                     /* sub ax,[bx+l6_obj_dims] / jnb */
+        ax = (uint16_t)(ax - tile_x);
+        if (borrow) { ax = (uint16_t)~ax; dh = 0x1; }  /* not ax / mov dh,1 */
+    }
+    if (ax > l6_dat_44bf) goto lab_49f0;               /* cmp ax,[dat_44bf] / ja (sin signo): empate -> gana el slot mas bajo */
+    l6_dat_44bf = ax;
+    ax = ds_word((uint16_t)(L6_DAT_44A5 + bx));
+    l6_dat_44d1 = ax;
+    bx = (uint16_t)((bx & 0xff00) | (uint8_t)(bx >> 1));   /* db 0xd0,0xeb = shr bl,1 (listing: shr bl,0x0) */
+    l6_dat_44c1 = bx;
+    l6_dat_44c3 = dh;
+lab_49f0:
+    cx = (uint16_t)(cx - 1);                           /* loop lab_49b6 */
+    if (cx != 0) goto lab_49b6;
+    if (l6_dat_44c1 < 0xc) goto lab_4a20;              /* cmp word [dat_44c1],0xc / jb */
+lab_49f9:
+    if (l6_dat_44bd == 0x0) goto lab_4a0b;
+    erase_l6_tracker();
+    draw_alley_foreground();
+    joy_button = 0x10;
+lab_4a0b:
+    l6_dat_44bd = 0x0;
+    l6_dat_43e0 = 0x1;
+    l6_dat_44d0 = 0x0;
+    l6_dat_44be = 0x0;
+    return;
+lab_4a20:
+    if (l6_dat_44bf < 0x4) goto lab_4a4b;              /* cmp word [dat_44bf],4 / jb */
+    if (l6_dat_44bf > 0x8) goto lab_4a33;              /* cmp word [dat_44bf],8 / ja */
+    scroll_speed = (uint16_t)((scroll_speed & 0xff00) | 0x4);   /* mov byte [0x572],4: solo el byte bajo */
+lab_4a33:
+    al = l6_dat_44c3;
+    input_horizontal = (int8_t)al;                     /* mov [0x698],al */
+    scroll_direction = (int8_t)al;                     /* mov [0x56e],al */
+    l6_dat_44be = al;
+    input_vertical = 0x0;                              /* mov byte [0x699],0 */
+    in_level_mode = 0x0;
+    goto lab_49f9;
+lab_4a4b:
+    l6_dat_44be = 0x0;
+    if (l6_dat_44bd != 0x0) goto lab_4a5d;
+    restore_alley_buffer();
+    save_alley_buffer();
+lab_4a5d:
+    l6_dat_44bd = 0x1;
+    al = 0x0;                                          /* sub al,al */
+    {
+        unsigned sum = (unsigned)l6_dat_44d0 + 0x30u;  /* add byte [dat_44d0],0x30 / jnb */
+        l6_dat_44d0 = (uint8_t)sum;
+        if (sum > 0xffu) al++;
+    }
+    l6_dat_44d5 = al;
+    cx = (uint16_t)((uint16_t)cat_x & 0xffc);
+    dl = (uint8_t)(cat_y + 0x3);
+    if (l6_dat_44d1 == 0x410c) goto lab_4a95;
+    cx = (uint16_t)(cx + 0x8);
+    if (cx < 0x127) goto lab_4a9c;                     /* cmp cx,0x127 / jb */
+    cx = 0x126;
+    goto lab_4a9c;
+lab_4a95:
+    {
+        bool borrow = cx < 0x8;                        /* sub cx,8 / jnb */
+        cx = (uint16_t)(cx - 0x8);
+        if (borrow) cx = 0;                            /* db 0x2b,0xc9 = sub cx,cx */
+    }
+lab_4a9c:
+    ax = (uint16_t)calc_cga_addr(dl, cx, NULL);
+    l6_dat_43dc = ax;
+    /* lab_4aa2: call check_vsync / jz lab_4aa2 -> check_vsync es un no-op en el port: no se espera */
+    erase_l6_tracker();
+    if (l6_dat_44d5 == 0x0) goto lab_4aff;
+    bx = l6_dat_44c1;                                  /* mov bx,[dat_44c1] (= slot) */
+    if (l6_tile_type[bx] == 0x0) goto lab_4aff;
+    l6_tile_type[bx] = (uint8_t)(l6_tile_type[bx] - 1);   /* dec byte [bx+dat_44c4] */
+    if (l6_tile_type[bx] != 0x0) goto lab_4ae7;
+    start_tone(0x8fd, 0x723);                          /* push bx / mov ax,0x8fd / mov bx,0x723 / call start_tone / pop bx */
+    input_horizontal = 0x0;                            /* mov byte [0x698],0 */
+    l6_dat_44be = 0x0;
+    joy_button = 0x10;
+    l6_dat_44d6 = (uint8_t)(l6_dat_44d6 - 1);
+    if (l6_dat_44d6 != 0x0) goto lab_4ae7;
+    cat_caught = 0x1;                                  /* mov byte [0x553],1 */
+lab_4ae7:
+    if (!check_thrown_near_cat()) goto lab_4afc;       /* call check_thrown_near_cat / jnb */
+    erase_l1_thrown();                                 /* call erase_thrown_sprite */
+    draw_l6_tile(bx);
+    draw_l1_thrown();                                  /* call draw_thrown_sprite */
+    goto lab_4aff;
+lab_4afc:
+    draw_l6_tile(bx);
+lab_4aff:
+    draw_l6_tracker();
 }

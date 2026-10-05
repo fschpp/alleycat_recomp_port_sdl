@@ -68,6 +68,20 @@ void draw_l6_alert(uint16_t slot);
  * con probabilidad (dl <= 0x38). Luego dibuja alerta y refresca. Si algun objeto llego a 2, play_explosion_effect al final. */
 void update_level6_timing(void);
 
+/* --- T32: update_level6_movement (level_objects.asm L2817-2983) --- */
+extern uint16_t l6_dat_44d3;       /* DS 0x44d3 (word): ultimo tick BIOS procesado por update_level6_movement; init 0 */
+extern uint16_t l6_dat_44bf;       /* DS 0x44bf (word): mejor distancia X al tile (init 0; la fija la busqueda, parte de 0xffff) */
+extern uint16_t l6_dat_44c1;       /* DS 0x44c1 (word): slot del tile mas cercano (>= 0xc = ninguno); init 0 */
+extern uint8_t  l6_dat_44c3;       /* DS 0x44c3 (byte): direccion hacia el tile: 0xff (gato a su derecha) o 1; init 0 */
+extern uint8_t  l6_dat_44d5;       /* DS 0x44d5 (byte): 1 si el avance del sprite (dat_44d0 += 0x30) dio acarreo -> pisa un tile; init 0 */
+
+/* update_level6_movement (L2817-2983, T32): no hace nada con enemy_active != 0 o si el tick BIOS no cambio. Con auto_walk
+ * solo recoge el tracker. Si no, busca (cx=12..1) el tile con tipo >= 1 en la fila cat_y+8 mas cercano en X (empate -> slot mas
+ * bajo); sin tile (o con joy_button != 0) retira el tracker; con distancia 4..8 fija scroll_speed=4, y con >= 4 hace que el
+ * gato camine hacia el tile (input_horizontal/scroll_direction = dat_44c3); con < 4 dibuja el tracker (sprite dat_44a5)
+ * junto al gato y, cuando dat_44d5 != 0, gasta un uso del tile (dat_44c4--, sonido y cat_caught al agotar los 12). */
+void update_level6_movement(void);
+
 /* level6_stubs (L3082): es un `ret` desnudo (entry.asm L288 lo llama como "init level 6"); lo que sigue son bytes
  * de relleno decodificados como codigo. No se porta: la llamada de entry.asm es un no-op. */
 #endif
