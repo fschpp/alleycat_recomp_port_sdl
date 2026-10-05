@@ -14,10 +14,11 @@ graphics assets, so it is not meant to be published or redistributed.
 
 ## 0. Current focus / todo / blockers
 
-**Current focus:** `tareas.md` execution: T00, T10-T20 (§6g-§6q) and **T21** (level-4 helpers A, §6r)
-are done. Next up: T22 (rest of the level-4 helpers: `check_l4_obj_cat`, `check_l4_obj_thrown` and the
-`init_level4_bg` tail; `check_l4_proximity` was already ported here because `randomize_l4_pos` needs it).
-T01/T02 are still open (`make test` now runs `test-alley`, `test-l3doors`, `test-level4`). The death
+**Current focus:** `tareas.md` execution: T00, T10-T21 (§6g-§6r) and **T22** (level-4 helpers B +
+`init_level4_bg` tail, §6s) are done. Next up: **T23** (`update_level4_anim`, L1933-2093, 161 lines; use the
+cut rule at the nearest `lab_` if it does not fit) and T24 (`update_level4_state`, which consumes the
+`dat_3ce3/3cf3` tables seeded in T22 and writes `l3_door_anim_frame`).
+T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-level4`). The death
 handler (`entry.asm` lab_01b7+, T41) is still replaced in `main.c` by "re-enter the alley".
 
 - [x] `sound.asm` — full port, wired into every previously-stubbed call site (§6e)
@@ -38,6 +39,7 @@ handler (`entry.asm` lab_01b7+, T41) is still replaced in `main.c` by "re-enter 
 - [x] T19 — alley loop in `main.c` in `entry.asm` order (L131-180); `frame_counter`; `make test-alley` (§6p)
 - [x] T20 — `init_level3_doors`, `update_level3_doors`, `close_level3_door` in `level3_enemy.c`; `object_hit`/`cat_caught` unified (§6q)
 - [x] T21 — level-4 helpers A (`level4.c`) + shared `l5_obj_*` state (`level45_state.[ch]`); `check_rect_collision` unsigned fix (§6r)
+- [x] T22 — `check_l4_obj_cat`, `check_l4_obj_thrown`, `init_level4_bg` tail (`init_level4_bg_tail`), `l3_door_anim_frame` (§6s)
 - [ ] T01 — full headless harness (`tests/harness.h`, `make test`); only `tests/test_alley_loop.c` exists so far
 - [ ] T41 — death handler / level selector (`entry.asm` lab_01b7+); `main.c` just re-enters the alley meanwhile
 - [ ] `ui.asm` — `window_open_state` toggling, the other half of item (h)
@@ -3396,6 +3398,45 @@ The emulator harness itself (`/tmp/t21/*`) is not committed.
 **Not verified:** how these helpers behave inside the real level-4 loop (`update_level4_anim`/`state`, T23/T24).
 
 Suggested commit: `T21: level-4 helpers A + shared l5_obj state; fix unsigned a_x clamp in check_rect_collision`
+
+
+## 6s. T22 level-4 helpers B + `init_level4_bg` tail (`src/level4.c`, `src/level_background.c`)
+
+**Ported:** `check_l4_obj_cat`, `check_l4_obj_thrown` (level_objects.asm L2150-2177) and the tail of
+`init_level4_bg` (L1877-1896) as `init_level4_bg_tail()`, called at the end of the (static)
+`init_level4_bg` in `level_background.c`. `check_l4_proximity` was already ported in T21 (§6r).
+Declared in `include/level4.h`. Not called from `main.c` yet (level loops: T42/T43, consumers T23/T24).
+
+**Findings:**
+- `check_l4_obj_cat`/`check_l4_obj_thrown` take the object index (ASM: `bx` = idx, `si` = 2*idx, both
+  preserved by push/pop). Rect A = (dims[idx], y_pos[idx], w=0x10, h=cl=0x0c); B = cat (w=0x18, h=0x0e)
+  or thrown object (w=di=si=0x10, h=ch=0x1e). `cx` packs height low / ch high, same convention as T21.
+- **The tail seeds `dat_3ce3/3ce4` and `dat_3cf3/3cf4`**, two *interleaved* 16-byte tables (DS 0x3ce3 and
+  0x3cf3; `3ce4 = 3ce3 + 1`, `3cf4 = 3cf3 + 1`; `3cf3 + 16 = 0x3d03 = l4_obj_cur_x`, so each is exactly
+  16 bytes). 8 source bytes from `dat_3cc3` (DS 0x3cc3, 4 groups x 8 = 32 bytes) at
+  `bx = ((difficulty_level & 3) << 3)`; each byte yields its high nibble in `3ce3[si]` and low nibble in
+  `3ce4[si]`, and 0 in the `3cf*` pair. `shl/and` act on **`bl` only**: `bh` keeps the high byte of
+  `difficulty_level` (always 0 in practice). Difficulty 5 therefore uses the same group as 1.
+  Modeled as `l4_dat_3ce3[16]` / `l4_dat_3cf3[16]` (names kept: semantics not resolved until T24).
+- **The head of `init_level4_bg` was incomplete in T-pre:** it never ran `l3_platform_id = 0` and
+  `l3_door_anim_frame = 0` (L1827-1828). Both are now done. `l3_door_anim_frame` (DS 0x39e1, byte) did
+  not exist in the port: added to `cat_state.[ch]` (right after `l3_platform_id`, 0x39e0). Other readers
+  of it still pending: `game_loop.asm` L194 (T70), `level_objects.asm` L615 and L1721-1819 (T24).
+- tareas.md's "dead code" comment in `level_background.c` for this tail is replaced.
+
+**Verification:** `make test` equivalents pass (`test-level4`, `test-alley`, `test-l3doors`); changed files
+compile with `-Wall -Wextra`, 0 warnings. The real routines (`check_rect_collision` + the 2 helpers + the
+tail) were assembled with `nasm` from the disassembly and run in a `unicorn` x86-16 emulator against the C
+port: **8,256 cases, 0 differences** (CAT 4000 [426 collisions], THR 4000 [499 collisions], TAIL 256 =
+every `difficulty_level` 0..255, 32 table bytes each; also checked that `bx`/`si` are preserved).
+`tests/test_level4.c` keeps boundary tests (all 4 edges of each rect for both helpers, the 0xFFEF unsigned
+case) and golden tails for difficulty 0, 1/5 and 3. Level-4 background sanity run: `draw_level_background`
+with `level_number=4, difficulty_level=5` resets `l3_platform_id`/`l3_door_anim_frame` and seeds the tables.
+The emulator harness (`/tmp/t22/*`) is not committed.
+**Not verified:** behaviour inside the real level-4 loop (T23/T24); build with SDL (`make` needs
+`libsdl2-dev`, not installable in this sandbox: only the SDL-free test targets were built).
+
+Suggested commit: `T22: level-4 helpers B (check_l4_obj_cat/thrown) + init_level4_bg tail; add l3_door_anim_frame`
 
 
 ## 7. General lesson for this whole project

@@ -71,6 +71,52 @@ int main(void) {
     l5_obj_active[1] = 0; erase_level4_sprite();
     CHECK(cga_mem[0x100] == 0x5a, "activo == 0: restaura");
 
+
+    /* ---- T22: helpers B (check_l4_obj_cat / check_l4_obj_thrown) ---- */
+    /* Objeto 2: x=100, y=50 -> rect 0x10 x 0x0c. Contra el gato (0x18 x 0x0e) choca con cat_x en
+     * [76,116] y cat_y en [36,62]; contra el lanzado (0x10 x 0x1e): thrown_x en [84,116], thrown_y en [20,62]. */
+    l5_obj_dims[2] = 100; l5_obj_y_pos[2] = 50;
+    cat_y = 50;
+    cat_x = 76;  CHECK(check_l4_obj_cat(2),  "obj-gato: borde izquierdo (76) debe chocar");
+    cat_x = 75;  CHECK(!check_l4_obj_cat(2), "obj-gato: 75 no choca");
+    cat_x = 116; CHECK(check_l4_obj_cat(2),  "obj-gato: borde derecho (116) debe chocar");
+    cat_x = 117; CHECK(!check_l4_obj_cat(2), "obj-gato: 117 no choca");
+    cat_x = 100;
+    cat_y = 36;  CHECK(check_l4_obj_cat(2),  "obj-gato: y=36 choca");
+    cat_y = 35;  CHECK(!check_l4_obj_cat(2), "obj-gato: y=35 no choca");
+    cat_y = 62;  CHECK(check_l4_obj_cat(2),  "obj-gato: y=62 choca");
+    cat_y = 63;  CHECK(!check_l4_obj_cat(2), "obj-gato: y=63 no choca");
+    thrown_obj_y = 50;
+    thrown_obj_x = 84;  CHECK(check_l4_obj_thrown(2),  "obj-lanzado: x=84 choca");
+    thrown_obj_x = 83;  CHECK(!check_l4_obj_thrown(2), "obj-lanzado: x=83 no choca");
+    thrown_obj_x = 116; CHECK(check_l4_obj_thrown(2),  "obj-lanzado: x=116 choca");
+    thrown_obj_x = 117; CHECK(!check_l4_obj_thrown(2), "obj-lanzado: x=117 no choca");
+    thrown_obj_x = 100;
+    thrown_obj_y = 20;  CHECK(check_l4_obj_thrown(2),  "obj-lanzado: y=20 choca");
+    thrown_obj_y = 19;  CHECK(!check_l4_obj_thrown(2), "obj-lanzado: y=19 no choca");
+    thrown_obj_y = 62;  CHECK(check_l4_obj_thrown(2),  "obj-lanzado: y=62 choca");
+    thrown_obj_y = 63;  CHECK(!check_l4_obj_thrown(2), "obj-lanzado: y=63 no choca");
+    /* x del lanzado >= 0x8000 (sin signo, como el fix de T21) */
+    thrown_obj_x = (int16_t)65519; thrown_obj_y = 50;
+    CHECK(!check_l4_obj_thrown(2), "obj-lanzado: 0xFFEF no choca con un objeto en x=100");
+
+    /* ---- T22: cola de init_level4_bg (dat_3cc3 -> dat_3ce3/3cf3), valores del emulador x86 ---- */
+    static const struct { uint16_t diff; const char *ce3; } tl[3] = {
+        {0, "0f06090b0a0c010e0d02040305080700"},
+        {1, "0e0b060f0c0a02090d07050104080003"},   /* difficulty 5 usa el mismo grupo (5 & 3 == 1) */
+        {3, "020d000e0f06050b0c0a090708010304"},
+    };
+    for (int k = 0; k < 3; k++) {
+        memset(l4_dat_3ce3, 0xEE, sizeof l4_dat_3ce3); memset(l4_dat_3cf3, 0xEE, sizeof l4_dat_3cf3);
+        for (int d = 0; d < 2; d++) {
+            uint16_t diff = tl[k].diff == 1 && d ? 5 : tl[k].diff;
+            difficulty_level = diff; init_level4_bg_tail();
+            char got[33]; for (int i = 0; i < 16; i++) snprintf(got + 2 * i, 3, "%02x", l4_dat_3ce3[i]);
+            CHECK(strncmp(got, tl[k].ce3, 32) == 0, "cola init_level4_bg diff=%u: %s != %.32s", diff, got, tl[k].ce3);
+            for (int i = 0; i < 16; i++) CHECK(l4_dat_3cf3[i] == 0, "cola diff=%u: dat_3cf3[%d] != 0", diff, i);
+        }
+    }
+
     printf(fails ? "RESULT: %d FAIL\n" : "RESULT: all OK\n", fails);
     return fails != 0;
 }

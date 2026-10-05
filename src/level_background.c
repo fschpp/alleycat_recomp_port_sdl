@@ -1,6 +1,7 @@
 #include "cat_state.h"
 #include "cga.h"
 #include "level_background.h"
+#include "level4.h"
 #include "gen/ds_pool.h"
 #include <stdint.h>
 #include <string.h>
@@ -243,13 +244,12 @@ static void draw_level3_bg(void) {
  * level_objects.asm's init_level4_bg, UP TO the masked sign-sprite blit.
  * Draws a 17-row randomized floor pattern (row tile-counts from
  * dat_3cae), then 4 static block-lists, then a small masked decorative
- * sprite. NOT ported: the routine's tail (initializing per-window
- * light/gap random state into dat_3ce3/dat_3ce4/dat_3cf3/dat_3cf4 from
- * [difficulty_level]) — that state is only consumed by an unported
- * level-4 object-update routine (level_objects.asm:1762), so it's left
- * out here, same pattern already used for init_level5_objects/
- * init_level6_objects elsewhere in this dispatcher. */
+ * sprite, and (T22, PROGRESS.md §6s) the tail that seeds dat_3ce3/3ce4/
+ * 3cf3/3cf4 from [difficulty_level] (init_level4_bg_tail in level4.c; it is
+ * consumed by update_level4_state, level_objects.asm:1762, still T24). */
 static void init_level4_bg(void) {
+    l3_platform_id = 0x0;                       /* L1827-1828 */
+    l3_door_anim_frame = 0x0;
     uint16_t row_base = 0x506;
 
     for (int row = 0; row < 0x11; row++) {
@@ -281,6 +281,8 @@ static void init_level4_bg(void) {
      * mask_save is NULL — the original's [bp+0]=ds:0xe scratch save
      * isn't consumed by anything ported yet (see comment above). */
     blit_masked(&ds_pool[LEVEL4_SIGN_SPRITE], 0x8ec, 2, 1, NULL);
+
+    init_level4_bg_tail();                      /* L1877-1896 (T22) */
 }
 
 /* draw_level_background — literal port of score.asm's top dispatcher.
