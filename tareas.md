@@ -105,7 +105,7 @@ Parar en el `lab_XXXX` más cercano, dejar `/* TODO(<ID>-cont): continuar en lab
 - **Datos:** leer `window_open_state=0x2be2`, `current_floor`.
 - **Verificar:** test con tres combinaciones de `window_open_state`/`current_floor` y la posición del gato.
 
-### T12 — Helpers de `throw.asm` [M · 107]
+### T12 — Helpers de `throw.asm` [M · 107] ✅ HECHO (PROGRESS.md §6i; incluye fix de `cga_random`)
 - **ASM:** `throw.asm` L170–276 (`rotate_throw_bits` 170–192, `check_throw_range` 193–210, `generate_throw_object` 211–256, `generate_throw_pattern` 257–276).
 - **Destino:** nuevo `src/throw.c` + `include/throw.h`; añadir a `Makefile`.
 - **Datos:** `throw_sprite_small=0x0460`, `throw_sprite_large=0x0490`, `throw_pattern_ptrs=0x04d0`, `throw_bits=0x0540`, `throw_rotate_dir=0x0541`, `throw_col_data=0x1016`, `throw_obj_buf=0x04d7`, `in_throw_range=0x04d6`. Extensión de cada tabla por cómo se indexa, no por el label.

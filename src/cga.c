@@ -156,16 +156,17 @@ void blit_or(const uint8_t *src, size_t dst_offset, uint8_t width_words, uint8_t
     }
 }
 
-/* 16-bit LFSR, matching:
- *   dx = rng_seed; dl ^= dh; dl >>= 2; rcr rng_seed,1; dx = rng_seed
- * i.e. feedback bit = (low^high byte) >> 2 folded in through carry rotate. */
+/* 16-bit LFSR, matching cga.asm L158-165:
+ *   mov dx,[rng_seed] / xor dl,dh / shr dl,1 / shr dl,1 / rcr word [rng_seed],1 / mov dx,[rng_seed]
+ * El carry que entra por rcr es el ULTIMO bit expulsado por los dos `shr dl,1`,
+ * o sea el bit 1 de (dl ^ dh) ORIGINAL (T12: antes se tomaba el bit 2 por
+ * mirar dl ya desplazado). */
 uint16_t cga_random(void) {
     uint16_t dx = rng_seed;
     uint8_t dl = (uint8_t)(dx & 0xFF);
     uint8_t dh = (uint8_t)(dx >> 8);
     dl = (uint8_t)(dl ^ dh);
-    dl >>= 2;
-    uint16_t carry_in = dl & 1;
+    uint16_t carry_in = (uint16_t)((dl >> 1) & 1);
     uint16_t result = (uint16_t)((rng_seed >> 1) | (carry_in << 15));
     rng_seed = result;
     return rng_seed;

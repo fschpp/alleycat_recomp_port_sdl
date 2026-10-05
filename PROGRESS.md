@@ -15,7 +15,8 @@ graphics assets, so it is not meant to be published or redistributed.
 ## 0. Current focus / todo / blockers
 
 **Current focus:** `tareas.md` execution: T00 (tooling), T10 (§6g) and T11
-(`check_stairs_collision`, §6h) are done. Next up is T12/T13 (`throw.asm`), which is what
+(`check_stairs_collision`, §6h) and T12 (`throw.asm` helpers + RNG fix, §6i) are
+done. Next up is T13 (`update_thrown_objects`), which is what
 §17 item (h) is *actually* blocked on (see the correction below).
 
 - [x] `sound.asm` — full port, wired into every previously-stubbed call site (§6e)
@@ -26,6 +27,8 @@ graphics assets, so it is not meant to be published or redistributed.
 - [x] T00 — `tools/setup.sh`, `asm_range.sh`, `asm_label.sh`; `resolve_data_segment.py` reads `ALLEYCAT_ASM` (§6g)
 - [x] T10 — `pixel_to_bitmask`, `check_window_landing`, level-0 branch of `check_level_collision` (§6g)
 - [x] T11 — `check_stairs_collision` (level 7), `window_open_state[126]` state array (§6h)
+- [x] T12 — `throw.asm` helpers: `rotate_throw_bits`, `check_throw_range`, `generate_throw_object`, `generate_throw_pattern` + **`cga_random` fix** (§6i)
+- [ ] T13 — `update_thrown_objects` + real `reset_window_state` (rest of `throw.asm`)
 - [ ] `throw.asm` — maintains `current_floor`/`window_column`; **the real blocker for §17 item (h)**
 - [ ] `ui.asm` — `window_open_state` toggling, the other half of item (h)
 - [ ] §17 item (f): level-2 collectibles + bg tiles (unblocked since §6e)
@@ -2900,6 +2903,57 @@ clamp edge (idx 53 and 125); non-matching `cat_y` (0x10, and 0x04 which wraps to
 runs clean.
 
 Suggested commit: `T11: check_stairs_collision (level 7) + window_open_state`
+
+
+## 6i. T12 `throw.asm` helpers (new `src/throw.c`) + `cga_random` bug fix
+
+**RNG BUG FIXED (affects the whole game).** `cga.asm` `random` is
+`dx=[seed]; xor dl,dh; shr dl,1; shr dl,1; rcr word [seed],1; dx=[seed]`. The
+carry entering `rcr` is the LAST bit shifted out by the two `shr`, i.e. **bit 1**
+of `(dl^dh)`. `cga_random()` shifted first and then took `dl & 1`, which is
+**bit 2** — a different sequence (a Python check showed the two disagree on
+~50% of steps). Now literal: `carry = ((dl^dh)>>1)&1`. Consequence: every random
+sequence in the port changes (it was never the original's). From seed 0xFA59 the
+correct sequence is `fd2c, 7e96, 3f4b, 1fa5` (hand-checked).
+
+**Ported (throw.asm L170-274):**
+- `rotate_throw_bits(carry_in)`: carry chain over 5 bytes of `throw_col_data`;
+  start byte = `throw_rotate_dir[current_floor]` (DS 0x0541: 00 09 0a). Dir 9
+  (floor 1) = `rcl` going DOWN (bytes 9..5); floors 0/2 = `rcr` going UP
+  (0..4 / 10..14). Returns the final CF. The callers (T13) always set CF by a
+  `shr` right before the call and ignore the output carry.
+- `check_throw_range(floor)`: returns **ZF**. `floor_y_top` (DS 0x053d: 2e 4e 6e)
+  / `floor_y_bottom` (DS 0x053a: 4b 6b 8b). ZF=0 only when `cat_y_bottom` is in
+  `[top, bottom)` AND `at_platform==0`; otherwise ZF=1. `in_throw_range=1` only
+  when in range AND `at_platform>=1`.
+- `generate_throw_pattern(&di)`: 1 `random`; `&6`; ==6 -> returns 0 and writes
+  nothing; else copies 8 words from `throw_pattern_ptrs[dx]` (DS 0x04d0 ->
+  0x480, 0x440, 0x450) into `throw_obj_buf` with 4-byte stride (`stosw` + `add
+  di,2`).
+- `generate_throw_object(bl, bh)` (di is always `throw_obj_buf` at its only
+  call site): fills 64 bytes with 0xaa, writes 0x44 x4 at +4..+7, then
+  `random`: `dl<bl` -> return; `dh>bh` required; second `random`: `<0x18` large
+  sprite (64 B @0x490, bits=3), `<0x60` small sprite (32 B @0x460, bits=3), else
+  two patterns (first `<<1`, second at +2, OR-ed into `throw_bits`). `random()`
+  call order is exactly as in the ASM.
+
+**State:** `throw_obj_buf[64]` (DS 0x04d7..0x0516: 0x4d7+0x40 = `throw_scroll_src`
+0x517, so exactly 64), `throw_bits` (0x0540), `in_throw_range` (0x04d6), all
+mutable, zero-initialised (the original data there is all 0). Added `src/throw.c`
+to the `Makefile`.
+
+**Verification.** Build clean, 0 warnings. `/tmp/t12/test_t12.c` (not committed):
+(1) LFSR hand-trace; (2) the first 3 `generate_throw_pattern` outputs traced by
+hand from seed 0xFA59 (0xfd2c&6=4 -> ptr 0x450 `bfea7fc4`; 0x7e96&6=6 -> 0 / no
+write; 0x3f4b&6=2 -> ptr 0x440 `affa4ff4`); (3) 192 `generate_throw_object`
+cases (48 seeds x 4 (bl,bh)) compared byte-for-byte against an INDEPENDENT
+Python model written from the ASM (buffer, `throw_bits`, final seed — which also
+checks the number of `random` calls); (4) `rotate_throw_bits` hand cases for
+floors 0/1/2 incl. carry in/out and 40 rotations pushing one bit out of 40;
+(5) `check_throw_range` edges (top-1, top, bottom-1, bottom; `at_platform` 0/1/2;
+all floors). All pass ("T12 OK"). Smoke run under dummy SDL: clean.
+
+Suggested commit: `T12: throw.asm helpers (rotate/range/generate) + fix cga_random carry bit`
 
 
 ## 7. General lesson for this whole project
