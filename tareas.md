@@ -192,7 +192,7 @@ Estado compartido de los niveles 4 y 5: **los dos usan las variables `l5_obj_*`*
 - **Datos:** `l4_obj_cur_x=0x3d03`, `l4_obj_cur_y=0x3d05`, `l4_anim_offset_table=0x3d06`, `l4_last_tick=0x3d16`, `l3_platform_id`.
 - **Verificar:** test con tick simulado y plataforma fija; revisar que `l4_obj_cur_*` se mueve dentro de los límites de las tablas.
 
-### T25 — Nivel 5: helpers A [M · 76]
+### T25 — Nivel 5: helpers A [M · 76] ✅ HECHO (PROGRESS.md §6v; `draw_l5_perch` queda como stub hasta T26)
 - **ASM:** `level_objects.asm` L2362–2437 (`check_l5_landing`, `calc_l5_direction`, `check_l5_cat_catch`, `check_l5_thrown`, `init_level5_objects`).
 - **Destino:** nuevo `src/level5.c` + `include/level5.h`.
 - **Datos:** `thrown_obj_x=0x327d`, `thrown_obj_y=0x327f`, `l5_*` (T21).

@@ -14,9 +14,9 @@ graphics assets, so it is not meant to be published or redistributed.
 
 ## 0. Current focus / todo / blockers
 
-**Current focus:** `tareas.md` execution: T00, T10-T22 (§6g-§6s), T23 (§6t) and **T24** (`update_level4_state`,
-§6u) are done. Next up: the level-5 block (T25-T28).
-T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-level4`). The death
+**Current focus:** `tareas.md` execution: T00, T10-T22 (§6g-§6s), T23 (§6t), T24 (§6u) and **T25** (level-5 helpers A,
+§6v) are done. Next up: T26 (level-5 helpers B; also replaces the `draw_l5_perch` stub), then T27/T28.
+T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-level4`, `test-level4-state`, `test-level5`). The death
 handler (`entry.asm` lab_01b7+, T41) is still replaced in `main.c` by "re-enter the alley".
 
 - [x] `sound.asm` — full port, wired into every previously-stubbed call site (§6e)
@@ -3524,6 +3524,37 @@ environment). `make test` passes in full; build with SDL not done here (no libsd
 the original reads raw DS memory if `l3_platform_id > 16` (not expected in level 4).
 
 Suggested commit: `T24: update_level4_state (level 4 door teleport); joy_button, door/teleport state; expose draw/erase_l1_thrown`
+
+
+## 6v. T25 — level-5 helpers A (new `src/level5.c`, `include/level5.h`; level_objects.asm L2362-2437)
+
+Five routines ported literally: `check_l5_landing`, `calc_l5_direction`, `check_l5_cat_catch`, `check_l5_thrown`,
+`init_level5_objects`. New state `l5_dat_40a8..40cc` (13 variables, names kept from the ASM because their meaning
+is only partly known until T27/T28); all are 0 at start in `/tmp/data_segment.bin` (0x40a0-0x40df checked).
+
+**Data.** `dat_40a8` word (perch X, init 0x90), `dat_40aa` byte (perch Y, init 0x86), `dat_40ab` word (CGA addr of
+the perch = `calc_cga_addr(0x86,0x90)` = 0x1514), `dat_40af`/`40b1` byte, `dat_40b2` word + `dat_40b4` byte (moving
+object X/Y, 8x5 collision rect), `dat_40b8` byte (0 at init, 0xff when hit by a thrown object), `dat_40b9` byte
+(init 1), `dat_40c8` word (init 0xff), `dat_40ca`/`40cb` byte (direction signs), `dat_40cc` word (distance).
+`[0x552]`/`[0x553]` are `object_hit`/`cat_caught` (same as T20). `thrown_obj_x/y` already existed.
+
+**Translation notes.** `check_rect_collision` arguments: `cx = (B.h << 8) | A.h`, so `0x0e05` = A.h 5 / B.h 0x0e and
+`0x1e05` = A.h 5 / B.h 0x1e. In `calc_l5_direction` the `jnb` skips the `not` when there is NO borrow (unsigned
+compare, 16 bits for X and 8 bits for Y); `db 0xd1,0xe0` is `shl ax,1` (the listing's `shl ax,0x0` is the same
+disassembler artefact as T18/T24); `|dy|` is doubled and added to `|dx|`, both via `not` (one's complement), not `neg`.
+
+**Deviation.** `init_level5_objects` calls `draw_l5_perch` (L2613, that is T26). It is declared in `level5.h` and
+defined in `level5.c` as an empty stub with `TODO(T26)`; T26 must replace it (do not add a second definition).
+
+**Verified:** `tests/test_level5.c` (`make test-level5`, part of `make test`): `check_l5_landing` (0x88, 0x8f, 0x90,
+0x87, `in_level_mode=1`), `calc_l5_direction` for the 4 relative positions plus equality (incl. the `not` values
+0xffd8->0x27 and 0xf6->0x09), `check_l5_cat_catch` and `check_l5_thrown` with overlap and 1-pixel boundary cases
+on every side and the `object_hit != 0` guard, `init_level5_objects` (values, CGA address, flags reset from dirty).
+**Caveat:** like T24, the expected values are hand computed from the ASM, not from an x86 emulator. All five
+existing tests still pass; compiled with `-Wall -Wextra` without warnings. No SDL build here (no libsdl2-dev).
+**Not verified:** behaviour inside the real level-5 loop (needs T27/T28/T42).
+
+Suggested commit: `T25: level-5 helpers A (landing, direction, catch/thrown collisions, init); draw_l5_perch stub for T26`
 
 
 ## 7. General lesson for this whole project
