@@ -17,8 +17,8 @@ graphics assets, so it is not meant to be published or redistributed.
 **Current focus:** `tareas.md` execution: T00 (tooling), T10 (§6g) and T11
 (`check_stairs_collision`, §6h), T12 (`throw.asm` helpers + RNG fix, §6i) and
 T13 (`update_thrown_objects` + real `reset_window_state`, §6j) and T14
-(`alley_drawing` A, §6k) are done. Next up is T15 (windows + buildings), then
-T16-T19 to close the alley loop; `throw.asm` is now fully ported but still not called from `main.c` (T19).
+(`alley_drawing` A, §6k) and T15 (windows + buildings, §6l) are done. Next up is T16
+(`clear_screen`, `draw_alley_scene`, `draw_alley_details`), then T17-T19 to close the alley loop; `throw.asm` is now fully ported but still not called from `main.c` (T19).
 
 - [x] `sound.asm` — full port, wired into every previously-stubbed call site (§6e)
 - [x] PC speaker / PIT channel 2 emulation + SDL2 audio backend (§6e)
@@ -31,6 +31,7 @@ T16-T19 to close the alley loop; `throw.asm` is now fully ported but still not c
 - [x] T12 — `throw.asm` helpers: `rotate_throw_bits`, `check_throw_range`, `generate_throw_object`, `generate_throw_pattern` + **`cga_random` fix** (§6i)
 - [x] T13 — `update_thrown_objects` + real `reset_window_state` (rest of `throw.asm`); `throw.asm` fully ported (§6j)
 - [x] T14 — `alley_drawing` A (`draw_difficulty_icon`, `init_alley_objects`, `draw_object_row`) (§6k)
+- [x] T15 — `alley_drawing` B (`draw_window_strip`, `draw_all_windows`, `draw_building`, `draw_all_buildings`) (§6l)
 - [ ] `ui.asm` — `window_open_state` toggling, the other half of item (h)
 - [ ] §17 item (f): level-2 collectibles + bg tiles (unblocked since §6e)
 - [ ] `update_viewport` (alley.asm) — needs the DS 0x000e sprite scratch area modeled (§6f)
@@ -3084,6 +3085,40 @@ each overlaps its neighbour's right half — faithful), each from
 T19). Build note: no `libsdl2-dev` in the sandbox; changed files compile with `-Wall -Wextra`.
 
 Suggested commit: `T14: alley_drawing A (difficulty icon, init_alley_objects, draw_object_row)`
+
+
+## 6l. T15 `alley_drawing.asm` B: windows + buildings (`src/alley_drawing.c`)
+
+**Ported (alley_drawing.asm L160-182, L241-282):** `draw_window_strip(di)`, `draw_all_windows`,
+`draw_building(di)`, `draw_all_buildings`. Declared in `include/alley_drawing.h`; no new
+globals (all scratch — `draw_pos_tmp` 0x2ac2, `draw_loop_count` 0x2ac4, `draw_bx_save` 0x2ac5 —
+became locals).
+
+**Corrections to `tareas.md` (read from the ASM):** the T15 note lists `window_row_y_table`,
+`window_row_col_offset` and `window_open_state` as data for this task. None of them is used here:
+these routines only blit sprites at fixed CGA offsets. Those tables belong to the window logic
+(`ui.asm` / `check_window_landing`).
+
+**DS verified (`asm_label.sh` + `/tmp/data_segment.bin`):** `window_sprite_data 0x2680`
+(cx=0x1005: 5 words x 16 rows = 160 B); `building_top_sprite 0x2976` (cx=0xc05, 120 B),
+`building_mid_sprite 0x29ee` (cx=0x804, 64 B), `building_bottom_sprite 0x2a2e` (cx=0xb04, 88 B):
+pointer deltas equal width*2*height in all three. `building_pos_table 0x2a86` (word list, each
+sub-list ends with 0) and `building_offsets 0x2ab2` = {0,14,26,36,26,36,26,36}, indexed by
+`difficulty_level` (a word, 0..7, as `mov bx,word [difficulty_level]` loads it).
+
+**Behaviour:** a strip is 4 windows 0x14 bytes apart; `draw_all_windows` calls it at
+0x3c5/0x8c5/0xdc5. `draw_building`: top at `di`, then 3 mid bodies (2 if `di >= 0x1720`,
+`cmp/jc` unsigned) at `di+0x1e0` in steps of 0x140, then the bottom. `draw_all_buildings` walks
+the list from `building_offsets[difficulty_level]` until a 0 entry.
+
+**Verification (`/tmp/t15/t.c`, not committed; headless against `cga.c`):** non-zero byte counts
+are identical across two runs (windows 1824; buildings per difficulty 0..7:
+1998, 1721, 1372, 999, 1372, 999, 1372, 999 — dif 2/4/6 and 3/5/7 share lists, as the offsets
+table says); an ASCII dump of one strip shows the expected 4 framed windows.
+**Not done:** `make` (no `libsdl2-dev` in the sandbox); `alley_drawing.c`, the header and the test
+compile with `-Wall -Wextra` without warnings. Nothing calls these from `main.c` yet (T16/T19).
+
+Suggested commit: `T15: alley_drawing B (draw_window_strip, draw_all_windows, draw_building, draw_all_buildings)`
 
 
 ## 7. General lesson for this whole project

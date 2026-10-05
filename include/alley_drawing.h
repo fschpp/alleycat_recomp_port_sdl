@@ -23,4 +23,15 @@ void init_alley_objects(void);
  * desplazado ((~i)&3)*2. */
 void draw_object_row(uint16_t di, uint8_t bh, uint16_t row_offset);
 
+/* T15 (alley_drawing.asm L160-182, L241-282) — ver PROGRESS.md §6l.
+ * draw_window_strip: 4 ventanas (5 words x 16 filas) a paso de 0x14 bytes desde di.
+ * draw_all_windows: 3 franjas en 0x3c5, 0x8c5, 0xdc5.
+ * draw_building: techo en di, 3 (2 si di >= 0x1720, sin signo) cuerpos de 0x140 bytes, base.
+ * draw_all_buildings: recorre building_pos_table desde building_offsets[difficulty_level]
+ * hasta la entrada 0. */
+void draw_window_strip(uint16_t di);
+void draw_all_windows(void);
+void draw_building(uint16_t di);
+void draw_all_buildings(void);
+
 #endif

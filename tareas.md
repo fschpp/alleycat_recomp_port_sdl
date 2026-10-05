@@ -126,7 +126,7 @@ Parar en el `lab_XXXX` más cercano, dejar `/* TODO(<ID>-cont): continuar en lab
 - **Notas:** `init_alley_objects` inicializa `window_open_state` (L82): este es el origen de esa tabla.
 - **Verificar:** test que llama `init_alley_objects` y vuelca `window_open_state[]` y `throw_timer`; `draw_difficulty_icon` con `difficulty_level` 0 y 7, comparando pixel counts.
 
-### T15 — `alley_drawing` B: ventanas y edificios [M · 80]
+### T15 — `alley_drawing` B: ventanas y edificios [M · 80] ✅ HECHO (PROGRESS.md §6l; no usa `window_row_*` ni `window_open_state`)
 - **ASM:** `alley_drawing.asm` L161–184 (`draw_window_strip`, `draw_all_windows`) y L242–286 (`draw_building`, `draw_all_buildings`).
 - **Destino:** `src/alley_drawing.c`.
 - **Datos:** `window_sprite_data=0x2680`, `window_row_y_table=0x2bd4`, `window_row_col_offset=0x2bdb`, `window_open_state=0x2be2`.
