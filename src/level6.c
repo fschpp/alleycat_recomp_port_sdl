@@ -3,6 +3,10 @@
 #include "cga.h"
 #include "alley.h"
 #include "level_collision.h"
+#include "enemy.h"
+#include "sound.h"
+#include "level_objects.h"
+#include <time.h>
 #include "gen/ds_pool.h"
 #include <string.h>
 
@@ -18,6 +22,8 @@
 #define L6_DAT_43E1       0x43e1   /* word[12]: X del objeto (dato fijo del DS; solo lectura) */
 #define L6_DAT_43F9       0x43f9   /* word[12]: Y del objeto (byte bajo; dato fijo del DS; solo lectura) */
 #define L6_DAT_4100       0x4100   /* words: sprite de 1 word del indicador de alerta */
+#define L6_DAT_44DC       0x44dc   /* word[8] por dificultad: ticks entre pases {18,16,15,14,13,12,11,10} (solo lectura) */
+#define L6_DAT_44EC       0x44ec   /* word[8] por dificultad: distancia X maxima {40,50,60,70,85,80,85,90} (solo lectura) */
 #define L6_SPRITE_B       0x429c   /* offset DS del sprite de objeto "B" (el otro es 0x431e) */
 
 uint16_t l6_obj_flag[12];
@@ -32,9 +38,21 @@ uint8_t  l6_dat_44bd = 0;
 uint8_t  l6_dat_44be = 0;
 uint8_t  l6_dat_44d6 = 0;
 uint8_t  l6_dat_44d9 = 0;
+uint16_t l6_dat_44d7 = 0;
+uint8_t  l6_dat_44fc = 0;
+int32_t  l6_tick_override = -1;
 uint16_t l6_dat_44da = 0;
 
 static uint16_t l6_tracker_save[30];   /* DS 0x43a0..0x43dc = 0x3c bytes = 3 words x 10 filas */
+
+/* `sub ah,ah / int 0x1a` -> dx (mismo sustituto que level4.c, 55 ms por tick). */
+static uint16_t read_bios_tick(void) {
+    if (l6_tick_override >= 0) return (uint16_t)l6_tick_override;
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    uint64_t ms = (uint64_t)ts.tv_sec * 1000 + (uint64_t)(ts.tv_nsec / 1000000);
+    return (uint16_t)(ms / 55);
+}
 
 static uint16_t ds_word(uint16_t off) { return (uint16_t)(ds_pool[off] | (ds_pool[off + 1] << 8)); }
 
@@ -156,4 +174,69 @@ void draw_l6_alert(uint16_t slot) {
     si = (uint16_t)(si + 0x6);
 lab_4935:
     blit_to_cga(&ds_pool[si], ax, 1, 1);               /* cx=0x101: 1 word x 1 fila */
+}
+
+/* ---- T31: update_level6_timing (level_objects.asm L2666-2740). ---- */
+
+void update_level6_timing(void) {
+    uint16_t cx, bx, ax, slot;
+    uint16_t dx = read_bios_tick();                    /* sub ah,ah / int 0x1a */
+    ax = dx;                                           /* mov ax,dx */
+    ax = (uint16_t)(ax - l6_dat_44d7);
+    uint16_t si = (uint16_t)(difficulty_level << 1);   /* db 0xd1,0xe6 = shl si,1 (listing: shl si,0x0) */
+    if (ax > ds_word((uint16_t)(L6_DAT_44DC + si))) goto lab_47ed;   /* ja (sin signo): el resto del tick se pasa de largo */
+lab_47ec:
+    return;
+lab_47ed:
+    l6_dat_44d7 = dx;
+    if (enemy_active != 0x0) goto lab_47ec;            /* jnz: ya hay perro activo, solo se actualiza el tick */
+    l6_dat_44fc = 0x0;
+    cx = 0xc;
+lab_4800:
+    bx = (uint16_t)(cx - 1);                           /* mov bx,cx / dec bx */
+    bx = (uint16_t)((bx & 0xff00) | (uint8_t)(bx << 1));   /* db 0xd0,0xe3 = shl bl,1 (solo bl; bx <= 22) */
+    slot = (uint16_t)(bx >> 1);
+    if (l6_obj_flag[slot] == 0x0) goto lab_487d;       /* cmp word [bx+dat_4441],0 / jz */
+    ax = ds_word((uint16_t)(L6_DAT_43F9 + bx));        /* al = Y del objeto */
+    if ((uint8_t)ax != cat_y) goto lab_485d;           /* cmp al,[cat_y] / jnz */
+    ax = ds_word((uint16_t)(L6_DAT_43E1 + bx));
+    {
+        bool borrow = ax < (uint16_t)cat_x;            /* sub ax,[cat_x] / jnb */
+        ax = (uint16_t)(ax - (uint16_t)cat_x);
+        if (borrow) ax = (uint16_t)~ax;                /* not ax: |dx| aprox. (|d|-1) */
+    }
+    si = (uint16_t)(difficulty_level << 1);
+    if (ax > ds_word((uint16_t)(L6_DAT_44EC + si))) goto lab_485d;   /* ja (sin signo) */
+    if (l6_obj_state[slot] < 0x2) goto lab_484c;       /* cmp word [bx+l6_obj_state],2 / jb */
+    l6_dat_44da = ds_word((uint16_t)(L6_OBJ_X + bx));
+    prepare_l6_erase();
+    clear_l6_object();
+    draw_l1_thrown();                                  /* call draw_thrown_sprite */
+    draw_alley_foreground();
+    activate_enemy_chase();
+    return;                                            /* sin explosion ni mas slots */
+lab_484c:
+    l6_obj_state[slot] = (uint16_t)(l6_obj_state[slot] + 1);
+    if (l6_obj_state[slot] < 0x2) goto lab_4870;       /* jb */
+    l6_dat_44fc = (uint8_t)(l6_dat_44fc + 1);
+    goto lab_4870;
+lab_485d:
+    if (l6_obj_state[slot] == 0x0) goto lab_487d;      /* jz: slot inactivo en este pase */
+    {
+        uint8_t dl = (uint8_t)(cga_random() & 0xff);   /* call random (dl = byte bajo del seed) */
+        if (dl > 0x38) goto lab_4870;                  /* ja (sin signo) */
+    }
+    l6_obj_state[slot] = (uint16_t)(l6_obj_state[slot] - 1);
+lab_4870:
+    /* push cx / push bx / call check_l6_proximity / pop bx / call draw_l6_alert / call refresh_l6_display / pop cx */
+    check_l6_proximity(slot);
+    draw_l6_alert(slot);
+    refresh_l6_display();
+lab_487d:
+    cx = (uint16_t)(cx - 1);                           /* loop lab_488a -> jmp near lab_4800 */
+    if (cx != 0) goto lab_4800;
+    if (l6_dat_44fc == 0x0) goto lab_4889;
+    play_explosion_effect();
+lab_4889:
+    return;
 }
