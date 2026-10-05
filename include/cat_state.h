@@ -108,6 +108,7 @@ extern uint8_t jump_hit;
 
 /* --- newly ported for the dog enemy system (§5o) --- */
 extern uint8_t  enemy_active;
+extern uint8_t  frame_counter;            /* DS 0x040f: entry.asm L163 — throttle del loop del callejón (física cada 4.º frame) */
 extern int8_t   enemy_dir;
 extern uint16_t enemy_x;
 extern uint8_t  enemy_y_pos;

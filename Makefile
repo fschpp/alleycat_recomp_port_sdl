@@ -21,4 +21,12 @@ run: $(BIN)
 clean:
 	rm -rf build
 
-.PHONY: all run clean
+TEST_SRC := $(filter-out src/main.c src/video.c src/audio.c src/input.c,$(SRC))
+build/test_alley: tests/test_alley_loop.c $(TEST_SRC) include/*.h
+	@mkdir -p build
+	$(CC) $(CFLAGS) tests/test_alley_loop.c $(TEST_SRC) -o $@
+
+test-alley: build/test_alley
+	./build/test_alley
+
+.PHONY: all run clean test-alley

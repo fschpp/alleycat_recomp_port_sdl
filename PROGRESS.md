@@ -14,12 +14,11 @@ graphics assets, so it is not meant to be published or redistributed.
 
 ## 0. Current focus / todo / blockers
 
-**Current focus:** `tareas.md` execution: T00 (tooling), T10 (§6g) and T11
-(`check_stairs_collision`, §6h), T12 (`throw.asm` helpers + RNG fix, §6i) and
-T13 (`update_thrown_objects` + real `reset_window_state`, §6j) and T14
-(`alley_drawing` A, §6k) T15 (windows + buildings, §6l) and T16 (`clear_screen`, `draw_alley_scene`,
-`draw_alley_details`, §6m) T17 (`update_viewport`, `render_sprites`, §6n) and T18 (`init_player`, `start_auto_walk`,
-real `check_dog_collision`, §6o) are done. Next up is T19 (alley integration in the main loop); `throw.asm` is now fully ported but still not called from `main.c` (T19).
+**Current focus:** `tareas.md` execution: T00, T10-T18 (§6g-§6o) and now **T19** (alley loop
+integrated in `main.c`, §6p) are done. Next up: T20 (level-3 doors) and, in parallel, T01/T02
+(headless test harness / auto-generated pending list; T01 is only partially covered by
+`make test-alley`). Phase 1 ("playable alley") is closed except for the death handler
+(`entry.asm` lab_01b7+, task T41), which `main.c` still replaces with "re-enter the alley".
 
 - [x] `sound.asm` — full port, wired into every previously-stubbed call site (§6e)
 - [x] PC speaker / PIT channel 2 emulation + SDL2 audio backend (§6e)
@@ -36,6 +35,9 @@ real `check_dog_collision`, §6o) are done. Next up is T19 (alley integration in
 - [x] T16 — `alley_drawing` C (`draw_alley_details`, `clear_screen`, `draw_alley_scene`), `draw_block_list` exported (§6m)
 - [x] T17 — `update_viewport` (`alley.c`) and `render_sprites` (`alley_drawing.c`) (§6n)
 - [x] T18 — `init_player` (`fall_object.c`), `start_auto_walk` (`game_setup.c`), real `check_dog_collision` (`enemy.c`), wired into `apply_cat_gravity` (§6o)
+- [x] T19 — alley loop in `main.c` in `entry.asm` order (L131-180); `frame_counter`; `make test-alley` (§6p)
+- [ ] T01 — full headless harness (`tests/harness.h`, `make test`); only `tests/test_alley_loop.c` exists so far
+- [ ] T41 — death handler / level selector (`entry.asm` lab_01b7+); `main.c` just re-enters the alley meanwhile
 - [ ] `ui.asm` — `window_open_state` toggling, the other half of item (h)
 - [ ] §17 item (f): level-2 collectibles + bg tiles (unblocked since §6e)
 
@@ -3249,6 +3251,57 @@ ASM: the original routines were assembled with `nasm` straight from the disassem
 call `init_player`/`start_auto_walk` — that is T19.
 
 Suggested commit: `T18: init_player, start_auto_walk and real check_dog_collision`
+
+
+## 6p. T19 alley integration in the main loop (`main.c`)
+
+**Done:** `main.c` no longer is a free-form demo: it follows `entry.asm` L110-180 (lab_00f3 ->
+lab_0140 -> lab_0155). New state var `frame_counter` (DS 0x040f, initial 0 — checked in
+`/tmp/data_segment.bin`) in `cat_state.[ch]`.
+
+**Per-alley-entry sequence (lab_00f3/lab_0137/lab_0140):** `clear_screen`, `render_sprites`,
+`lives_display=0xff`, `silence_speaker`, `level_number=0`, `cat_x=0`, `setup_alley` (which already
+calls `reset_window_state`, `save_alley_buffer`), `init_sound`, `init_player`, `reset_jump`,
+`init_cycle_objects` (= `init_objects`), `draw_high_score_display` (= `draw_score`),
+`draw_current_score` (= `draw_high_score`; names crossed, tareas.md 0.5), `init_music`.
+`clear_screen` already ends in `init_alley_objects` (T16), so the objects rows and `throw_timer=1`
+are set there.
+
+**Loop order (lab_0155):** `input_poll`+`input_process_keys` -> (attract/restart exits) ->
+`update_alley_movement` (= `update_animation`) -> `update_enemies` -> **throttle:** if
+`enemy_active==0`, `frame_counter++` and the rest only runs when `(frame_counter & 3)==0` ->
+`play_sound` -> `update_thrown_objects` -> `update_cat_jump` -> `apply_cat_gravity` ->
+`animate_falling` -> `update_cycle_objects` -> `draw_lives`.
+
+**Removed (no longer needed):** `memset(cga_mem, DEMO_BG_BYTE)` at startup/restart, the forced
+`lives_display = 0xff` every frame, `level_number = 3`/`difficulty_level = 5` demo overrides
+(`difficulty_level` keeps its DS initial value), the `tick_thrown_objects()` call and the level 1-7
+per-frame calls. `tick_thrown_objects`/`update_level3_enemy`/`update_level7_objects` are **not in the
+alley loop of entry.asm** (they belong to the level loops, T42/T43); they are still compiled and
+untouched, just not called from `main.c` while only level 0 runs.
+
+**Known deviations (documented, not hidden):**
+- `cat_died` is not the original death handler (lab_01b7: saves state, picks the next level with the
+  weighted selector). Meanwhile: game over if `lives_count==0`, else the alley is re-entered. -> T41.
+- `start_in_level` (the `setup_level` branch of lab_00f3) is not modeled; `poll_joystick` omitted (T60);
+  `show_attract` just clears the flag (T54); `set_palette`/game timers of the pre-alley block are T40/T44.
+- `high_score` is still cleared at start (`clear_high_score`), as before this task; entry.asm L95-100
+  does `clear_score` only — to be reviewed in T40.
+- SDL_Delay(33) per iteration is kept (the original has no delay; timers use BIOS ticks).
+
+**Verification:** `make` builds clean (`-Wall -Wextra`, no warnings; `libsdl2-dev` installed in this
+session). New `tests/test_alley_loop.c` (`make test-alley`, no SDL: input/video/audio are stubbed)
+runs the same sequence for **600 frames** at level 0 with simulated input (right 200 frames, left 200,
+right 200) and writes `build/alley_f{0,150,300,600}.ppm`. Result: `current_floor` stayed in {0,1,2}
+for all frames, `cat_x` went 0 -> 290 -> 8 -> 290 (edge-to-edge, `cat_y=180`), and the PPMs (checked
+by eye) show buildings, the 4x3 windows, trash cans with objects, dog/rat sprites, bone, HI/score
+and lives HUD, small thrown objects falling from the windows, and **no trail behind the cat**.
+Pixel counts per color (cyan/magenta/white) are stable within ~2% across frames. Lives went 3 -> 2
+-> 1 during the run (the simulated cat walks into thrown objects); no `cat_died` stop in this harness.
+**Not verified:** audio (headless), real-time feel with a window (no display here), the throttle's
+cadence against the original (no emulator run for this task, unlike §6o).
+
+Suggested commit: `T19: alley loop in main.c following entry.asm; frame_counter; make test-alley`
 
 
 ## 7. General lesson for this whole project

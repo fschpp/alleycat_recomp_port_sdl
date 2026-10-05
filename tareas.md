@@ -150,7 +150,7 @@ Parar en el `lab_XXXX` más cercano, dejar `/* TODO(<ID>-cont): continuar en lab
 - **Notas:** `check_dog_collision` solo actúa si `level_number==0` y `gravity_y!=0` (es la landing del proyectil sobre el gato); llama `restore_alley_buffer`, `restore_gravity_bg`, `enter_building`, `handle_cat_death`. `init_player`: `jump_anim_counter=0`, `gravity_y=0`, `idle_aggro_flag=0`, `deduct_life=0`, `jump_toss_delay=9`.
 - **Verificar:** tests de `init_player` (valores exactos) y de `check_dog_collision` con proyectil solapando al gato (efectos: `dog_catch_flag=1`, `gravity_h_speed=0x60`, `at_platform=0`).
 
-### T19 — Integración del callejón en el loop [M]
+### T19 — Integración del callejón en el loop [M] ✅ HECHO (PROGRESS.md §6p; muerte → reentra al callejón hasta T41)
 - **ASM de referencia:** `entry.asm` L131–180 (lab_0137 a lab_0176, el loop del callejón).
 - **Destino:** `src/main.c`, `src/game_setup.c`.
 - **Qué hacer:** en `setup_alley`/`setup_level` llamar `init_alley_objects`, `draw_alley_scene`, `reset_window_state` (y, según entry.asm L119-120, `clear_screen()` seguido de `render_sprites()`). En el loop, replicar el orden y cadencia de `entry.asm` (cada 4.º frame, o cada frame con enemigo activo, la cadena `update_thrown_objects → update_cat_jump → apply_cat_gravity → animate_falling → update_cycle_objects → draw_lives`). Quitar `memset(cga_mem, DEMO_BG_BYTE…)` y el `lives_display = 0xff` forzado (ya no hacen falta).
