@@ -41,4 +41,20 @@ void reset_caught_objects(void);
 /* erase_level_object (L1001-1016): si l2_obj_hit[slot] != 0 no hace nada. Si no, copia el patron de borrado (DS 0x3404) en
  * l2_obj_cga_addr[slot]: 1 palabra x 6 filas (0x601) para los slots 0..11, 2 palabras x 2 filas (0x202) para 12..23. */
 void erase_level_object(uint16_t slot);
+
+/* check_level_objects (level_objects.asm L690-805) — T34, PROGRESS.md §6ae. Barre los 24 slots (dat_3511 = 0..23, dat_351b = 0):
+ * los activos (l2_obj_active != 0) se saltan; el resto se prueba contra el gato con check_rect_collision (objeto: ancho
+ * dat_3513[slot>=12] = {8,0x10}, alto dat_3517 = {6,2}; gato: 0x18 x 0xe).
+ *  - Golpe fatal (slot >= 12, !cat_caught, !immune_flag): object_hit = 1, dibuja l1_anim_sprite_c (5x0x12) en (cat_x-8 acotado a
+ *    0..0x116, cat_y acotado a <= 0xb4), reset_noise y BLOQUEA 0xd ticks BIOS (~0.7 s) llamando update_noise sin parar y alternando
+ *    el borde 1/0xf; devuelve false (CF=0) SIN seguir el barrido.
+ *  - Captura (slot < 12 o cat_caught o immune): ++dat_351b, start_tone(0x5dc,0x425), restore_alley_buffer solo la primera vez,
+ *    erase_level_object, active = 1; si slot < 12: --dat_3410 y, al llegar a 0 sin immune_flag, cat_caught = 1.
+ * Al final del barrido: dat_351b != 0 -> reset_caught_objects y devuelve true (stc); si no, false (clc).
+ * NO llama add_score (el ASM no lo hace). check_vsync: el bucle espera un retrace simulado por reloj (60 Hz). */
+extern uint16_t l2_dat_3511;                 /* DS 0x3511 (word): slot en curso */
+extern uint8_t  l2_border_color;             /* ultimo `int 0x10 ah=0xb` (sin efecto visible) */
+extern uint16_t (*l2_tick_fn)(void);         /* solo tests: sustituye a int 0x1a (NULL = reloj real) */
+extern bool     (*l2_vsync_fn)(void);        /* solo tests: sustituye al bit de retrace (NULL = reloj real) */
+bool check_level_objects(void);
 #endif

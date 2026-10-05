@@ -245,7 +245,7 @@ Estado compartido de los niveles 4 y 5: **los dos usan las variables `l5_obj_*`*
 - **Notas:** `reset_caught_objects` tiene un salto a sí mismo (`tail=reset_caught_objects`): es un bucle, leerlo bien.
 - **Verificar:** tras `init_level2_objects` con semilla fija, volcar los arrays y compararlos con una traza manual.
 
-### T34 — `check_level_objects` [M · 116]
+### T34 — `check_level_objects` [M · 116] ✅ HECHO (PROGRESS.md §6ae; sin cablear hasta T42/T75; no llama `add_score`; el bucle de ruido espera un retrace simulado)
 - **ASM:** `level_objects.asm` L690–805.
 - **Destino:** `src/level2.c`.
 - **Notas:** usa `reset_noise`/`update_noise`/`start_tone` (ya portados, PWM directo) y un bucle de ruido sincronizado con el tick. Mantener el bloqueo si el original bloquea.

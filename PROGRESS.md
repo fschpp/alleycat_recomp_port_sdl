@@ -14,9 +14,8 @@ graphics assets, so it is not meant to be published or redistributed.
 
 ## 0. Current focus / todo / blockers
 
-**Current focus:** `tareas.md` execution: T00, T10-T22 (§6g-§6s), T23 (§6t), T24 (§6u) **T25** (level-5 helpers A,
-§6v) and **T26** (level-5 helpers B, §6w) and **T27** (`update_level5_anim`, §6x) and **T28** (`update_level5_objects`, §6y) and **T29** (level-6 helpers A, §6z) and **T30** (level-6 helpers B, §6aa) and **T31** (`update_level6_timing`, §6ab) are done. Next up: T32 (`update_level6_movement`).
-T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-level4`, `test-level4-state`, `test-level5`, `test-level5-anim`, `test-level5-objects`, `test-level6`, `test-level6b`, `test-level6c`). The death
+**Current focus:** `tareas.md` execution: T00, T10-T33 (§6g-§6ad) and **T34** (`check_level_objects`, §6ae) are done. Next up: T35 (`update_level2_objects`).
+T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-level4`, `test-level4-state`, `test-level5`, `test-level5-anim`, `test-level5-objects`, `test-level6`, `test-level6b`, `test-level6c`, `test-level6d`, `test-level2`, `test-level2b`). The death
 handler (`entry.asm` lab_01b7+, T41) is still replaced in `main.c` by "re-enter the alley".
 
 - [x] `sound.asm` — full port, wired into every previously-stubbed call site (§6e)
@@ -44,6 +43,9 @@ handler (`entry.asm` lab_01b7+, T41) is still replaced in `main.c` by "re-enter 
 - [x] T29 — level-6 helpers A (`level6.c`): tracker draw/erase, `init_level6_objects`, `draw_l6_tile`, `calc_l6_addr`; `level6_stubs` is a bare `ret` (§6z)
 - [x] T30 — level-6 helpers B (`level6.c`): `prepare_l6_erase`, `clear_l6_object`, `refresh_l6_display`, `check_l6_proximity`, `draw_l6_alert` (§6aa)
 - [x] T31 — `update_level6_timing` (`level6.c`); `activate_enemy_chase` exported from `enemy.c`; `l6_tick_override` test hook (§6ab)
+- [x] T32 — `update_level6_movement` (`level6.c`) (§6ac)
+- [x] T33 — level-2 helpers and data (`level2.c`): `init_level2_objects`, `reset_caught_objects`, `erase_level_object` (§6ad)
+- [x] T34 — `check_level_objects` (`level2.c`): 24-slot catch scan, fatal-hit blocking noise loop with simulated retrace (§6ae)
 - [ ] T01 — full headless harness (`tests/harness.h`, `make test`); only `tests/test_alley_loop.c` exists so far
 - [ ] T41 — death handler / level selector (`entry.asm` lab_01b7+); `main.c` just re-enters the alley meanwhile
 - [ ] `ui.asm` — `window_open_state` toggling, the other half of item (h)
@@ -3880,6 +3882,43 @@ inverted, `dat_351b` step...) are all caught except 2 equivalent ones (swapping 
 **Caveat:** no x86 emulator; the model is written from the ASM text, so a shared misreading would not be caught. Not wired into `main.c` yet.
 
 Suggested commit: `T33: level 2 helpers and data (init_level2_objects, reset_caught_objects, erase_level_object)`
+
+
+## 6ae. T34 — `check_level_objects` (`src/level2.c`, `include/level2.h`; level_objects.asm L690-805)
+
+Literal label-for-label port (`lab_34ab` ... `lab_35c7`, `goto`s kept). Returns the carry: `true` (stc) only when the scan ends with `dat_351b != 0`
+(after calling `reset_caught_objects`), `false` otherwise.
+
+**DS data verified in `/tmp/data_segment.bin`:** `dat_3513` = words {8, 0x10} (object width, slot < 12 / >= 12), `dat_3517` = words {6, 2} (object height, the `cl`;
+`ch = 0xe` is the CAT's height, it overwrites the high byte of that word), `l1_anim_sprite_c` = DS 0x3350 (blitted 5 words x 0x12 rows, `cx = 0x1205`),
+`dat_3511` (word, scan slot) and `dat_3509` (word, tick) both zero at start. Rect A = object (`ax = l2_obj_x`, `dl = l2_obj_y`, `si`, `cl`), rect B = cat
+(`cat_x`, `cat_y`, `di = 0x18`, `ch = 0xe`), same register mapping as `check_rect_collision`'s other callers.
+
+**Flow.** Active slots are skipped. On overlap: slot < 12, or `cat_caught`, or `immune_flag` -> CAPTURE (`++dat_351b`, `start_tone(0x5dc, 0x425)`,
+`restore_alley_buffer` only when `dat_351b == 1`, `erase_level_object`, `active = 1`; slot < 12 additionally `--dat_3410` and at 0 without `immune_flag` -> `cat_caught = 1`).
+Otherwise FATAL HIT (slot >= 12 with the cat free and not immune): `object_hit = 1`, hit sprite at `(cat_x - 8` clamped to 0..0x116, `cat_y` clamped to <= 0xb4`)`,
+`reset_noise`, then a BLOCKING loop of 0xd BIOS ticks (~0.7 s) that calls `update_noise` non-stop while waiting for the retrace, flips the border 1/0xf, and `ret`s with CF = 0
+WITHOUT finishing the scan (`dat_351b`/`active` are not touched).
+
+**Findings / deviations.**
+1. `add_score` is NOT called anywhere in this routine (tareas.md T34 said "si corresponde"); the ASM never does.
+2. `int 0x10 ah=0xb` (border color) has no equivalent in the SDL port: it is a named stub `l2_set_border` that stores the value in `l2_border_color`.
+3. `check_vsync` here is `jz` = WAIT for the retrace, and the loop calls `update_noise` continuously while it waits (that is what produces the hiss). Treating it as a no-op
+   (as elsewhere in the port) would call `update_noise` only 3 times per tick and silence the effect, so this loop waits on a simulated 60 Hz retrace (last ~1.4 ms of each 16.667 ms,
+   from `CLOCK_MONOTONIC`). Test hooks `l2_tick_fn` / `l2_vsync_fn` replace the clock and the retrace (same idea as `l6_tick_override`).
+4. The `dx` that gets pushed/popped in the noise loop is the tick on the first lap and the ELAPSED ticks on later laps (the border parity uses that, not the raw tick).
+5. Not wired into `main.c` yet (T42/T75).
+
+**Verified:** `tests/test_level2b.c` (`make test-level2b`, part of `make test`): independent model of the capture scan and of `check_rect_collision` written from the ASM text;
+no-collision, block capture (state, erase pattern in `cga_mem`), last block catches the cat (and `immune_flag` does not), fatal hit (sprite bytes in `cga_mem`, `object_hit`,
+exactly 13 laps, `dat_351b`/`active` untouched, final border 0xf), the four clamp edges of the sprite position, slot >= 12 with `cat_caught`/`immune_flag`, `restore_alley_buffer`
+only on the first capture, and 4000 random capture-only scenarios (3795 with captures). **Mutation check:** 16 deliberate edits (`<`/`<=` on 0xc and 0xb5, 0xd laps, `!= 1`
+restore, `object_hit`, border parity, `di = 2`, `cx - 8`, `cat_caught`, immune test, ...) are all caught except 3 equivalent ones in the `cx` clamp (0x117 -> 0x116 / 0x115 give the same
+byte address, because `calc_cga_addr` drops the 2 low bits). `-Wall -Wextra` clean, full `make test` passes.
+**Caveat:** no x86 emulator; the model is written from the ASM text, so a shared misreading would not be caught. SDL2 is not installable in this sandbox, so only the SDL-free
+targets (`TEST_SRC`) were built; `main.c` was not linked this time.
+
+Suggested commit: `T34: check_level_objects (level 2 catch scan + fatal-hit noise loop)`
 
 
 ## 7. General lesson for this whole project

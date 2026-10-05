@@ -2,6 +2,10 @@
 #include "cat_state.h"
 #include "cga.h"
 #include "gen/ds_pool.h"
+#include "level_collision.h"
+#include "sound.h"
+#include "alley.h"
+#include <time.h>
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -93,4 +97,113 @@ void erase_level_object(uint16_t slot) {
     uint16_t di = l2_obj_cga_addr[slot];
     if (slot * 2u < 0x18) blit_to_cga(&ds_pool[L2_ERASE_PATTERN], di, 1, 6);   /* cx=0x601 */
     else                  blit_to_cga(&ds_pool[L2_ERASE_PATTERN], di, 2, 2);   /* cx=0x202 */
+}
+
+/* ===== T34: check_level_objects (level_objects.asm L690-805) ===== */
+#define L2_DAT_3513   0x3513   /* DS: word[2] {8, 0x10}: ancho del rect del objeto (slot < 12 / >= 12) */
+#define L2_DAT_3517   0x3517   /* DS: word[2] {6, 2}: alto del rect del objeto (cl; ch = 0xe es el del gato) */
+#define L2_HIT_SPRITE 0x3350   /* DS: l1_anim_sprite_c (5 palabras x 0x12 filas) */
+
+uint16_t l2_dat_3511 = 0;                 /* DS 0x3511 (word): slot en curso del barrido */
+uint8_t  l2_border_color = 0;             /* ultimo color de borde pedido con `int 0x10 ah=0xb` (sin efecto visible en el port) */
+uint16_t (*l2_tick_fn)(void) = NULL;      /* solo tests: sustituye a `int 0x1a` */
+bool     (*l2_vsync_fn)(void) = NULL;     /* solo tests: sustituye al bit 3 de 0x3da */
+
+static uint16_t l2_ds_word(uint16_t off) { return (uint16_t)(ds_pool[off] | (ds_pool[off + 1] << 8)); }
+
+static uint16_t l2_read_bios_tick(void) {            /* sub ah,ah / int 0x1a -> dx */
+    if (l2_tick_fn) return l2_tick_fn();
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    uint64_t ms = (uint64_t)ts.tv_sec * 1000 + (uint64_t)(ts.tv_nsec / 1000000);
+    return (uint16_t)(ms / 55);
+}
+
+/* check_vsync + `jz`: aqui el bucle ESPERA de verdad (el original bloquea ~1 retrace por vuelta, y llama update_noise sin
+ * parar mientras espera: ese es el siseo). El retrace se simula con el reloj: 60 Hz, activo el ultimo ~1.4 ms de cada frame. */
+static bool l2_vsync_active(void) {
+    if (l2_vsync_fn) return l2_vsync_fn();
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    uint64_t us = (uint64_t)ts.tv_sec * 1000000u + (uint64_t)(ts.tv_nsec / 1000);
+    return (us % 16667u) >= 15267u;
+}
+
+static void l2_set_border(uint8_t color) { l2_border_color = color; }   /* int 0x10 ah=0xb: stub con nombre, sin borde en SDL */
+
+/* Devuelve el carry: 1 si se atrapo algo y se llamo reset_caught_objects; 0 en otro caso (y tras el golpe fatal). */
+bool check_level_objects(void) {
+    uint16_t bx, ax, cx, tick0, dx;
+    uint8_t dl, di;
+    l2_dat_3511 = 0x0;
+    l2_dat_351b = 0x0;
+lab_34ab:
+    bx = l2_dat_3511;
+    if (l2_obj_active[bx] == 0x0) goto lab_34b9;
+lab_34b6:
+    goto lab_35ad;
+lab_34b9:
+    ax = l2_obj_x[bx];                                 /* mov si,bx / shl si,1 / mov ax,[si+l2_obj_x] */
+    dl = l2_obj_y[bx];
+    di = 0x0;
+    if (bx < 0xc) goto lab_34d0;
+    di = 0x2;
+lab_34d0:
+    /* rect A: x = ax, y = dl, ancho = si, alto = cl; rect B (gato): x = cat_x, y = cat_y, ancho = 0x18, alto = ch = 0xe */
+    if (!check_rect_collision((int16_t)ax, dl, l2_ds_word((uint16_t)(L2_DAT_3513 + di)),
+                              (uint8_t)l2_ds_word((uint16_t)(L2_DAT_3517 + di)),
+                              (uint16_t)cat_x, cat_y, 0x18, 0xe)) goto lab_34b6;   /* jnc */
+    bx = l2_dat_3511;
+    if (bx < 0xc) goto lab_356f;
+    if (cat_caught != 0x0) goto lab_356f;
+    if (immune_flag != 0x0) goto lab_356f;
+    object_hit = 0x1;
+    cx = (uint16_t)cat_x;
+    {
+        bool borrow = cx < 0x8;                        /* sub cx,8 / jnc */
+        cx = (uint16_t)(cx - 0x8);
+        if (borrow) cx = 0;                            /* sub cx,cx */
+    }
+    if (cx >= 0x117) cx = 0x116;
+    dl = cat_y;
+    if (dl >= 0xb5) dl = 0xb4;
+    blit_to_cga(&ds_pool[L2_HIT_SPRITE], calc_cga_addr(dl, cx, NULL), 5, 0x12);   /* cx = 0x1205 */
+    reset_noise();
+    tick0 = l2_read_bios_tick();                       /* dat_3509 */
+    dx = tick0;
+    do {                                               /* lab_3543 (push dx) */
+        uint16_t pushed = dx;
+        do { update_noise(); } while (!l2_vsync_active());   /* lab_3544: call check_vsync / jz */
+        update_noise();
+        dx = pushed;                                   /* pop dx */
+        l2_set_border((dx & 1) ? 0x1 : 0xf);           /* mov bx,1 / test dl,1 / jnz / mov bl,0xf / int 0x10 */
+        update_noise();
+        dx = (uint16_t)(l2_read_bios_tick() - tick0);
+    } while (dx < 0xd);                                /* cmp dx,0xd / jc lab_3543 */
+    return false;                                      /* ret con CF=0 (salio por el cmp) */
+lab_356f:
+    l2_dat_351b = (uint8_t)(l2_dat_351b + 1);
+    start_tone(0x5dc, 0x425);
+    if (l2_dat_351b != 0x1) goto lab_3586;
+    restore_alley_buffer();
+lab_3586:
+    bx = l2_dat_3511;
+    erase_level_object(bx);
+    bx = l2_dat_3511;
+    l2_obj_active[bx] = 0x1;
+    if (bx >= 0xc) goto lab_35ad;
+    l2_dat_3410 = (uint8_t)(l2_dat_3410 - 1);
+    if (l2_dat_3410 != 0) goto lab_35ad;
+    if (immune_flag != 0x0) goto lab_35ad;
+    cat_caught = 0x1;
+lab_35ad:
+    l2_dat_3511 = (uint16_t)(l2_dat_3511 + 1);
+    if (l2_dat_3511 >= 0x18) goto lab_35bb;
+    goto lab_34ab;
+lab_35bb:
+    if (l2_dat_351b == 0x0) goto lab_35c7;
+    reset_caught_objects();
+    return true;                                       /* stc */
+lab_35c7:
+    return false;                                      /* clc */
 }
