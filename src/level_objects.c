@@ -93,13 +93,13 @@ static bool check_thrown_cat_hit(void) {
     return true;
 }
 
-static void erase_l1_thrown(void) {
+void erase_l1_thrown(void) {
     if (l1_undrawn == 0) {
         blit_to_cga((const uint8_t *)l1_sprite_data, l1_draw_addr, 2, 30);
     }
 }
 
-static void draw_l1_thrown(void) {
+void draw_l1_thrown(void) {
     uint16_t frame_ofs = (uint16_t)(ds_pool[L1_THROWN_SPRITE_PTRS + l1_anim_frame] |
                                      (ds_pool[L1_THROWN_SPRITE_PTRS + l1_anim_frame + 1] << 8));
     if (frame_ofs == 0) {

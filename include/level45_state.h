@@ -20,4 +20,14 @@ extern uint8_t  l5_anim_delay;       /* DS 0x3ed9: reintentos restantes de rando
 extern uint16_t l5_obj_index;        /* DS 0x3eda (word) */
 extern uint16_t l5_last_tick;       /* DS 0x3edc: último tick BIOS procesado (T23) */
 extern uint16_t l5_obj_sprite_ptr;  /* DS 0x3eca: OFFSET en el DS del sprite (no un dato), 0 = no dibujar (T23) */
+
+/* --- T24: estado de update_level4_state (nivel 4, puerta/"teletransporte") --- */
+extern uint16_t l3_door_cga_1;      /* DS 0x39e2 (word): dir. CGA de dibujo de la puerta de origen */
+extern uint16_t l3_door_cga_2;      /* DS 0x39e4 (word): 0 o 0x80 (desplazamiento de fila) de la origen */
+extern uint16_t l3_door_cga_3;      /* DS 0x39e6 (word): dir. CGA de la puerta destino */
+extern uint16_t l3_door_sprite_base;/* DS 0x39e8 (word): 0 o 0x80 de la destino */
+extern uint16_t l4_obj_cur_x;       /* DS 0x3d03 (word): X de llegada del gato */
+extern uint8_t  l4_obj_cur_y;       /* DS 0x3d05 (byte): Y de llegada del gato */
+extern uint16_t l4_last_tick;       /* DS 0x3d16 (word) */
+extern uint16_t l4_dat_3d18;        /* DS 0x3d18 (word): último tick que disparó la puerta */
 #endif

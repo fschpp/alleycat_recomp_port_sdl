@@ -21,4 +21,9 @@ void tick_thrown_objects(void);
  * though it's called from the general per-frame walk update. */
 void update_footprint(void);
 
+/* draw_thrown_sprite / erase_thrown_sprite (L543-596). Expuestas (antes static) porque
+ * update_level4_state (T24) las llama igual que tick_thrown_objects. */
+void draw_l1_thrown(void);
+void erase_l1_thrown(void);
+
 #endif

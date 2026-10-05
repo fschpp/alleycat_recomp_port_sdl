@@ -58,6 +58,7 @@ uint8_t  walk_anim_frame = 0;
 uint8_t l3_platform_id = 0;
 uint8_t l3_door_anim_frame = 0;
 uint8_t jump_hit = 0;
+uint8_t joy_button = 0;
 
 uint8_t  enemy_active = 0;
 uint8_t  frame_counter = 0;
