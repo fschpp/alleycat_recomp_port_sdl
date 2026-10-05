@@ -30,8 +30,9 @@ void calc_l5_direction(void);
  * object_hit == 0 -> cat_caught = 1. Sin colisión no toca nada. */
 void check_l5_cat_catch(void);
 /* check_l5_thrown (L2412-2422): objeto (b2,b4; 8x5) vs. objeto lanzado (0x10 x 0x1e). Si hay
- * colisión -> dat_40b8 = 0xff. */
-void check_l5_thrown(void);
+ * colisión -> dat_40b8 = 0xff. Devuelve CF (el `mov` no toca flags: sale con CF=1 si hubo colisión);
+ * update_level5_anim lo consume con `jb` (T27). */
+bool check_l5_thrown(void);
 /* init_level5_objects (L2423-2437): perch en (0x90, 0x86), dibuja el perch (draw_l5_perch) y deja los
  * flags en sus valores iniciales. */
 void init_level5_objects(void);
@@ -53,4 +54,24 @@ bool check_l5_thrown_near(void);
  * (x = max(cat_x-8, 0) con clamp por préstamo sin signo, y = cat_y+3, 0x28 x 0x0e). CF. También la usa
  * el nivel 6 (T32). */
 bool check_thrown_near_cat(void);
+
+/* --- T27: update_level5_anim (level_objects.asm L2198-2361) --- */
+extern uint16_t l5_dat_40b5;  /* DS 0x40b5 (word): último tick BIOS procesado */
+extern uint8_t  l5_dat_40b7;  /* DS 0x40b7 (byte): dirección X del objeto: 0, 1 (der.) o 0xff (izq.) */
+extern uint16_t l5_dat_40ba;  /* DS 0x40ba (word): dirección CGA del último dibujo del objeto (para borrarlo) */
+extern uint16_t l5_dat_40bc;  /* DS 0x40bc (word): dirección CGA calculada para el dibujo de este tick */
+extern uint16_t l5_dat_40be;  /* DS 0x40be (word): contador de frame de animación (+2 por dibujo; usa bits 1-2) */
+extern uint8_t  l5_dat_40ff;  /* DS 0x40ff (byte): contador de ticks procesados */
+extern uint16_t l5_dat_3f2c[5]; /* DS 0x3f2c: fondo guardado bajo el objeto (1 word x 5 filas = 10 bytes) */
+
+/* Hook de pruebas del tick BIOS (`int 0x1a`): -1 = reloj real (~18.2 Hz); >= 0 = ese valor. */
+extern int32_t l5_tick_override;
+
+/* update_level5_anim: un paso del objeto móvil del nivel 5 por tick BIOS. Solo actúa con el perch
+ * bajado (dat_40aa >= 0xa4). Elige dirección (persigue al gato con probabilidad por dificultad, o va
+ * hacia uno de 11 puntos objetivo dat_40de/dat_40f4, o dirección aleatoria), mueve (+-2 en Y entre
+ * 0x30 y 0xa7, +-4 en X entre 0 y 0x135), borra el dibujo anterior y dibuja el frame siguiente
+ * (3 sprites de 1 word x 5 filas en dat_40c0[], espejados +0x1e si va a la izquierda). El orden y el
+ * número de llamadas a random() es el del original. */
+void update_level5_anim(void);
 #endif

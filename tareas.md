@@ -203,7 +203,7 @@ Estado compartido de los niveles 4 y 5: **los dos usan las variables `l5_obj_*`*
 - **Destino:** `src/level5.c`. `check_thrown_near_cat` también lo usa el nivel 6 (T32): exportarlo.
 - **Verificar:** dibujar/borrar el perch y comprobar que el fondo vuelve idéntico (round-trip como en §5p).
 
-### T27 — `update_level5_anim` [L · 164]
+### T27 — `update_level5_anim` [L · 164] ✅ HECHO (PROGRESS.md §6x; `check_l5_thrown` ahora devuelve CF)
 - **ASM:** `level_objects.asm` L2198–2361.
 - **Destino:** `src/level5.c`.
 - **Notas:** usa `blit_transparent`, `play_random_chirp`, `random`. Mantener el orden de `random()`.
