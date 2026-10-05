@@ -34,4 +34,14 @@ void draw_all_windows(void);
 void draw_building(uint16_t di);
 void draw_all_buildings(void);
 
+/* T16 (alley_drawing.asm L6-50, L184-239) — ver PROGRESS.md §6m.
+ * draw_alley_details: detalles aleatorios, acera 0x5655, parches y
+ *   extras de suelo; orden fijo de random(): 40 detalles (con reintento si dl == draw_loop_count),
+ *   36 parches, 5 extras.
+ * clear_screen: fondo 0xAA + detalles + base + ícono + edificios + ventanas + init_alley_objects.
+ * draw_alley_scene: igual pero sin ventanas ni objetos y con edificios de lista difficulty=1. */
+void draw_alley_details(void);
+void clear_screen(void);
+void draw_alley_scene(void);
+
 #endif
