@@ -251,7 +251,7 @@ Estado compartido de los niveles 4 y 5: **los dos usan las variables `l5_obj_*`*
 - **Notas:** usa `reset_noise`/`update_noise`/`start_tone` (ya portados, PWM directo) y un bucle de ruido sincronizado con el tick. Mantener el bloqueo si el original bloquea.
 - **Verificar:** colocar al gato sobre un objeto activo → `l2_obj_hit` se activa, suena, se borra y `add_score` se llama si corresponde.
 
-### T35 — `update_level2_objects` [M · 129]
+### T35 — `update_level2_objects` [M · 129] ✅ HECHO (PROGRESS.md §6af; `shl si,0x0`/`shr cl,0x0` son `,1`; `dat_3509` pasa a ser estado compartido con T34; sin cablear hasta T42/T75)
 - **ASM:** `level_objects.asm` L872–1000.
 - **Destino:** `src/level2.c`.
 - **Verificar:** 100 ticks con semilla fija; los objetos caen y reaparecen en posiciones deterministas (anotar las 3 primeras).

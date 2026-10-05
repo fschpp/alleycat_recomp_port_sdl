@@ -52,9 +52,22 @@ void erase_level_object(uint16_t slot);
  *    erase_level_object, active = 1; si slot < 12: --dat_3410 y, al llegar a 0 sin immune_flag, cat_caught = 1.
  * Al final del barrido: dat_351b != 0 -> reset_caught_objects y devuelve true (stc); si no, false (clc).
  * NO llama add_score (el ASM no lo hace). check_vsync: el bucle espera un retrace simulado por reloj (60 Hz). */
+extern uint16_t l2_dat_3509;                 /* DS 0x3509 (word): ultimo tick procesado; init 0 */
+extern uint16_t l2_dat_350b;                 /* DS 0x350b (word): tick de la pasada en curso; init 0 */
+extern uint16_t l2_dat_3413;                 /* DS 0x3413 (word): fase del sprite 12..23, +8 por vuelta de 24 slots; init 0 */
 extern uint16_t l2_dat_3511;                 /* DS 0x3511 (word): slot en curso */
 extern uint8_t  l2_border_color;             /* ultimo `int 0x10 ah=0xb` (sin efecto visible) */
 extern uint16_t (*l2_tick_fn)(void);         /* solo tests: sustituye a int 0x1a (NULL = reloj real) */
 extern bool     (*l2_vsync_fn)(void);        /* solo tests: sustituye al bit de retrace (NULL = reloj real) */
 bool check_level_objects(void);
+
+/* update_level2_objects (level_objects.asm L872-998) — T35, PROGRESS.md §6af. Mueve UN slot por llamada (dat_3415 = 1..23, 0 al
+ * envolver) y solo cuando el tick BIOS != dat_3509. Al envolver: dat_3415 = 0, l2_anim_toggle ^= 0xc, dat_3413 += 8 y dat_3509 = tick.
+ * En el slot 12 solo marca el tick (dat_3509 = tick) si rom_id != 0xfd o cat_y >= 0x30 (si no, el slot 12 se mueve de todos modos
+ * y el tick sigue "pendiente"). Slot activo -> return (sin mover). Si random() <= 0x10: nueva direccion X (dat_3417 = 1/0xff) y Y
+ * (dat_342f = 1/0xff), 2 llamadas a random en ese orden. Paso X: 4 (slots < 12) o 2; rebota en 0 / 0x12e. Paso Y: +-1 entre
+ * init_y y init_y + 0x18 (rebota). Luego erase_level_object(slot), guarda la direccion CGA, hit = 0 y dibuja: slots >= 12 sprite_b
+ * [(slot*8 + dat_3413) & 0x18] 2x2; slots < 12 sprite_a [(toggle ^ (slot par ? 0xc : 0)) + (dir != 1 ? 0x18 : 0)] 1x6.
+ * Los dos `shl si,0x0` / `shr cl,0x0` del listado son `shl si,1` / `shr cl,1` (bytes d1 e6 / d0 e9). */
+void update_level2_objects(void);
 #endif

@@ -110,6 +110,7 @@ int main(void) {
     l2_obj_x[15] = 100; l2_obj_y[15] = 40;
     CHECK(check_level_objects() == false, "golpe fatal devuelve CF=0");
     CHECK(object_hit == 1 && l2_obj_active[15] == 0 && l2_dat_351b == 0, "fatal: object_hit=1, sin captura");
+    CHECK(l2_dat_3509 == 1000, "fatal: dat_3509 = tick inicial (es %u); update_level2_objects lo comparte", l2_dat_3509);
     CHECK(l2_dat_3511 == 15, "fatal: el barrido se corta en el slot 15 (es %u)", l2_dat_3511);
     CHECK(tick_calls == 0xd + 1, "fatal: lecturas de tick = %u (1 inicial + 13 vueltas)", tick_calls);
     /* dx empujado en cada vuelta: tick0, 1, 2, ..., 12 -> la ultima (12) es par -> borde 0xf; con 1000 (par) la primera es 0xf tambien */
