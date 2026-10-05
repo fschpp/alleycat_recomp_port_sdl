@@ -17,8 +17,9 @@ graphics assets, so it is not meant to be published or redistributed.
 **Current focus:** `tareas.md` execution: T00 (tooling), T10 (§6g) and T11
 (`check_stairs_collision`, §6h), T12 (`throw.asm` helpers + RNG fix, §6i) and
 T13 (`update_thrown_objects` + real `reset_window_state`, §6j) and T14
-(`alley_drawing` A, §6k) and T15 (windows + buildings, §6l) are done. Next up is T16
-(`clear_screen`, `draw_alley_scene`, `draw_alley_details`), then T17-T19 to close the alley loop; `throw.asm` is now fully ported but still not called from `main.c` (T19).
+(`alley_drawing` A, §6k) T15 (windows + buildings, §6l) and T16 (`clear_screen`, `draw_alley_scene`,
+`draw_alley_details`, §6m) are done. Next up is T17 (`update_viewport`, `render_sprites`), then
+T18-T19 to close the alley loop; `throw.asm` is now fully ported but still not called from `main.c` (T19).
 
 - [x] `sound.asm` — full port, wired into every previously-stubbed call site (§6e)
 - [x] PC speaker / PIT channel 2 emulation + SDL2 audio backend (§6e)
@@ -32,6 +33,7 @@ T13 (`update_thrown_objects` + real `reset_window_state`, §6j) and T14
 - [x] T13 — `update_thrown_objects` + real `reset_window_state` (rest of `throw.asm`); `throw.asm` fully ported (§6j)
 - [x] T14 — `alley_drawing` A (`draw_difficulty_icon`, `init_alley_objects`, `draw_object_row`) (§6k)
 - [x] T15 — `alley_drawing` B (`draw_window_strip`, `draw_all_windows`, `draw_building`, `draw_all_buildings`) (§6l)
+- [x] T16 — `alley_drawing` C (`draw_alley_details`, `clear_screen`, `draw_alley_scene`), `draw_block_list` exported (§6m)
 - [ ] `ui.asm` — `window_open_state` toggling, the other half of item (h)
 - [ ] §17 item (f): level-2 collectibles + bg tiles (unblocked since §6e)
 - [ ] `update_viewport` (alley.asm) — needs the DS 0x000e sprite scratch area modeled (§6f)
@@ -3119,6 +3121,40 @@ table says); an ASCII dump of one strip shows the expected 4 framed windows.
 compile with `-Wall -Wextra` without warnings. Nothing calls these from `main.c` yet (T16/T19).
 
 Suggested commit: `T15: alley_drawing B (draw_window_strip, draw_all_windows, draw_building, draw_all_buildings)`
+
+
+## 6m. T16 `alley_drawing.asm` C: details + scene (`src/alley_drawing.c`)
+
+**Ported (alley_drawing.asm L6-50, L184-239):** `draw_alley_details`, `clear_screen`,
+`draw_alley_scene`. `draw_block_list` (already ported in `level_background.c`) is now exported
+(`level_background.h`). Nothing calls the new functions from `main.c` yet (T19).
+
+**Finding: `draw_loop_count` (DS 0x2ac4, initial 0) is state carried between routines.**
+`draw_alley_details` reads it (`cmp dl,[draw_loop_count]`) before writing it, so its first
+random detail is compared with whatever the previous routine left (`draw_object_row` leaves
+0x14, strips/buildings/this function leave 0). T14/T15 had made it a local; it is now a single
+file-level `static uint8_t draw_loop_count` shared by all five routines (grep over the whole ASM
+shows no other user). Note the first iteration with value 0 can never pick `dl==0`, as in the ASM.
+
+**Behaviour:** `draw_alley_details`: 40 detail sprites (1w x 8 rows, `0x2904 + (random&0x30)`,
+retry while `dl == draw_loop_count`) at CGA 0x1040..0x108e step 2; sidewalk fill `0x5655`
+words (bytes 55 56...) x 0x500 at 0x1180 and 0x3180 (immediates, no brackets); 4 x 9 patches
+(sprites 0x2944, +0xa ... < 0x296c; 1w x 5 rows at `(random&0x776)+0x12c0`); 5 extras
+(`ground_extra_sprite` 0x296c at `(random&0x3e)+0x3a98`). Random order is fixed: 40+ (retries),
+36, 5. `clear_screen` fills 0xAA in both banks (0xfa0 words each; the 0x1f40..0x1fff gap is
+untouched), then details, `draw_block_list(0, alley_base_block_list 0x28a0)`, icon, buildings
+(by `difficulty_level`), windows, `init_alley_objects`. `draw_alley_scene` is the same without
+windows/objects and draws buildings with `difficulty_level` forced to 1 (word, restored).
+
+**Verification (`/tmp/t15/t16.c`, not committed; ASan/UBSan clean, linked against all non-SDL
+sources):** with seed 0xFA59, `clear_screen` for difficulty 0..7 gives an identical CGA hash on
+two runs; difficulty 3/5 and 4/6 share hashes (same building list and `throw_chance`), as the
+tables imply. `draw_alley_scene` restores `difficulty_level`. Rendered PPM/PNG
+(`alley_scene_dif3.png`) shows fence + graffiti, trash cans, windows and object rows, checked by
+eye. Not verified against an independent model of the ASM (unlike §6k).
+**Not done:** `make` (no `libsdl2-dev`); changed files compile with `-Wall -Wextra` clean.
+
+Suggested commit: `T16: alley_drawing C (draw_alley_details, clear_screen, draw_alley_scene)`
 
 
 ## 7. General lesson for this whole project

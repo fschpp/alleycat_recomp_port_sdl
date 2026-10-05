@@ -132,7 +132,7 @@ Parar en el `lab_XXXX` más cercano, dejar `/* TODO(<ID>-cont): continuar en lab
 - **Datos:** `window_sprite_data=0x2680`, `window_row_y_table=0x2bd4`, `window_row_col_offset=0x2bdb`, `window_open_state=0x2be2`.
 - **Verificar:** dibujar sobre fondo negro y comprobar volcado ASCII de una franja; el número de píxeles no negros debe ser > 0 y estable entre dos ejecuciones.
 
-### T16 — `alley_drawing` C: detalles y escena [M · 104]
+### T16 — `alley_drawing` C: detalles y escena [M · 104] ✅ HECHO (PROGRESS.md §6m; `draw_loop_count` pasa a ser estado compartido)
 - **ASM:** `alley_drawing.asm` L6–52 (`clear_screen`, `draw_alley_scene`) y L185–241 (`draw_alley_details`).
 - **Destino:** `src/alley_drawing.c`.
 - **Notas:** `draw_alley_details` usa `random()` (mantener el orden de llamadas) y `blit_to_cga`; usa `draw_block_list` ya portado en `level_background.c` (exportarlo en el `.h` si es `static`).

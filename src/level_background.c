@@ -61,7 +61,7 @@ static uint8_t rnd_byte(void) {
  * comment). For each entry, blits ds_pool[source_ofs] to
  * cga_mem[base_offset + dest_delta], byte-exact (opaque, no
  * transparency — appropriate for solid background tiles). */
-static void draw_block_list(uint16_t base_offset, uint16_t list_ofs) {
+void draw_block_list(uint16_t base_offset, uint16_t list_ofs) {
     uint8_t rows = ds_pool[list_ofs + 1];
     uint8_t cols_bytes = ds_pool[list_ofs];
     list_ofs += 2;
