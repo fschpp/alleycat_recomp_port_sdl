@@ -23,6 +23,15 @@ void reset_jump(void) {
     fall_counter = 0;
 }
 
+/* init_player — literal port of level_physics.asm L269-275 (T18, PROGRESS.md §6o). */
+void init_player(void) {
+    jump_anim_counter = 0x0;
+    gravity_y = 0x0;
+    idle_aggro_flag = 0x0;
+    deduct_life = 0x0;
+    jump_toss_delay = 0x9;
+}
+
 /* pick_random_target — literal port, reusing the already-verified door
  * tables (floor_door_count/floor_first_door/door_position_table, §5n).
  * Picks a random door on the current difficulty's floor (never repeating

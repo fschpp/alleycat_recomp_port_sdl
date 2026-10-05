@@ -23,14 +23,7 @@
  * state machine" this TODO waited on turned out to be 36 lines of
  * alley.asm, not a separate subsystem. */
 
-/* check_dog_collision (enemy.asm) — literal name is misleading; per
- * PROGRESS.md §5o this is actually level-0-specific gravity-fall-landing
- * detection (uses gravity_sprite_ptrs), not literal cat-touches-dog
- * collision. Still genuinely unported (needs level 0's jump/landing
- * state), so this stays a documented "no collision" stub — NOT the same
- * function as enemy.c's real dog AI (update_enemies/check_enemy_activate),
- * which IS ported and wired in below. */
-static bool check_dog_collision(void) { return false; }
+/* check_dog_collision es real desde T18 (src/enemy.c, PROGRESS.md §6o). */
 
 /* check_enemy_activate — FIX: this used to be a local stub here that
  * unconditionally returned false, silently shadowing the real, ported

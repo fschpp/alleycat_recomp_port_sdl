@@ -79,10 +79,7 @@ static uint16_t death_save_buf[5 * 0x12];
 static uint16_t death_draw_pos;
 static uint16_t anim_tick_delay;
 
-/* check_dog_collision (enemy.asm) — per §5o the literal name is misleading:
- * this is level-0's gravity-fall landing check, still genuinely unported.
- * Same documented "no collision" stub alley_movement.c has carried. */
-static bool check_dog_collision(void) { return false; }
+/* check_dog_collision es real desde T18 (src/enemy.c, PROGRESS.md §6o). */
 
 /* --- save_alley_buffer ---
  * `mov cx,[buffer_size] / call save_from_cga`: buffer_size is the CX dims

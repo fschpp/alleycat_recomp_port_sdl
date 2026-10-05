@@ -15,4 +15,8 @@ void update_cat_jump(void);
  * after update_cat_jump. */
 void apply_cat_gravity(void);
 
+/* restore_gravity_bg (level_physics.asm L368-375): vuelve a pintar el fondo guardado bajo el
+ * proyectil. Exportada en T18 para check_dog_collision. */
+void restore_gravity_bg(void);
+
 #endif

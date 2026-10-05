@@ -18,8 +18,8 @@ graphics assets, so it is not meant to be published or redistributed.
 (`check_stairs_collision`, §6h), T12 (`throw.asm` helpers + RNG fix, §6i) and
 T13 (`update_thrown_objects` + real `reset_window_state`, §6j) and T14
 (`alley_drawing` A, §6k) T15 (windows + buildings, §6l) and T16 (`clear_screen`, `draw_alley_scene`,
-`draw_alley_details`, §6m) and T17 (`update_viewport`, `render_sprites`, §6n) are done. Next up
-is T18 (`init_player`, `start_auto_walk`, real `check_dog_collision`), then T19 to close the alley loop; `throw.asm` is now fully ported but still not called from `main.c` (T19).
+`draw_alley_details`, §6m) T17 (`update_viewport`, `render_sprites`, §6n) and T18 (`init_player`, `start_auto_walk`,
+real `check_dog_collision`, §6o) are done. Next up is T19 (alley integration in the main loop); `throw.asm` is now fully ported but still not called from `main.c` (T19).
 
 - [x] `sound.asm` — full port, wired into every previously-stubbed call site (§6e)
 - [x] PC speaker / PIT channel 2 emulation + SDL2 audio backend (§6e)
@@ -35,6 +35,7 @@ is T18 (`init_player`, `start_auto_walk`, real `check_dog_collision`), then T19 
 - [x] T15 — `alley_drawing` B (`draw_window_strip`, `draw_all_windows`, `draw_building`, `draw_all_buildings`) (§6l)
 - [x] T16 — `alley_drawing` C (`draw_alley_details`, `clear_screen`, `draw_alley_scene`), `draw_block_list` exported (§6m)
 - [x] T17 — `update_viewport` (`alley.c`) and `render_sprites` (`alley_drawing.c`) (§6n)
+- [x] T18 — `init_player` (`fall_object.c`), `start_auto_walk` (`game_setup.c`), real `check_dog_collision` (`enemy.c`), wired into `apply_cat_gravity` (§6o)
 - [ ] `ui.asm` — `window_open_state` toggling, the other half of item (h)
 - [ ] §17 item (f): level-2 collectibles + bg tiles (unblocked since §6e)
 
@@ -3195,6 +3196,59 @@ silence_speaker; level_number=0; ...`). So the alley setup must call `clear_scre
 `render_sprites()` (the random order matters: `clear_screen` first). `make` not run (no `libsdl2-dev`).
 
 Suggested commit: `T17: update_viewport and render_sprites`
+
+
+## 6o. T18 `init_player`, `start_auto_walk`, real `check_dog_collision`
+
+**Ported:** `init_player` (level_physics.asm L269-275) in `src/fall_object.c`; `start_auto_walk`
+(game_loop.asm L108-152) in `src/game_setup.c`; `check_dog_collision` (enemy.asm L69-107) in
+`src/enemy.c`. Declared in `fall_object.h`, `game_setup.h`, `enemy.h`. `restore_gravity_bg` is
+now exported (`jump_gravity.[ch]`). The two `static ... { return false; }` stubs of
+`check_dog_collision` (in `alley.c` and `alley_movement.c`; tareas.md said `game_setup.c`, which
+was out of date) are removed and both callers use the real one.
+
+**Findings (from the ASM, not assumed):**
+- `db 0xd0,0xeb` which the disassembly comments as `shr bl,0x0` is **`SHR BL,1`** (D0 /5, count 1):
+  two shifts by 1 => `bl = al >> 2`. Rule 6 ("read the comment") fails here: the comment is a
+  decompiler artifact. `anim_step = al - (al>>2)`, `scroll_speed = al>>5` (word; `ah` is 0 by then).
+- `start_auto_walk`: `in_level_mode = (cat_y >= entrance_y) ? 0xff : 1` (unsigned `jnb`);
+  `scroll_direction = (cat_x > entrance_x) ? 0xff : 1` (unsigned `ja` = CF=0 && ZF=0), with
+  `ax = ~(cat_x - entrance_x)` on the other branch (0xffff when equal); if `ah != 0` then `al = 0xff`;
+  `al = ~al`, clamped to >= 0x30. Early `ret` if `auto_walk != 0` (after `ambient_freq = 0x400`).
+- `check_dog_collision` is level-0 only (`level_number == 0 && gravity_y != 0`); A rect =
+  (gravity_x, gravity_y, 0x10 x `gravity_cur_dims>>8`), B = (cat_x, cat_y, 0x18 x 0xe)
+  (the `xchg ch,cl` gives `cl` = height; `ch` is then overwritten by 0xe). On overlap: calls
+  `restore_alley_buffer`, `restore_gravity_bg`, `enter_building`; if `dog_catch_flag == 0` then
+  `dog_catch_flag=1`, `handle_cat_death`, `gravity_drift_dir` flips (0xff -> 1, else -> 0xff),
+  `gravity_h_speed=0x60`, `gravity_frame=1`, `at_platform=0`; returns true (carry) either way.
+- **Wiring in `apply_cat_gravity` (jump_gravity.c):** the comment there said the call was "NOT
+  ported" because this function was a stub. It is now called exactly where the ASM calls it
+  (L355: after the `gravity_frame != 2` background restore, before the transparent draw; carry =>
+  return). No effect outside level 0 (returns false immediately). This goes slightly beyond the
+  three destination files listed in T18, but it is the documented gap that this task closes.
+- **Pre-existing deviation spotted (NOT fixed, for T70/T77):** `apply_cat_gravity`'s end test in
+  the port is `y >= gravity_target_height`; the ASM (L334-342) ends only when the overshoot
+  `y - target` is >= the sprite height (`sub bh,al; jz/jnc`), i.e. the projectile keeps being
+  drawn until its whole height is past the target. Needs its own check against the ASM.
+
+**Verification (`/tmp/t18/*`, not committed; ASan/UBSan clean). Independent of my reading of the
+ASM: the original routines were assembled with `nasm` straight from the disassembly and run in a
+`unicorn` x86-16 emulator, then compared with the C port on the same inputs:**
+- `start_auto_walk`: 4022 cases (random `cat_x`/`entrance_x` incl. the full 16-bit range, equal
+  values, diffs around 0x2f/0x30/0xff/0x100/0x1ff/0x200 in both directions, random `cat_y`/
+  `entrance_y`, `auto_walk` in {0,1,0xff}). All 11 outputs (`ambient_freq`, `anim_counter`,
+  `in_level_mode`, `scroll_direction`, `anim_step`, `scroll_speed`, `at_platform`, `l3_platform_id`,
+  `anim_accumulator`, `transition_timer`, `auto_walk`) identical: 0 differences.
+- `check_dog_collision` (with the ASM's own `check_rect_collision`, plus logging stubs for the 4
+  callees): 6000 cases, 317 collisions (159 first-catch with `handle_cat_death`, 158 already
+  caught), levels {0,1,3,7}, `gravity_y==0` included. Carry, the 5 state variables and the exact
+  **call order** of the 4 callees (C side uses `--allow-multiple-definition` stubs) identical: 0 differences.
+- `init_player`: exact values (and `fall_counter` untouched). T16/T17 tests re-run: still pass.
+**Not done:** `make` (no `libsdl2-dev`); all non-SDL sources compile with `-Wall -Wextra` clean.
+`main.c` still has the outdated comment "init_player/reset_jump aren't ported yet" and does not
+call `init_player`/`start_auto_walk` — that is T19.
+
+Suggested commit: `T18: init_player, start_auto_walk and real check_dog_collision`
 
 
 ## 7. General lesson for this whole project
