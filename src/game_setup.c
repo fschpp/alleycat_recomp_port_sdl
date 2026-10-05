@@ -4,6 +4,7 @@
 #include "game_setup.h"
 #include "gen/cat_gap1_sprites.h"
 #include "level_background.h"
+#include "throw.h"
 #include <stdint.h>
 
 /* save_alley_buffer / reset_window_state — the original calls these to
@@ -14,7 +15,7 @@
  * file ports stays structurally identical to the original, ready to be
  * filled in once that pipeline exists. */
 /* save_alley_buffer is real now — src/alley.c, PROGRESS.md §6f. */
-static void reset_window_state(void) { /* TODO: not yet ported */ }
+/* reset_window_state is real now — src/throw.c (T13, PROGRESS.md §6j). */
 
 /* setup_alley — literal port of game_loop.asm's setup_alley (lines 1-40).
  * Positions the cat at the left or right edge based on its current cat_x,

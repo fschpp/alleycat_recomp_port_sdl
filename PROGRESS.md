@@ -15,9 +15,10 @@ graphics assets, so it is not meant to be published or redistributed.
 ## 0. Current focus / todo / blockers
 
 **Current focus:** `tareas.md` execution: T00 (tooling), T10 (§6g) and T11
-(`check_stairs_collision`, §6h) and T12 (`throw.asm` helpers + RNG fix, §6i) are
-done. Next up is T13 (`update_thrown_objects`), which is what
-§17 item (h) is *actually* blocked on (see the correction below).
+(`check_stairs_collision`, §6h), T12 (`throw.asm` helpers + RNG fix, §6i) and
+T13 (`update_thrown_objects` + real `reset_window_state`, §6j) are done. Next up
+is T14 (`alley_drawing` A: difficulty icon + object rows), then T15-T19 to close
+the alley loop; `throw.asm` is now fully ported but still not called from `main.c` (T19).
 
 - [x] `sound.asm` — full port, wired into every previously-stubbed call site (§6e)
 - [x] PC speaker / PIT channel 2 emulation + SDL2 audio backend (§6e)
@@ -28,8 +29,8 @@ done. Next up is T13 (`update_thrown_objects`), which is what
 - [x] T10 — `pixel_to_bitmask`, `check_window_landing`, level-0 branch of `check_level_collision` (§6g)
 - [x] T11 — `check_stairs_collision` (level 7), `window_open_state[126]` state array (§6h)
 - [x] T12 — `throw.asm` helpers: `rotate_throw_bits`, `check_throw_range`, `generate_throw_object`, `generate_throw_pattern` + **`cga_random` fix** (§6i)
-- [ ] T13 — `update_thrown_objects` + real `reset_window_state` (rest of `throw.asm`)
-- [ ] `throw.asm` — maintains `current_floor`/`window_column`; **the real blocker for §17 item (h)**
+- [x] T13 — `update_thrown_objects` + real `reset_window_state` (rest of `throw.asm`); `throw.asm` fully ported (§6j)
+- [ ] T14 — `alley_drawing` A (`draw_difficulty_icon`, `init_alley_objects`, `draw_object_row`)
 - [ ] `ui.asm` — `window_open_state` toggling, the other half of item (h)
 - [ ] §17 item (f): level-2 collectibles + bg tiles (unblocked since §6e)
 - [ ] `update_viewport` (alley.asm) — needs the DS 0x000e sprite scratch area modeled (§6f)
@@ -2954,6 +2955,86 @@ floors 0/1/2 incl. carry in/out and 40 rotations pushing one bit out of 40;
 all floors). All pass ("T12 OK"). Smoke run under dummy SDL: clean.
 
 Suggested commit: `T12: throw.asm helpers (rotate/range/generate) + fix cga_random carry bit`
+
+
+## 6j. T13 `update_thrown_objects` + real `reset_window_state` (`src/throw.c`)
+
+**Ported (throw.asm L5-167 and L277-280), literal, label-for-label with `goto`
+(`lab_04a7`, `lab_04f6`, `lab_050c`, `lab_0523`, `lab_0535`, `lab_0539`, `lab_056e`,
+`lab_057c`, `lab_0583`, `lab_059e`, `lab_05bf`, `lab_05cd`, `lab_05d0`, `lab_061b`).**
+`reset_window_state` replaces the no-op stub in `game_setup.c` (`anim_last_tick = 0;
+pcjr_delay = 0`); `pcjr_delay` (DS 0x0684) is new in `cat_state.[ch]` and nothing else reads it.
+New state in `throw.c`: `throw_timer` (DS 0x0531, byte, initial 0) and `throw_last_tick`
+(DS 0x0544, word, initial 0).
+
+**Flow, as read from the ASM.** `dec throw_timer`; only on reaching 0 does anything
+run (`inc` restores 1). Then: (`check_vsync` ready) -> `transitioning==0` ->
+`gravity_y==0` -> a NEW BIOS tick vs `throw_last_tick`. Reload `throw_timer =
+throw_delay[difficulty_level]`, quartered (`shr` x2) when `cat_y <= 0x60` (unsigned `ja`).
+Then `check_throw_range(current_floor)`:
+- ZF=0 (cat is in this floor, `at_platform==0`): if `window_column + throw_col_step[floor] < 4`
+  return (note `window_column` is NOT updated here); else re-roll the floor with
+  `random & 3` until it differs from `current_floor` and is not 3 (this path does NOT call
+  `check_throw_range` again).
+- ZF=1: `window_column += throw_col_step[floor]`; if `< 4` jump to the cat-push block;
+  else `random`: `dl > 0x40` keeps the floor (only re-inits the column), otherwise re-roll
+  `random & 3` (!=3) until `check_throw_range(new)` returns ZF=1. Each retry re-runs
+  `check_throw_range`, so `in_throw_range` is rewritten every time (kept).
+- New object: `window_column = throw_col_init[floor]`; `generate_throw_object(throw_chance[difficulty],
+  throw_y_param[floor])`; then the two `rotate_throw_bits` calls with the carries exactly as in
+  the ASM: floor != 1 shifts `throw_bits` twice (carry = bit0, then bit0 of the shifted value);
+  floor 1 takes the carry from bit 1 of an `al` copy and shifts `throw_bits` only once.
+- Cat push (only if `in_throw_range`): floor != 1 -> `cat_draw_pos++`, `cat_x += 4`, if
+  `cat_x+4 >= 0x123` -> climb transition; floor 1 -> `cat_draw_pos--`, `cat_x -= 4`, borrow
+  (`cat_x < 4`) or `< 8` -> climb transition (`transition_timer=0x11, in_level_mode=1,
+  anim_counter=1, anim_step=0x18, scroll_speed=1, at_platform=0`, `cat_x` untouched but
+  `cat_draw_pos` already moved — faithful, not a bug).
+- Always (also with no cat in range): scroll the floor strip in CGA RAM and draw one new
+  column. Floor 1 (`bx*2==2`): `cld`, `di=si-1` (strip moves LEFT); floors 0/2: `std`,
+  `di=si+1` (RIGHT). Bank 0 copies **0x27f** bytes, bank 1 copies **0x280** (not a typo: the
+  ASM uses different counts). Column: 16 rows, 1 byte each from `throw_obj_buf[window_column + 4*row]`,
+  alternating banks (`di ^= 0x2000; if bit 0x2000 clear: di += 0x50`).
+
+**DS offsets verified (`/tmp/data_segment.bin`, and by how they are indexed):**
+`throw_scroll_src 0x0517` = {03be, 0641, 0dbe}; `throw_draw_col 0x051d` = {0140, 068f, 0b40}
+(ends exactly at `throw_draw_tmp 0x0523`); `throw_col_init 0x0526` = {3,0,3}; `throw_col_step
+0x0529` = {ff,01,ff}; `throw_y_param 0x052c` = {80,30,00}; `throw_delay 0x0532` = {64,50,46,3c,37,32,28,28}
+(ends at 0x053a = `floor_y_bottom`); `throw_chance 0x2aba` = {06,14,20,2e,2e,34,3a,40}.
+
+**Simplifications (documented, not guessed):**
+- `check_vsync` = always ready (ZF=1), consistent with the rest of the port.
+- `int 0x1a` -> a local `read_bios_tick()` (same pattern as `alley.c`/`level7_epilogue.c`).
+- `std` leaves DF=1 after returning for floors 0/2 in the original; C has no DF, only the copy
+  direction is kept (equivalent to `memmove`). Anything that later relied on DF being set/clear
+  is a non-issue here.
+- CGA addresses are masked with 0x3fff (B800 mirrors 16 KB); every table value is well inside it,
+  so the mask never changes a result. The column read from `throw_obj_buf` is bounds-guarded; with
+  `window_column <= 3` (always true, see the tests) it never triggers.
+
+**Verification (`/tmp/t13/test_t13.c`, not committed, built also with `-fsanitize=address,undefined`):**
+- Gates: timer 2 -> only `dec`; timer 0 wraps to 0xff; `transitioning`/`gravity_y` block after the `inc`.
+- Timer reload: dif 0 -> 0x64, with `cat_y==0x60` -> 0x19, dif 7 -> 0x28.
+- Floor 1 (leftwards): strip contents compared byte-for-byte against an independent formula for both
+  banks (0x27f/0x280), column rows at 0x068f + (r>>1)*0x50 + (r&1)*0x2000; `cat_x 0x100 -> 0xfc`,
+  `cat_draw_pos` decremented; limits `cat_x=3` (borrow) and `0x0a` (<8) -> transition with `cat_x`
+  intact; `cat_x=0x0c` -> 8.
+- Floor 0 (rightwards, `std`): same, `new[i+1]=old[i]` over [0x140..0x3be] and [0x213f..0x23be];
+  `cat_x=0x11f` -> transition (0x123 is not `< 0x123`), `0x11e` -> 0x122.
+- Re-roll paths with seed 0xFA59 (sequence fd2c, 7e96, 3f4b, 1fa5 hand-checked in §6i): cat-in-floor
+  path picks floor 0 and consumes exactly 2 randoms (seed ends 7e96; buffer = 0xaa fill + 0x44x4);
+  normal path (floor 1 -> 2) consumes exactly 6 randoms, checked against an independent LFSR model;
+  ZF=0 with `al < 4` returns touching nothing except the already-reloaded timer.
+- 200-tick harness (56 ms/tick, dif 7): 200/200 effective steps, `current_floor` in {0,1,2} and
+  `window_column <= 3` on every tick, (floor, column) changed on every step; an object travelling
+  rightwards along the floor-0 strip is visible in the ASCII dump (two copies of the sprite,
+  14 steps apart).
+
+**Not wired yet:** `update_thrown_objects` is not called from `main.c` — that is T19 (cadence:
+every 4th frame, or every frame with an active enemy). Build note: this sandbox has no
+`libsdl2-dev`, so `make` could not link; every changed file compiles with `-Wall -Wextra` and
+`throw.c` + `cga.c` + `cat_state.c` + `gen_ds_pool.c` link into the test.
+
+Suggested commit: `T13: throw.asm update_thrown_objects + real reset_window_state`
 
 
 ## 7. General lesson for this whole project
