@@ -15,8 +15,8 @@ graphics assets, so it is not meant to be published or redistributed.
 ## 0. Current focus / todo / blockers
 
 **Current focus:** `tareas.md` execution: T00, T10-T22 (§6g-§6s), T23 (§6t), T24 (§6u) **T25** (level-5 helpers A,
-§6v) and **T26** (level-5 helpers B, §6w) and **T27** (`update_level5_anim`, §6x) and **T28** (`update_level5_objects`, §6y) are done. Next up: T29 (level-6 helpers A).
-T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-level4`, `test-level4-state`, `test-level5`, `test-level5-anim`, `test-level5-objects`). The death
+§6v) and **T26** (level-5 helpers B, §6w) and **T27** (`update_level5_anim`, §6x) and **T28** (`update_level5_objects`, §6y) and **T29** (level-6 helpers A, §6z) are done. Next up: T30 (level-6 helpers B).
+T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-level4`, `test-level4-state`, `test-level5`, `test-level5-anim`, `test-level5-objects`, `test-level6`). The death
 handler (`entry.asm` lab_01b7+, T41) is still replaced in `main.c` by "re-enter the alley".
 
 - [x] `sound.asm` — full port, wired into every previously-stubbed call site (§6e)
@@ -41,6 +41,7 @@ handler (`entry.asm` lab_01b7+, T41) is still replaced in `main.c` by "re-enter 
 - [x] T24 — `update_level4_state` (`level4.c`), door/teleport state vars in `level45_state.c`, `joy_button` (§6u)
 - [x] T23 — `update_level4_anim` (`level4.c`), `l5_last_tick`/`l5_obj_sprite_ptr` state, 2-aligned save buffers (§6t)
 - [x] T28 — `update_level5_objects` (`level5.c`): perch push / move / blocking descent; `l5_perch_save` grows to 68 words (§6y)
+- [x] T29 — level-6 helpers A (`level6.c`): tracker draw/erase, `init_level6_objects`, `draw_l6_tile`, `calc_l6_addr`; `level6_stubs` is a bare `ret` (§6z)
 - [ ] T01 — full headless harness (`tests/harness.h`, `make test`); only `tests/test_alley_loop.c` exists so far
 - [ ] T41 — death handler / level selector (`entry.asm` lab_01b7+); `main.c` just re-enters the alley meanwhile
 - [ ] `ui.asm` — `window_open_state` toggling, the other half of item (h)
@@ -3675,6 +3676,52 @@ of the perch on its first row, `calc_l5_direction` results copied to `dat_40b7`)
 misreading would not be caught. **Not verified:** the routine inside the real level-5 loop (T42) and the audible result.
 
 Suggested commit: `T28: update_level5_objects (level-5 perch push/move/descent); l5_perch_save grows to 68 words`
+
+
+## 6z. T29 — level-6 helpers A (new `src/level6.c`, `include/level6.h`; level_objects.asm L2984-3095)
+
+Ported literally (label per label, `goto`): `erase_l6_tracker`, `draw_l6_tracker`, `init_level6_objects`, `draw_l6_tile`,
+`calc_l6_addr`. `init_level6_objects` zeroes the 12 flag words (`dat_4441`), takes `bx = difficulty_level` (DS 0x0008, checked
+in `data_segment_labels.txt`) and seeds `l6_obj_type[bx]` objects (byte table {6,6,7,7,8,8,9,9}): `random()` -> `bl = dl & 0x1e`,
+retry if `bl >= 0x18` or the slot is taken (so 12 possible slots, `bx = 2*slot`), then `state[slot]=0`, `flag[slot]=1` and a
+5x13-word `blit_to_cga` of the sprite `l6_obj_sprite_ptr[bx]` at CGA address `l6_obj_x[bx]`. Then the 12 tiles
+(`cx = 12..1`, `bx = cx-1`) get type `l6_obj_init_y_tbl[difficulty_level]` (byte table {1,2,3,4,4,4,4,4}) and are drawn with
+`draw_l6_tile`. Finally `dat_44d0 = dat_44bd = dat_44be = 0`, `dat_43e0 = 1`, `dat_44d6 = 0xc`.
+
+**Data (all checked in `/tmp/data_segment.bin`).** `l6_obj_x` word[12] (0x4411) = CGA addresses 0x1546..0x1a84 (all bank 0);
+`l6_obj_sprite_ptr` word[12] (0x4429) = 0x431e / 0x429c, delta 0x82 = 5 words x 2 x 13 rows (zero gap); `dat_4441` and
+`l6_obj_state` word[12] are 0 at start; `l6_obj_dims` word[12] (0x4481) = {0x8,0x90,0xa0,0x28,0x38,0x78,0xe0,0x120,0x10,0x98,0xd0,0x100}
+and `l6_obj_y` byte[12] (0x4499) = {0x90 x3, 0xa0 x5, 0xb0 x4}: **despite its name `l6_obj_dims` is the tile X in pixels**
+(`calc_l6_addr` passes it as `cx` to `calc_cga_addr` with `dl = l6_obj_y`). Tile sprites: `l5_sprite_table_base (0x41fc) + type*32`
+(2 words x 8 rows = 32 bytes). Tracker sprite: 3 words x 10 rows = 0x3c bytes; `dat_43a0..dat_43dc` is exactly 0x3c bytes = its
+30-word save buffer, and the mirrored copy is at `dat_44d1 + 0x3c` (used when `dat_44d0 >= 0x80`). `dat_43dc`, `dat_43de`,
+`dat_43e0`, `dat_44d0`, `dat_44d1`, `dat_44d6` are all 0 at start (so `dat_44d1 = 0` until `update_level6_*` sets it).
+
+**Translation notes.**
+- `dat_43e0` is an "already erased / nothing drawn" flag: `erase_l6_tracker` does nothing when it is non-zero; `draw_l6_tracker`
+  clears it. `erase` uses `dat_43de` (the address of the LAST drawing), not the new target `dat_43dc` (tested).
+- `loop` is translated as `cx--; if (cx != 0) goto` (do-while, the body runs at least once as in the original).
+- `db 0xd0,0xe3` is `shl bl,1` (listing shows `shl bl,0x0`, same artefact as T18/T24/T25/T27/T28): only `bl` is shifted, `bh` kept.
+- `mov bl,dl / and bx,0x1e` is done on the full `bx` like the original (bh is cleared by the `and`).
+- **The LFSR (`random`, cga.asm L158-165) can fall into the fixed point 0** (seed 0 or 1 -> 0 forever), and then the retry loop in
+  `init_level6_objects` never ends. That is the original behaviour; the test avoids those seeds (my first test run hung on seed 1).
+- **`level6_stubs` (L3082) is not ported:** it is a bare `ret` (entry.asm L288 calls it as "init level 6"), and the bytes after
+  it (`add [bx+si],al`, `clc`, `ret`...) are padding decoded as code, not referenced anywhere. The call in entry.asm is a no-op (T42).
+- **Wiring:** `init_level6_objects` is called at the end of the level-6 background in the ASM (score.asm L218), which is the spot marked in
+  `level_background.c`. It is NOT wired yet (same as `init_level5_objects`): left for T75 (wiring checklist per level); the comment
+  there now says so.
+
+**Verified:** `tests/test_level6.c` (`make test-level6`, part of `make test`). Expected values do not come from the C: (a) `calc_l6_addr`
+for tiles 0/3/8/11 computed by hand with `(row&1)*0x2000 + (row>>1)*80 + x/4` (0x1682, 0x190a, 0x1b84, 0x1bc0); (b) `draw_l6_tile` against a
+model screen; (c) `init_level6_objects` for all 8 difficulties against an independent model of the LFSR written from cga.asm plus a model
+screen that draws objects and then tiles 11..0 in the ASM order: whole CGA memory identical, flags, `state` only written in used slots,
+tile types, final `rng_seed` (proves the exact number of `random()` calls) and the final variables; difficulty 7 -> 9 of 12 slots;
+(d) tracker: `erase` with `dat_43e0=1` leaves the screen untouched, `draw` = sprite AND background (both sprite copies), draw/erase
+round-trip leaves no residue, erase uses `dat_43de`. `-Wall -Wextra` clean, full `make test` passes. No SDL build here (no libsdl2-dev).
+**Caveat:** no x86 emulator here (unlike T21/T23); the model was written separately from the ASM text, but a shared misreading of the
+ASM would not be caught. **Not verified:** the routines inside the real level-6 loop (T31/T32/T42).
+
+Suggested commit: `T29: level-6 helpers A (tracker draw/erase, init_level6_objects, tiles); level6_stubs is a bare ret`
 
 
 ## 7. General lesson for this whole project
