@@ -2,7 +2,7 @@
 
 /* Valores iniciales = bytes del DS original (0x3ea6..0x3edb, ver /tmp/data_segment.bin): todo en 0
  * salvo los punteros l5_obj_save_buf. */
-static uint8_t save_buf_0[48], save_buf_1[48], save_buf_2[48], save_buf_3[48];
+static _Alignas(2) uint8_t save_buf_0[48], save_buf_1[48], save_buf_2[48], save_buf_3[48];
 
 uint16_t l5_obj_cga_addr[4];
 uint8_t  l5_obj_active[4];
@@ -15,3 +15,5 @@ uint8_t  l5_obj_y_pos[4];
 uint8_t  l5_obj_count;
 uint8_t  l5_anim_delay;
 uint16_t l5_obj_index;
+uint16_t l5_last_tick;        /* DS 0x3edc (word), inicial 0 */
+uint16_t l5_obj_sprite_ptr;   /* DS 0x3eca (word): offset DS del sprite elegido (0 = no dibujar), inicial 0 */

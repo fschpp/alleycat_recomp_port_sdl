@@ -14,10 +14,10 @@ graphics assets, so it is not meant to be published or redistributed.
 
 ## 0. Current focus / todo / blockers
 
-**Current focus:** `tareas.md` execution: T00, T10-T21 (§6g-§6r) and **T22** (level-4 helpers B +
-`init_level4_bg` tail, §6s) are done. Next up: **T23** (`update_level4_anim`, L1933-2093, 161 lines; use the
-cut rule at the nearest `lab_` if it does not fit) and T24 (`update_level4_state`, which consumes the
-`dat_3ce3/3cf3` tables seeded in T22 and writes `l3_door_anim_frame`).
+**Current focus:** `tareas.md` execution: T00, T10-T22 (§6g-§6s) and **T23** (`update_level4_anim`, §6t) are
+done. Next up: **T24** (`update_level4_state`, L1720-1823, 104 lines): it consumes the `dat_3ce3/3cf3` tables
+seeded in T22 (`l4_dat_3ce3/3cf3`) and writes `l3_door_anim_frame` (L1781/1788). After that the level-5 block
+(T25-T28).
 T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-level4`). The death
 handler (`entry.asm` lab_01b7+, T41) is still replaced in `main.c` by "re-enter the alley".
 
@@ -40,6 +40,7 @@ handler (`entry.asm` lab_01b7+, T41) is still replaced in `main.c` by "re-enter 
 - [x] T20 — `init_level3_doors`, `update_level3_doors`, `close_level3_door` in `level3_enemy.c`; `object_hit`/`cat_caught` unified (§6q)
 - [x] T21 — level-4 helpers A (`level4.c`) + shared `l5_obj_*` state (`level45_state.[ch]`); `check_rect_collision` unsigned fix (§6r)
 - [x] T22 — `check_l4_obj_cat`, `check_l4_obj_thrown`, `init_level4_bg` tail (`init_level4_bg_tail`), `l3_door_anim_frame` (§6s)
+- [x] T23 — `update_level4_anim` (`level4.c`), `l5_last_tick`/`l5_obj_sprite_ptr` state, 2-aligned save buffers (§6t)
 - [ ] T01 — full headless harness (`tests/harness.h`, `make test`); only `tests/test_alley_loop.c` exists so far
 - [ ] T41 — death handler / level selector (`entry.asm` lab_01b7+); `main.c` just re-enters the alley meanwhile
 - [ ] `ui.asm` — `window_open_state` toggling, the other half of item (h)
@@ -3437,6 +3438,58 @@ The emulator harness (`/tmp/t22/*`) is not committed.
 `libsdl2-dev`, not installable in this sandbox: only the SDL-free test targets were built).
 
 Suggested commit: `T22: level-4 helpers B (check_l4_obj_cat/thrown) + init_level4_bg tail; add l3_door_anim_frame`
+
+
+## 6t. T23 `update_level4_anim` (`src/level4.c`)
+
+**Ported:** `update_level4_anim` (level_objects.asm L1933-2093, 161 lines, whole function, no cut needed)
+as a literal `goto` translation (labels `lab_40cd`..`lab_4233` kept). Declared in `include/level4.h`. New
+state in `level45_state.[ch]`: `l5_last_tick` (DS 0x3edc) and `l5_obj_sprite_ptr` (DS 0x3eca); the 4 save
+buffers are now `_Alignas(2)` because `blit_masked` stores `uint16_t` words into them. Not called from
+`main.c` yet (level-4 loop: T42/T43; the real order of calls there is `update_level4_state` T24 then this).
+
+**What it does (verified, not guessed):** one object per BIOS tick, round-robin `l5_obj_index` 1,2,3,0
+(`bx==3` processes the object but does NOT store `l5_last_tick`, so the next call is processed in the same
+tick and wraps to 0). Per object: skip if `hit`; **cat touches it** (`check_l4_obj_cat`) -> only if
+`active==0 && anim<0x14`: `restore_alley_buffer`, `erase_level4_sprite`, `hit=1`, `save_alley_buffer`,
+`at_platform=0`, `--l5_obj_count` (zero => `cat_caught=1`), bonus icon `dat_3d20` at x = `0x51 + 4*(4-count)`
+and `start_tone(0x3e8,0x2ee)`. **Thrown object touches it** => return untouched. Otherwise: `anim==0` =>
+`randomize_l4_pos` + `anim = (random()&7)+0x14`; `--anim`; `calc_l4_obj_pos` (recomputes x/y from the frame
+every tick, so the `+1/+3` y nudges are NOT cumulative); if the cat is closer than a per-difficulty threshold
+and `2<=anim<=0x11` the object is forced to `anim=1` (`0x12..0x13` -> 0; `>=0x14` unchanged). Sprite choice:
+`anim<=1` -> `0x3db0` (0) / `0x3d80` (1); `2..0x11` -> `dat_3de0[(anim&1)*2]` = `0x3d50`/`0x3d20`;
+`0x12` -> `0x3d80`; `0x13` -> `0x3db0`; `>=0x14` -> none (`active=1`). All sprites are 2 words x 12 rows.
+
+**Findings:**
+- **Misnamed table:** `l5_save_buf_ptrs` (DS 0x3ede) is not a pointer table: it is `word[8]` = proximity
+  threshold `bp` per `difficulty_level` = {20,80,100,120,120,140,140,140} (read with `shl di,1`).
+- `db d1 e6/e7`, `db d0 e0` annotated `shl x,0x0` in the disassembly are `shl x,1` (same as §6o).
+- `dat_3de0` (word[2] = {0x3d50, 0x3d20}) and `dat_3d80/3db0/3d20` are DS *offsets* used as immediates
+  (rule 3): read the sprite bytes from `ds_pool[offset]`; `l5_obj_sprite_ptr == 0` means "do not draw".
+- `[0x55c]` = `at_platform`, `[0x553]` = `cat_caught` (labels in the DS).
+- The bonus-icon `blit_masked` passes `bp=0xe` (scratch DS:0xe); nothing reads it back, so `mask_save=NULL`
+  (same as the sign sprite in `init_level4_bg`). The object blit saves the background into the object's own
+  48-byte buffer (`l5_obj_save_buf[idx]`), which `erase_level4_sprite` (T21) restores.
+- Tick: `l4_tick_override` (>= 0 forces the tick, -1 = real clock) exists only so tests are deterministic;
+  `l4_dat_3de4` (DS 0x3de4) is global only so tests can compare it.
+
+**Verification:** `make test` passes (`test-level4` now has 18 golden scenarios, `test-alley`, `test-l3doors`);
+changed files compile with `-Wall -Wextra`, 0 warnings (full `make` still impossible here: no `libsdl2-dev`).
+`update_level4_anim` itself, `check_rect_collision`, the T21/T22 helpers and `calc_cga_addr`, `blit_masked`,
+`blit_to_cga`, `random` were assembled with `nasm` from the disassembly and run in `unicorn` x86-16 against
+the C port with `restore/save_alley_buffer`, `start_tone` and `int 0x1a` stubbed/logged: **20,000 random
+cases, 0 differences** (compared: last_tick, index, count, cat_caught, at_platform, sprite ptr, `dat_3de4`,
+RNG seed (= number of `random()` calls), CRC of the whole 16 KB CGA, the 4 x 48-byte save buffers, all 7
+per-object fields and the ordered call log). Coverage: same-tick return 1,641; every sprite (0x3d20 1,722,
+0x3d50 1,137, 0x3d80 3,139, 0x3db0 2,205, none 11,797); catch path 427 (`cat_caught=1` in 75). Harness
+sensitivity checked with two deliberate mutations (`<0x14` -> `<=0x14`: 11 differences in 3,000; dropping
+`&2` of the frame bit: 267). The golden table in `tests/test_level4.c` comes from the emulator, not from
+reading the ASM; `test-level4` links with `-Wl,--wrap` (Makefile) to log the 3 external calls.
+Generator limits: object `y`/CGA addresses are kept in the real range (< 0xa0 rows; larger values index
+outside the 16 KB `cga_mem`, which the original never produces) and `l5_obj_index` in 0..3.
+**Not verified:** behaviour inside the real level-4 loop (needs T24/T42); real-clock tick; SDL build.
+
+Suggested commit: `T23: update_level4_anim (level 4 object animation/catch); l5_last_tick, l5_obj_sprite_ptr`
 
 
 ## 7. General lesson for this whole project

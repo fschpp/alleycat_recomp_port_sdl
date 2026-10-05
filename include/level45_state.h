@@ -18,4 +18,6 @@ extern uint8_t  l5_obj_y_pos[4];     /* DS 0x3ed4 */
 extern uint8_t  l5_obj_count;        /* DS 0x3ed8 */
 extern uint8_t  l5_anim_delay;       /* DS 0x3ed9: reintentos restantes de randomize_l4_pos */
 extern uint16_t l5_obj_index;        /* DS 0x3eda (word) */
+extern uint16_t l5_last_tick;       /* DS 0x3edc: último tick BIOS procesado (T23) */
+extern uint16_t l5_obj_sprite_ptr;  /* DS 0x3eca: OFFSET en el DS del sprite (no un dato), 0 = no dibujar (T23) */
 #endif

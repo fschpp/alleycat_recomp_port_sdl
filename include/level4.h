@@ -43,4 +43,16 @@ extern uint8_t l4_dat_3cf3[16];
  * 8 bytes de dat_3cc3[bx..bx+7]; cada byte -> nibble alto en dat_3ce3[si], nibble bajo en
  * dat_3ce4[si] (= dat_3ce3[si+1]); dat_3cf3/dat_3cf4 = 0. */
 void init_level4_bg_tail(void);
+
+/* --- T23: update_level4_anim (level_objects.asm L1933-2093) --- */
+
+/* Hook de pruebas del tick BIOS (`int 0x1a`): -1 = reloj real (~18.2 Hz); >= 0 = ese valor. */
+extern int32_t l4_tick_override;
+extern uint16_t l4_dat_3de4;   /* DS 0x3de4: dirección CGA del último dibujo (expuesta para tests) */
+
+/* update_level4_anim: un objeto por tick BIOS (l5_obj_index 1,2,3,0,1,...): colisión con el gato
+ * (lo "atrapa" y dibuja el icono de bonus), con el objeto lanzado (se queda como está), y si no,
+ * la animación de aparición/desaparición/movimiento del objeto (`l5_obj_anim` 0x14..0 con sprites
+ * 0x3de0[]/0x3d80/0x3db0, o ninguno si anim >= 0x14). */
+void update_level4_anim(void);
 #endif
