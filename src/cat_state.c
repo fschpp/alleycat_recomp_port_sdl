@@ -59,6 +59,7 @@ uint8_t l3_platform_id = 0;
 uint8_t jump_hit = 0;
 
 uint8_t  enemy_active = 0;
+uint8_t  frame_counter = 0;
 int8_t   enemy_dir = 1;
 uint16_t enemy_x = 0;
 uint8_t  enemy_y_pos = 0;
