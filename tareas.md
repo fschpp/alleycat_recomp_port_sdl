@@ -214,7 +214,7 @@ Estado compartido de los niveles 4 y 5: **los dos usan las variables `l5_obj_*`*
 - **Destino:** `src/level5.c`.
 - **Verificar:** como T27, además de un caso de aterrizaje (`check_l5_landing`) y de captura (`check_l5_cat_catch`).
 
-### T29 — Nivel 6: helpers A (tracker, tiles, init) [M · 112]
+### T29 — Nivel 6: helpers A (tracker, tiles, init) [M · 112] ✅ HECHO (PROGRESS.md §6z; `level6_stubs` es un `ret` desnudo, `l6_obj_dims` es la X del tile; `init_level6_objects` sin cablear hasta T75)
 - **ASM:** `level_objects.asm` L2984–3095 (`erase_l6_tracker`, `draw_l6_tracker`, `init_level6_objects`, `draw_l6_tile`, `calc_l6_addr`, `level6_stubs`).
 - **Destino:** nuevo `src/level6.c` + `include/level6.h`.
 - **Datos:** `l6_obj_x=0x4411`, `l6_obj_sprite_ptr=0x4429`, `l6_obj_state=0x4459`, `l6_obj_type=0x4471`, `l6_obj_init_y_tbl=0x4479`, `l6_obj_dims=0x4481`, `l6_obj_y=0x4499`, `l5_sprite_table_base=0x41fc`.

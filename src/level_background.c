@@ -322,8 +322,8 @@ void draw_level_background(void) {
         draw_platform(0xdf6);
         blit_to_cga(&ds_pool[LEVEL6_DOOR_SPRITE], 0x67e, 2, 0x10);
         draw_block_list(0xb84, LEVEL_TILE_LIST_A);
-        /* init_level6_objects — not ported (level-6-specific object
-         * spawn setup, out of scope for this background-drawing pass) */
+        /* init_level6_objects (portado en T29, src/level6.c): en el ASM se llama aqui (score.asm L218).
+         * Sin cablear todavia: queda para T75. */
         return;
     }
     if (level_number == 5) {
