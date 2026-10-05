@@ -15,8 +15,8 @@ graphics assets, so it is not meant to be published or redistributed.
 ## 0. Current focus / todo / blockers
 
 **Current focus:** `tareas.md` execution: T00, T10-T22 (§6g-§6s), T23 (§6t), T24 (§6u) **T25** (level-5 helpers A,
-§6v) and **T26** (level-5 helpers B, §6w) and **T27** (`update_level5_anim`, §6x) and **T28** (`update_level5_objects`, §6y) and **T29** (level-6 helpers A, §6z) are done. Next up: T30 (level-6 helpers B).
-T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-level4`, `test-level4-state`, `test-level5`, `test-level5-anim`, `test-level5-objects`, `test-level6`). The death
+§6v) and **T26** (level-5 helpers B, §6w) and **T27** (`update_level5_anim`, §6x) and **T28** (`update_level5_objects`, §6y) and **T29** (level-6 helpers A, §6z) and **T30** (level-6 helpers B, §6aa) are done. Next up: T31 (`update_level6_timing`).
+T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-level4`, `test-level4-state`, `test-level5`, `test-level5-anim`, `test-level5-objects`, `test-level6`, `test-level6b`). The death
 handler (`entry.asm` lab_01b7+, T41) is still replaced in `main.c` by "re-enter the alley".
 
 - [x] `sound.asm` — full port, wired into every previously-stubbed call site (§6e)
@@ -42,6 +42,7 @@ handler (`entry.asm` lab_01b7+, T41) is still replaced in `main.c` by "re-enter 
 - [x] T23 — `update_level4_anim` (`level4.c`), `l5_last_tick`/`l5_obj_sprite_ptr` state, 2-aligned save buffers (§6t)
 - [x] T28 — `update_level5_objects` (`level5.c`): perch push / move / blocking descent; `l5_perch_save` grows to 68 words (§6y)
 - [x] T29 — level-6 helpers A (`level6.c`): tracker draw/erase, `init_level6_objects`, `draw_l6_tile`, `calc_l6_addr`; `level6_stubs` is a bare `ret` (§6z)
+- [x] T30 — level-6 helpers B (`level6.c`): `prepare_l6_erase`, `clear_l6_object`, `refresh_l6_display`, `check_l6_proximity`, `draw_l6_alert` (§6aa)
 - [ ] T01 — full headless harness (`tests/harness.h`, `make test`); only `tests/test_alley_loop.c` exists so far
 - [ ] T41 — death handler / level selector (`entry.asm` lab_01b7+); `main.c` just re-enters the alley meanwhile
 - [ ] `ui.asm` — `window_open_state` toggling, the other half of item (h)
@@ -3722,6 +3723,48 @@ round-trip leaves no residue, erase uses `dat_43de`. `-Wall -Wextra` clean, full
 ASM would not be caught. **Not verified:** the routines inside the real level-6 loop (T31/T32/T42).
 
 Suggested commit: `T29: level-6 helpers A (tracker draw/erase, init_level6_objects, tiles); level6_stubs is a bare ret`
+
+
+## 6aa. T30 — level-6 helpers B (`src/level6.c`, `include/level6.h`; level_objects.asm L2741-2816)
+
+Ported literally (label per label, `goto`): `prepare_l6_erase`, `clear_l6_object`, `refresh_l6_display`, `check_l6_proximity`,
+`draw_l6_alert`. New globals: `l6_dat_44d9` (byte, DS 0x44d9, init 0) and `l6_dat_44da` (word, DS 0x44da, init 0; written by
+`update_level6_timing` L2704, i.e. T31). Their initial values were checked in `/tmp/data_segment.bin`.
+
+**API convention.** The ASM passes `bx = 2*slot` (byte offset into word tables). The C functions `check_l6_proximity(slot)` and
+`draw_l6_alert(slot)` take the slot (0..11), consistent with `l6_obj_state[12]`; they recompute `bx = 2*slot` for the `ds_pool` tables.
+T31 must call them with `slot = cx-1` (not with the doubled `bx`).
+
+**Semantics.**
+- `prepare_l6_erase`: `dat_44bd != 0` -> `erase_l6_tracker()` + `dat_44bd = 0`; otherwise `restore_alley_buffer()`.
+- `clear_l6_object`: 0x41 words of 0xAAAA (= 5 x 13 words, the object sprite size) blitted to CGA address `dat_44da`.
+  **Deviation:** the original fills DS:0x000e (scratch) and blits from there; the port uses a local buffer, like `level3_enemy.c`,
+  so `ds_pool[0x0e..0x90]` is not overwritten (checked: unchanged after the call).
+- `refresh_l6_display`: nothing if `dat_44d9 == 0`; else `dat_44bd != 0` -> `draw_l6_tracker()`, otherwise `draw_alley_foreground()`.
+- `check_l6_proximity`: `dat_44d9 = 0`; rect A = (x = `dat_43e1[slot]` - 0x14, y = low byte of `dat_43f9[slot]`, w = 0x28, h = 6),
+  rect B = cat (`cat_x`, `cat_y`, w = 0x18, h = 0x0e), via `check_rect_collision` (CF = overlap, confirmed in level_objects.asm L14-39;
+  `cx = 0x0e06`: `cl = 6` is A's height, `ch = 0x0e` is B's, same mapping as T21's `check_l4_obj_cat`). No overlap -> return with
+  `dat_44d9 = 0`. Overlap -> `dat_44d9 = 1`, then `dat_44bd != 0` -> `erase_l6_tracker()`, else `restore_alley_buffer()`.
+  `dat_43e1` / `dat_43f9` are fixed read-only DS tables (12 words each): X = {0x2c,0x7c,0xc4,0x20,0x5c,0x9c,0xcc,0x10c,0x34,0x84,0xbc,0x124},
+  Y = {0x88 x3, 0x98 x5, 0xa8 x4}.
+- `check_vsync` (`lab_4902: call check_vsync / jz lab_4902`): the loop spins while the retrace bit is 0. In the port it is a no-op
+  (falls through immediately). NOTE the ZF polarity is the opposite of `throw.c` (there a `jnz` loop never jumps); both mean "ready".
+- `draw_l6_alert`: `si = 0x4100 + 2*state` (`db 0xd1,0xe6` = `shl si,1`, listing shows `shl si,0x0`), `ax = l6_obj_x + 0xa7`; if the
+  object's sprite pointer is not 0x429c: `ax -= 6`, `si += 6`. Blit **1 word x 1 row** (`cx = 0x101`) to CGA `ax`. `dat_4100` words:
+  {0xffff,0xffc0,0xc0c0,0xffff,0xff03,0x0303,0xff0f,0xffff,...}. `state` is 0..2 in the game (T31 caps it); the C reads `ds_pool[si]`
+  with a 16-bit `si`, so a garbage `state` would read outside the table (not guarded, same as the original).
+
+**Verified:** `tests/test_level6b.c` (`make test-level6b`, part of `make test`). Expected values do not come from the C: collision
+rectangles computed by hand from `check_rect_collision` (15 boundary cases on slots 0, 4 and 11: edges, one pixel inside / outside on
+both axes), `dat_4100` words read from the DS, and a model screen. Also checks: `dat_44d9` is rewritten (0x77 -> 0/1); with a drawn
+tracker (`dat_44bd = 1`) an overlap erases the tracker and does not touch the alley buffer; `prepare_l6_erase` both branches;
+`clear_l6_object` at three addresses (+ `ds_pool` untouched); `refresh_l6_display` all three branches; `draw_l6_alert` for both sprite
+variants. **Mutation check:** changing `0x14`, `0xa7`, `+6` or the 13 rows of the clear each makes the test fail. `-Wall -Wextra`
+clean, full `make test` passes. No SDL build here (no libsdl2-dev).
+**Caveat:** no x86 emulator here (unlike T21/T23); a shared misreading of the ASM would not be caught. **Not verified:** the routines
+inside the real level-6 loop (T31/T32/T42), and the visual meaning of the 1x1 alert sprite on a real screen.
+
+Suggested commit: `T30: level-6 helpers B (prepare_l6_erase, clear_l6_object, refresh_l6_display, check_l6_proximity, draw_l6_alert)`
 
 
 ## 7. General lesson for this whole project

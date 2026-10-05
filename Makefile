@@ -78,6 +78,13 @@ build/test_level6: tests/test_level6.c $(TEST_SRC) include/*.h
 test-level6: build/test_level6
 	./build/test_level6
 
-test: test-alley test-l3doors test-level4 test-level4-state test-level5 test-level5-anim test-level5-objects test-level6
+build/test_level6b: tests/test_level6b.c $(TEST_SRC) include/*.h
+	@mkdir -p build
+	$(CC) $(CFLAGS) tests/test_level6b.c $(TEST_SRC) -o $@
 
-.PHONY: all run clean test test-alley test-l3doors test-level4 test-level4-state test-level5 test-level5-anim test-level5-objects test-level6
+test-level6b: build/test_level6b
+	./build/test_level6b
+
+test: test-alley test-l3doors test-level4 test-level4-state test-level5 test-level5-anim test-level5-objects test-level6 test-level6b
+
+.PHONY: all run clean test test-alley test-l3doors test-level4 test-level4-state test-level5 test-level5-anim test-level5-objects test-level6 test-level6b
