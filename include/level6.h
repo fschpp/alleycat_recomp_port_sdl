@@ -23,6 +23,9 @@ extern uint8_t  l6_dat_44bd;       /* DS 0x44bd (byte): init_level6_objects lo p
 extern uint8_t  l6_dat_44be;       /* DS 0x44be (byte): init_level6_objects lo pone a 0 */
 extern uint8_t  l6_dat_44d6;       /* DS 0x44d6 (byte): init_level6_objects lo pone a 0xc */
 
+extern uint8_t  l6_dat_44d9;       /* DS 0x44d9 (byte): 1 = el gato esta cerca de un objeto (lo fija check_l6_proximity); init 0 */
+extern uint16_t l6_dat_44da;       /* DS 0x44da (word): direccion CGA del objeto a limpiar (la fija update_level6_timing, T31); init 0 */
+
 /* erase_l6_tracker (L2984-2994): si dat_43e0 == 0, restaura el fondo en dat_43de (blit_to_cga 3x10 desde el buffer). */
 void erase_l6_tracker(void);
 /* draw_l6_tracker (L2995-3010): dat_43e0=0; dat_43de=dat_43dc; AND-blit (3x10) del sprite dat_44d1 (+0x3c si
@@ -38,6 +41,23 @@ void draw_l6_tile(uint16_t bx);
 /* calc_l6_addr (L3068-3076): direccion CGA = calc_cga_addr(y = l6_obj_y[bx], x = l6_obj_dims[2*bx]). Ojo: pese
  * al nombre, `l6_obj_dims` es la X en pixeles del tile. No toca bx. */
 uint16_t calc_l6_addr(uint16_t bx);
+
+/* --- T30: helpers B (level_objects.asm L2741-2816). OJO: estas funciones reciben `slot` (0..11); el `bx` del ASM es
+ * 2*slot (offset en bytes en tablas de words), que el codigo C recalcula donde hace falta. --- */
+/* prepare_l6_erase (L2741-2749): si dat_44bd != 0 -> erase_l6_tracker + dat_44bd = 0; si no -> restore_alley_buffer. */
+void prepare_l6_erase(void);
+/* clear_l6_object (L2750-2764): rellena un bloque de 5x13 words con 0xAAAA (fondo) y lo vuelca en la direccion CGA dat_44da.
+ * El original rellena el scratch DS:0x000e; aqui se usa un buffer local (como level3_enemy.c) para no pisar ds_pool. */
+void clear_l6_object(void);
+/* refresh_l6_display (L2765-2775): si dat_44d9 != 0: dat_44bd != 0 -> draw_l6_tracker; si no -> draw_alley_foreground. */
+void refresh_l6_display(void);
+/* check_l6_proximity (L2776-2799): dat_44d9 = 0; colision (check_rect_collision) entre el rect del objeto
+ * (x = dat_43e1[slot]-0x14, y = byte bajo de dat_43f9[slot], 0x28 x 6) y el del gato (0x18 x 0x0e). Si hay choque:
+ * dat_44d9 = 1, (check_vsync = no-op) y borra al gato/tracker (dat_44bd != 0 -> erase_l6_tracker; si no -> restore_alley_buffer). */
+void check_l6_proximity(uint16_t slot);
+/* draw_l6_alert (L2800-2816): blit 1 word x 1 fila desde dat_4100 + 2*l6_obj_state[slot] (+6 si el sprite del objeto no es
+ * 0x429c) a l6_obj_x[slot] + 0xa7 (-6 en ese mismo caso). */
+void draw_l6_alert(uint16_t slot);
 
 /* level6_stubs (L3082): es un `ret` desnudo (entry.asm L288 lo llama como "init level 6"); lo que sigue son bytes
  * de relleno decodificados como codigo. No se porta: la llamada de entry.asm es un no-op. */

@@ -221,7 +221,7 @@ Estado compartido de los niveles 4 y 5: **los dos usan las variables `l5_obj_*`*
 - **Notas:** `level6_stubs` (L3082–3095) son restos; leerlo y decidir si hay que portarlo o es relleno (anotarlo).
 - **Verificar:** `calc_l6_addr` contra valores calculados a mano para tres objetos; dibujar/borrar tracker con round-trip.
 
-### T30 — Nivel 6: helpers B [M · 76]
+### T30 — Nivel 6: helpers B [M · 76] ✅ HECHO (PROGRESS.md §6aa; `check_l6_proximity`/`draw_l6_alert` reciben `slot`, no `bx=2*slot`; `clear_l6_object` usa buffer local en vez de DS:0xe)
 - **ASM:** `level_objects.asm` L2741–2816 (`prepare_l6_erase`, `clear_l6_object`, `refresh_l6_display`, `check_l6_proximity`, `draw_l6_alert`).
 - **Destino:** `src/level6.c`.
 - **Verificar:** `check_l6_proximity` con tres distancias; `clear_l6_object` restaura el fondo.

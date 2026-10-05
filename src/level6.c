@@ -1,6 +1,8 @@
 #include "level6.h"
 #include "cat_state.h"
 #include "cga.h"
+#include "alley.h"
+#include "level_collision.h"
 #include "gen/ds_pool.h"
 #include <string.h>
 
@@ -13,6 +15,10 @@
 #define L6_OBJ_DIMS       0x4481   /* word[12]: X en pixeles de cada tile */
 #define L6_OBJ_Y          0x4499   /* byte[12]: Y de cada tile */
 #define L5_SPRITE_TABLE_BASE 0x41fc
+#define L6_DAT_43E1       0x43e1   /* word[12]: X del objeto (dato fijo del DS; solo lectura) */
+#define L6_DAT_43F9       0x43f9   /* word[12]: Y del objeto (byte bajo; dato fijo del DS; solo lectura) */
+#define L6_DAT_4100       0x4100   /* words: sprite de 1 word del indicador de alerta */
+#define L6_SPRITE_B       0x429c   /* offset DS del sprite de objeto "B" (el otro es 0x431e) */
 
 uint16_t l6_obj_flag[12];
 uint16_t l6_obj_state[12];
@@ -25,6 +31,8 @@ uint16_t l6_dat_44d1 = 0;
 uint8_t  l6_dat_44bd = 0;
 uint8_t  l6_dat_44be = 0;
 uint8_t  l6_dat_44d6 = 0;
+uint8_t  l6_dat_44d9 = 0;
+uint16_t l6_dat_44da = 0;
 
 static uint16_t l6_tracker_save[30];   /* DS 0x43a0..0x43dc = 0x3c bytes = 3 words x 10 filas */
 
@@ -90,4 +98,62 @@ lab_4b98:
     l6_dat_43e0 = 0x1;
     l6_dat_44d6 = 0xc;
     l6_dat_44be = 0x0;
+}
+
+/* ---- T30: helpers B (level_objects.asm L2741-2816). `slot` = bx/2 del ASM. ---- */
+
+void prepare_l6_erase(void) {
+    if (l6_dat_44bd == 0x0) goto lab_489d;             /* cmp byte [dat_44bd],0 / jz */
+    erase_l6_tracker();
+    l6_dat_44bd = 0x0;
+    return;
+lab_489d:
+    restore_alley_buffer();
+}
+
+void clear_l6_object(void) {
+    uint8_t scratch[0x41 * 2];                         /* rep stosw: cx=0x41 words de 0xaaaa en DS:0xe */
+    memset(scratch, 0xaa, sizeof scratch);
+    blit_to_cga(scratch, l6_dat_44da, 5, 13);          /* cx=0xd05 (5 words x 13 filas) = 0x41 words */
+}
+
+void refresh_l6_display(void) {
+    if (l6_dat_44d9 == 0x0) return;                    /* jz lab_48d2 */
+    if (l6_dat_44bd == 0x0) goto lab_48d3;
+    draw_l6_tracker();
+    return;                                            /* lab_48d2: ret */
+lab_48d3:
+    draw_alley_foreground();
+}
+
+void check_l6_proximity(uint16_t slot) {
+    uint16_t bx = (uint16_t)(slot * 2);                /* el ASM recibe bx = 2*slot */
+    l6_dat_44d9 = 0x0;
+    uint16_t ax = ds_word((uint16_t)(L6_DAT_43E1 + bx));
+    uint16_t dx = ds_word((uint16_t)(L6_DAT_43F9 + bx));   /* dl = Y del objeto; dh se pisa con cat_y */
+    ax = (uint16_t)(ax - 0x14);                        /* db 0x2d,0x14,0x00 = sub ax,0x14 */
+    /* si=0x28, bx=cat_x, dh=cat_y, cx=0x0e06 (cl=6 alto A, ch=0xe alto B), di=0x18 */
+    if (!check_rect_collision((int16_t)ax, (uint8_t)dx, 0x28, 0x06,
+                              (uint16_t)cat_x, cat_y, 0x18, 0x0e)) return;   /* jnb lab_4915 */
+    l6_dat_44d9 = 0x1;
+    /* lab_4902: `call check_vsync / jz lab_4902` espera el retrace; en el port es un no-op (no espera). */
+    if (l6_dat_44bd == 0x0) goto lab_4912;
+    erase_l6_tracker();
+    return;
+lab_4912:
+    restore_alley_buffer();
+}
+
+void draw_l6_alert(uint16_t slot) {
+    uint16_t bx = (uint16_t)(slot * 2);
+    uint16_t ax = ds_word((uint16_t)(L6_OBJ_X + bx));
+    uint16_t si = l6_obj_state[slot];
+    si = (uint16_t)(si << 1);                          /* db 0xd1,0xe6 = shl si,1 (listing: shl si,0x0) */
+    si = (uint16_t)(si + L6_DAT_4100);
+    ax = (uint16_t)(ax + 0xa7);
+    if (ds_word((uint16_t)(L6_OBJ_SPRITE_PTR + bx)) == L6_SPRITE_B) goto lab_4935;   /* cmp word,0x429c / jz */
+    ax = (uint16_t)(ax - 0x6);                         /* db 0x2d,0x06,0x00 = sub ax,6 */
+    si = (uint16_t)(si + 0x6);
+lab_4935:
+    blit_to_cga(&ds_pool[si], ax, 1, 1);               /* cx=0x101: 1 word x 1 fila */
 }
