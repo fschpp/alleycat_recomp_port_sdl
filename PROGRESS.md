@@ -18,8 +18,8 @@ graphics assets, so it is not meant to be published or redistributed.
 (`check_stairs_collision`, §6h), T12 (`throw.asm` helpers + RNG fix, §6i) and
 T13 (`update_thrown_objects` + real `reset_window_state`, §6j) and T14
 (`alley_drawing` A, §6k) T15 (windows + buildings, §6l) and T16 (`clear_screen`, `draw_alley_scene`,
-`draw_alley_details`, §6m) are done. Next up is T17 (`update_viewport`, `render_sprites`), then
-T18-T19 to close the alley loop; `throw.asm` is now fully ported but still not called from `main.c` (T19).
+`draw_alley_details`, §6m) and T17 (`update_viewport`, `render_sprites`, §6n) are done. Next up
+is T18 (`init_player`, `start_auto_walk`, real `check_dog_collision`), then T19 to close the alley loop; `throw.asm` is now fully ported but still not called from `main.c` (T19).
 
 - [x] `sound.asm` — full port, wired into every previously-stubbed call site (§6e)
 - [x] PC speaker / PIT channel 2 emulation + SDL2 audio backend (§6e)
@@ -34,10 +34,9 @@ T18-T19 to close the alley loop; `throw.asm` is now fully ported but still not c
 - [x] T14 — `alley_drawing` A (`draw_difficulty_icon`, `init_alley_objects`, `draw_object_row`) (§6k)
 - [x] T15 — `alley_drawing` B (`draw_window_strip`, `draw_all_windows`, `draw_building`, `draw_all_buildings`) (§6l)
 - [x] T16 — `alley_drawing` C (`draw_alley_details`, `clear_screen`, `draw_alley_scene`), `draw_block_list` exported (§6m)
+- [x] T17 — `update_viewport` (`alley.c`) and `render_sprites` (`alley_drawing.c`) (§6n)
 - [ ] `ui.asm` — `window_open_state` toggling, the other half of item (h)
 - [ ] §17 item (f): level-2 collectibles + bg tiles (unblocked since §6e)
-- [ ] `update_viewport` (alley.asm) — needs the DS 0x000e sprite scratch area modeled (§6f)
-- [ ] `render_sprites` (lives in sound.asm; a decorative-sprite drawing routine — §6f corrects §6e about this)
 
 **Latest blockers/discoveries:** (§6g) `check_level_platform` in
 `level_collision.c` deviates from the ASM in three ways that T10 did NOT touch
@@ -3155,6 +3154,47 @@ eye. Not verified against an independent model of the ASM (unlike §6k).
 **Not done:** `make` (no `libsdl2-dev`); changed files compile with `-Wall -Wextra` clean.
 
 Suggested commit: `T16: alley_drawing C (draw_alley_details, clear_screen, draw_alley_scene)`
+
+
+## 6n. T17 `update_viewport` + `render_sprites`
+
+**Ported:** `update_viewport` (alley.asm L1-29) in `src/alley.c`; `render_sprites` (sound.asm
+L40-68) in `src/alley_drawing.c`. Declared in `alley.h` / `alley_drawing.h`. Not called from
+anywhere yet (`update_viewport` is only called from game_loop.asm L470, the entry auto-walk
+= T18/T19; `render_sprites` is called from entry.asm L120, see below).
+
+**`update_viewport`:** inputs `al=entry_steps`, `ah=scroll_direction`, and the sprite in
+`cat_sprite_data` (bx of `update_walk_frame`); in the port the sprite is passed as `frame`.
+It crops the 3-word x 11-row walk sprite: `cat_sprite_dims = 0x0b00 | (3-al)`; if `ah==0xff`
+`cat_x = al*8 + 0x128` (no skip), else it skips `al` words on the left and `cat_x = 0`. Then
+`copy_with_stride(si, di=0xe, ...)` — **not** the `cga.c` function of the same name, which writes
+into `cga_mem`; this one copies into the DS scratch at 0x000e (source row pitch 6 bytes, dest packed
+`(3-al)*2` bytes per row, `rep movsw` with no bank flip). Modelled as `static uint8_t
+viewport_scratch[66]`; `cat_sprite_ptr` points to it, and `cat_sprite_data = 0xe` is set as in the ASM.
+Domain note: `al` is 1..2 at the only caller (`dec entry_steps; jnz`), so width is 1 or 2 words;
+a guard (`cl > 3 -> 0`) only exists to avoid overflowing the scratch for out-of-domain input.
+**Watch in T70 (audit):** `movement.c` still has the placeholder `cat_sprite_data == 0` check
+(footstep-sound sync); once the alley walk is wired, `cat_sprite_data` becomes 0xe after this call.
+
+**`render_sprites`:** `bx=(difficulty&7)*2`; list = `word[sprite_list_ptrs+bx]` (DS 0x5908), CGA
+positions until 0xffff; per entry one `random()`: `variant = word[sprite_variant_table(0x5888) +
+(rnd&0xe) + bx*8]` (8 words per difficulty, 64 total), then `dims = word[sprite_dims_table(0x5858)+v]`,
+`src = word[sprite_data_ptrs(0x584c)+v]`, `blit_to_cga`. Verified the 6 sprites by pointer deltas:
+108/48/40/60/48/60 = width*2*height for dims 0x1203, 0x803, 0xa02, 0xf02, 0xc02, 0xf02.
+`sprite_variant_base` (0x5918) is a local. Position lists per difficulty: 0 -> {0x1c4e,0x1ca6},
+1 -> 3 positions, 2/4/6 share a 4-entry list, 3/5/7 a 5-entry list.
+
+**Verification (`/tmp/t15/t17.c` + Python model, not committed; ASan/UBSan clean):**
+- `render_sprites`: for difficulty 0..7 with seed 0xFA59 the full 16 KB CGA buffer and the final
+  seed equal an independent Python model (own LFSR, own bank-flip blit) read from `data_segment.bin`.
+- `update_viewport`: all 12 `alley_walk_frames` (all are 3x11) x both directions x `al` in {1,2}
+  match the expected dims, `cat_x`, `cat_sprite_data` and the cropped bytes.
+**Wiring (for T19):** the only caller of `render_sprites` is entry.asm L120, immediately after
+`clear_screen` in the alley setup (`lab_00f3`: `clear_screen; render_sprites; lives_display=0xff;
+silence_speaker; level_number=0; ...`). So the alley setup must call `clear_screen()` and then
+`render_sprites()` (the random order matters: `clear_screen` first). `make` not run (no `libsdl2-dev`).
+
+Suggested commit: `T17: update_viewport and render_sprites`
 
 
 ## 7. General lesson for this whole project

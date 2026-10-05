@@ -14,6 +14,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <string.h>
 #include <time.h>
 
 static uint16_t read_bios_tick(void) {
@@ -39,6 +40,30 @@ static uint16_t ds_word(uint16_t ofs) {
 
 const uint8_t *cat_sprite_ptr  = NULL;
 uint16_t       cat_sprite_dims = 0;
+
+/* ---- T17: update_viewport (alley.asm L1-29), PROGRESS.md §6n ---- */
+
+/* Área scratch DS 0x000e a la que copia el original. Máximo 3 words x 11 filas = 66 bytes. */
+static uint8_t viewport_scratch[66];
+
+void update_viewport(uint8_t al, uint8_t ah, const cat_walk_frame_t *frame) {
+    uint8_t cl = (uint8_t)(0x03 - al);                   /* mov cx,0xb03 / sub cl,al */
+    if (cl > 3) cl = 0;      /* fuera del dominio real (al = entry_steps = 1..2); evita desbordar el scratch */
+    cat_sprite_dims = (uint16_t)((0x0b << 8) | cl);
+    const uint8_t *src = frame->data;                    /* si = cat_sprite_data (puntero real) */
+    if (ah == 0xff) {                                    /* lab_0fa6: cat sale por la derecha */
+        cat_x = (int16_t)((uint16_t)(uint8_t)(al << 3) + 0x128);
+    } else {
+        src += (uint8_t)(al << 1);                       /* salta al words de la izquierda */
+        cat_x = 0x0;
+    }
+    /* copy_with_stride(si, di=0xe, cl words, 11 filas, al=3): origen con paso de fila 6 bytes
+     * (sprite de 3 words), destino empaquetado cl*2 bytes por fila. */
+    for (uint8_t row = 0; row < 11; row++)
+        memcpy(&viewport_scratch[row * cl * 2u], src + row * 6u, (size_t)cl * 2u);
+    cat_sprite_data = 0xe;                               /* mov [cat_sprite_data],0xe */
+    cat_sprite_ptr = viewport_scratch;
+}
 
 /* window_event_count (DS 0x056d) — the every-8th-attempt rate limiter. */
 static uint8_t window_event_count = 0;

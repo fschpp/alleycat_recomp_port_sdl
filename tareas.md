@@ -138,7 +138,7 @@ Parar en el `lab_XXXX` más cercano, dejar `/* TODO(<ID>-cont): continuar en lab
 - **Notas:** `draw_alley_details` usa `random()` (mantener el orden de llamadas) y `blit_to_cga`; usa `draw_block_list` ya portado en `level_background.c` (exportarlo en el `.h` si es `static`).
 - **Verificar:** renderizar la escena completa a PPM (T01) y revisarla a ojo; contar píxeles por color como regresión.
 
-### T17 — `update_viewport` y `render_sprites` [M · 62]
+### T17 — `update_viewport` y `render_sprites` [M · 62] ✅ HECHO (PROGRESS.md §6n; `copy_with_stride` aquí copia al scratch DS, no a CGA)
 - **ASM:** `alley.asm` L2–31 y `sound.asm` L40–71.
 - **Destino:** `src/alley.c` y `src/alley_drawing.c`.
 - **Notas:** `update_viewport` copia bytes al área scratch DS `0x000e` y apunta `cat_sprite_data` a ella: modelarlo como `uint8_t scratch_000e[N]` y que `cat_sprite_ptr` apunte ahí (convención de puntero real de §6f). `render_sprites` usa `sprite_variant_table`, `sprite_dims_table`, `sprite_data_ptrs`: aplicar el método de verificación de §3/§4 (diferencias de punteros = ancho×2×alto) antes de extraer.
@@ -153,7 +153,7 @@ Parar en el `lab_XXXX` más cercano, dejar `/* TODO(<ID>-cont): continuar en lab
 ### T19 — Integración del callejón en el loop [M]
 - **ASM de referencia:** `entry.asm` L131–180 (lab_0137 a lab_0176, el loop del callejón).
 - **Destino:** `src/main.c`, `src/game_setup.c`.
-- **Qué hacer:** en `setup_alley`/`setup_level` llamar `init_alley_objects`, `draw_alley_scene`, `reset_window_state`. En el loop, replicar el orden y cadencia de `entry.asm` (cada 4.º frame, o cada frame con enemigo activo, la cadena `update_thrown_objects → update_cat_jump → apply_cat_gravity → animate_falling → update_cycle_objects → draw_lives`). Quitar `memset(cga_mem, DEMO_BG_BYTE…)` y el `lives_display = 0xff` forzado (ya no hacen falta).
+- **Qué hacer:** en `setup_alley`/`setup_level` llamar `init_alley_objects`, `draw_alley_scene`, `reset_window_state` (y, según entry.asm L119-120, `clear_screen()` seguido de `render_sprites()`). En el loop, replicar el orden y cadencia de `entry.asm` (cada 4.º frame, o cada frame con enemigo activo, la cadena `update_thrown_objects → update_cat_jump → apply_cat_gravity → animate_falling → update_cycle_objects → draw_lives`). Quitar `memset(cga_mem, DEMO_BG_BYTE…)` y el `lives_display = 0xff` forzado (ya no hacen falta).
 - **Verificar:** ejecutar 600 frames headless en nivel 0 con entrada simulada; volcar PPM y revisar que hay edificios, ventanas, objetos lanzados y que el gato no deja rastro.
 
 ---

@@ -187,3 +187,31 @@ void draw_alley_scene(void) {
     draw_all_buildings();
     difficulty_level = saved;                           /* pop ax */
 }
+
+/* ---- T17: render_sprites (sound.asm L40-68), PROGRESS.md §6n ---- */
+
+/* DS verificados: sprite_list_ptrs 0x5908 (8 words, por difficulty&7), sprite_variant_table
+ * 0x5888 (64 words, 8 por dificultad), sprite_dims_table 0x5858 y sprite_data_ptrs 0x584c
+ * (6 entradas c/u, offsets de byte 0..0xa): los 6 punteros 0x56e0,0x574c,0x577c,0x57a4,0x57e0,
+ * 0x5810 difieren en 108,48,40,60,48 = ancho*2*alto de dims 0x1203,0x803,0xa02,0xf02,0xc02
+ * (el 6.º, dims 0xf02, termina en sprite_data_ptrs 0x584c: 0x584c-0x5810 = 60 = 2*2*15). */
+#define DS_SPRITE_LIST_PTRS      0x5908u
+#define DS_SPRITE_VARIANT_TABLE  0x5888u
+#define DS_SPRITE_DIMS_TABLE     0x5858u
+#define DS_SPRITE_DATA_PTRS      0x584cu
+
+void render_sprites(void) {
+    uint16_t bx = (uint16_t)((difficulty_level & 0x7) << 1);               /* and bx,7 / shl bx,1 */
+    uint16_t list = ds_word_ad((uint16_t)(DS_SPRITE_LIST_PTRS + bx));
+    uint16_t variant_base = (uint16_t)(bx << 3);                           /* shl ax,cl (cl=3) */
+    for (;;) {                                                             /* lab_541c */
+        uint16_t di = ds_word_ad(list);
+        if (di == 0xffff) return;
+        uint16_t dx = (uint16_t)(cga_random() & 0xe);
+        uint16_t si = ds_word_ad((uint16_t)(DS_SPRITE_VARIANT_TABLE + dx + variant_base));
+        uint16_t cx = ds_word_ad((uint16_t)(DS_SPRITE_DIMS_TABLE + si));
+        uint16_t src = ds_word_ad((uint16_t)(DS_SPRITE_DATA_PTRS + si));
+        blit_to_cga(&ds_pool[src], di, (uint8_t)(cx & 0xff), (uint8_t)(cx >> 8));
+        list = (uint16_t)(list + 2);
+    }
+}
