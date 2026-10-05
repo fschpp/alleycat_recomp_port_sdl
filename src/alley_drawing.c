@@ -1,5 +1,5 @@
 /* alley_drawing.c — alley_drawing.asm A (T14): ícono de dificultad y filas de
- * objetos del callejón. PROGRESS.md §6k. */
+ * objetos del callejón (PROGRESS.md §6k); B (T15): ventanas y edificios (§6l). */
 
 #include "alley_drawing.h"
 #include "cat_state.h"
@@ -19,6 +19,20 @@
 #define DS_DIFF_ICON_TABLE 0x2ad1u
 #define DS_THROW_CHANCE    0x2abau
 #define DIFF_ICON_CGA_POS  0x1902u   /* constante inmediata, NO un dato */
+
+/* T15 (verificados con asm_label.sh / data_segment.bin):
+ *   window_sprite_data 0x2680: cx=0x1005 -> 5 words x 16 filas = 160 bytes.
+ *   building_top_sprite 0x2976 (cx=0xc05: 5w x 12 = 120 B), building_mid_sprite 0x29ee
+ *   (cx=0x804: 4w x 8 = 64 B), building_bottom_sprite 0x2a2e (cx=0xb04: 4w x 11 = 88 B):
+ *   las diferencias de punteros coinciden con ancho*2*alto.
+ *   building_pos_table 0x2a86: words, 0 termina cada lista; building_offsets 0x2ab2:
+ *   bytes {0,14,26,36,26,36,26,36}, indexado por difficulty_level (word, valores 0..7). */
+#define DS_WINDOW_SPRITE   0x2680u
+#define DS_BUILDING_TOP    0x2976u
+#define DS_BUILDING_MID    0x29eeu
+#define DS_BUILDING_BOTTOM 0x2a2eu
+#define DS_BUILDING_POS    0x2a86u
+#define DS_BUILDING_OFFS   0x2ab2u
 
 static uint16_t ds_word_ad(uint16_t ofs) {
     return (uint16_t)(ds_pool[ofs] | (ds_pool[ofs + 1] << 8));
@@ -55,4 +69,43 @@ void init_alley_objects(void) {
     window_column = 0x10;
     current_floor = 0x0;
     throw_timer = 0x1;
+}
+
+/* ---- T15: alley_drawing.asm L160-182 y L241-282 ---- */
+
+void draw_window_strip(uint16_t di) {
+    uint8_t loop_count = 0x4;                           /* draw_loop_count */
+    do {                                                /* lab_2b76 */
+        blit_to_cga(&ds_pool[DS_WINDOW_SPRITE], di, 5, 16);   /* cx=0x1005; push/pop di */
+        di = (uint16_t)(di + 0x14);
+    } while (--loop_count != 0);
+}
+
+void draw_all_windows(void) {
+    draw_window_strip(0x3c5);
+    draw_window_strip(0x8c5);
+    draw_window_strip(0xdc5);
+}
+
+void draw_building(uint16_t di) {
+    uint16_t pos_tmp = di;                              /* draw_pos_tmp */
+    uint8_t loop_count = 0x3;
+    if (di >= 0x1720) loop_count--;                     /* cmp di,0x1720 / jc: sin signo */
+    pos_tmp = (uint16_t)(pos_tmp + 0x1e0);
+    blit_to_cga(&ds_pool[DS_BUILDING_TOP], di, 5, 12);  /* cx=0xc05, di original */
+    do {                                                /* lab_2c5d */
+        blit_to_cga(&ds_pool[DS_BUILDING_MID], pos_tmp, 4, 8);   /* cx=0x804 */
+        pos_tmp = (uint16_t)(pos_tmp + 0x140);
+    } while (--loop_count != 0);
+    blit_to_cga(&ds_pool[DS_BUILDING_BOTTOM], pos_tmp, 4, 11);   /* cx=0xb04 */
+}
+
+void draw_all_buildings(void) {
+    uint16_t bx = ds_pool[DS_BUILDING_OFFS + difficulty_level];  /* bx=word[dif]; bl=byte[bx+offs] */
+    for (;;) {                                          /* lab_2c8c */
+        uint16_t di = ds_word_ad((uint16_t)(DS_BUILDING_POS + bx));
+        if (di == 0) return;                            /* cmp di,0 / jnz */
+        draw_building(di);
+        bx = (uint16_t)(bx + 2);
+    }
 }
