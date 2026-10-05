@@ -4,6 +4,8 @@
 #include "cat_state.h"
 #include "cga.h"
 #include "gen/ds_pool.h"
+#include "sound.h"
+#include <time.h>
 
 uint16_t l5_dat_40a8 = 0;
 uint8_t  l5_dat_40aa = 0;
@@ -55,18 +57,19 @@ void check_l5_cat_catch(void) {
     cat_caught = 0x1;                                                         /* mov byte [0x553],1 */
 }
 
-void check_l5_thrown(void) {
+bool check_l5_thrown(void) {
     /* ax=dat_40b2, dl=dat_40b4, si=8 | bx=thrown_obj_x, dh=thrown_obj_y, di=0x10, cx=0x1e05 */
     if (!check_rect_collision((int16_t)l5_dat_40b2, l5_dat_40b4, 0x8, 0x5,
-                              (uint16_t)thrown_obj_x, thrown_obj_y, 0x10, 0x1e)) return;
-    l5_dat_40b8 = 0xff;
+                              (uint16_t)thrown_obj_x, thrown_obj_y, 0x10, 0x1e)) return false;
+    l5_dat_40b8 = 0xff;                         /* el `mov` no toca CF: sale con CF=1 */
+    return true;
 }
 
 /* ---- T26: helpers B ---- */
 #define L5_PERCH_SPRITE 0x3fbe  /* 3 words x 16 filas = 96 bytes en el DS */
 
 uint16_t l5_dat_40a6 = 0;
-static uint8_t l5_perch_save[96];   /* DS 0x401e: fondo guardado (3 words x 16 filas) */
+static uint16_t l5_perch_save[48];  /* DS 0x401e: fondo guardado (3 words x 16 filas = 96 bytes) */
 
 bool check_l5_perch_hit(void) {
     /* ax=dat_40a8, dl=dat_40aa, si=0x18 | bx=cat_x, dh=cat_y, di=si=0x18, cx=0x0e10 (cl=0x10, ch=0x0e) */
@@ -76,11 +79,11 @@ bool check_l5_perch_hit(void) {
 
 void draw_l5_perch(void) {
     l5_dat_40a6 = l5_dat_40ab;
-    blit_masked(&ds_pool[L5_PERCH_SPRITE], l5_dat_40ab, 3, 16, (uint16_t *)(void *)l5_perch_save);
+    blit_masked(&ds_pool[L5_PERCH_SPRITE], l5_dat_40ab, 3, 16, l5_perch_save);
 }
 
 void erase_l5_perch(void) {
-    blit_to_cga(l5_perch_save, l5_dat_40a6, 3, 16);
+    blit_to_cga((const uint8_t *)l5_perch_save, l5_dat_40a6, 3, 16);
 }
 
 bool check_l5_thrown_near(void) {
@@ -114,4 +117,160 @@ void init_level5_objects(void) {
     l5_dat_40b9 = 0x1;
     l5_dat_40b8 = 0x0;
     l5_dat_40c8 = 0xff;
+}
+
+/* ---- T27: update_level5_anim ---- */
+
+uint16_t l5_dat_40b5 = 0;
+uint8_t  l5_dat_40b7 = 0;
+uint16_t l5_dat_40ba = 0;
+uint16_t l5_dat_40bc = 0;
+uint16_t l5_dat_40be = 0;
+uint8_t  l5_dat_40ff = 0;
+uint16_t l5_dat_3f2c[5];
+int32_t  l5_tick_override = -1;
+
+/* `sub ah,ah / int 0x1a` -> dx (mismo sustituto que en el resto del port). */
+static uint16_t read_bios_tick(void) {
+    if (l5_tick_override >= 0) return (uint16_t)l5_tick_override;
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    uint64_t ms = (uint64_t)ts.tv_sec * 1000 + (uint64_t)(ts.tv_nsec / 1000000);
+    return (uint16_t)(ms / 55);
+}
+
+/* Offsets DS (tools/asm_label.sh). Extensiones confirmadas por cómo se indexan (no por el label):
+ *   dat_40ce word[8] (si = 2*difficulty)   {46,92,140,140,160,170,180,180} = umbral de persecución
+ *   dat_40de word[11] (si = 2*bx, bx<=0xa)  X objetivo;   dat_40f4 byte[11] (bx<=0xa)  Y objetivo
+ *   dat_40c0 word[4] (bx = dat_40be & 6)    punteros a sprites 1x5 (0x3ef0,0x3efa,0x3f04,0x3efa); +0x1e = espejo
+ * Verificado: los punteros distan 10 bytes (1 word x 5 filas) y 0x3f04+0x1e+10 = 0x3f2c = dat_3f2c. */
+#define L5_THRESH_TABLE 0x40ce
+#define L5_TARGET_X     0x40de
+#define L5_TARGET_Y     0x40f4
+#define L5_FRAME_PTRS   0x40c0
+
+static uint16_t ds_word(uint32_t ofs) {
+    return (uint16_t)(ds_pool[ofs] | (ds_pool[ofs + 1] << 8));
+}
+
+/* `call random` deja el resultado en dx; el código solo mira dl salvo `and dx,0xff` (= dl). */
+static uint8_t rnd_dl(void) { return (uint8_t)(cga_random() & 0xff); }
+
+void update_level5_anim(void) {
+    uint16_t dx = read_bios_tick();                    /* sub ah,ah / int 0x1a */
+    uint8_t dl, al;
+    uint16_t ax, bx, si;
+    if (dx == l5_dat_40b5) return;                     /* lab_434a */
+    l5_dat_40ff = (uint8_t)(l5_dat_40ff + 1);
+    if ((l5_dat_40ff & 0x3) != 0) l5_dat_40b5 = dx;    /* test/jz: cada 4.º tick NO guarda el tick */
+    if (l5_dat_40aa < 0xa4) return;                    /* lab_435a: jb lab_434a */
+    check_l5_cat_catch();
+    if (check_l5_thrown()) return;                     /* jb lab_434a (CF=1 si colisión) */
+    dl = rnd_dl();
+    if (dl > 0x30) goto lab_439c;                      /* ja */
+    calc_l5_direction();
+    si = (uint16_t)(difficulty_level << 1);            /* db 0xd1,0xe6 = shl si,1 */
+    ax = ds_word(L5_THRESH_TABLE + si);
+    if (l5_dat_40cc > ax) goto lab_439c;               /* ja (sin signo) */
+    play_random_chirp();
+    l5_dat_40c8 = 0xff;
+    l5_dat_40b7 = l5_dat_40ca;
+    l5_dat_40b8 = l5_dat_40cb;
+    goto lab_442e;
+
+lab_439c:
+    if (l5_dat_40c8 > 0xa) goto lab_4402;              /* ja lab_43b1 -> jmp lab_4402 */
+    dl = rnd_dl();
+    if (dl > 0x6) goto lab_43b4;                       /* ja */
+    l5_dat_40c8 = 0xff;
+    goto lab_4402;                                     /* lab_43b1 */
+
+lab_43b4:
+    bx = l5_dat_40c8;
+    si = (uint16_t)(bx << 1);
+    dl = 0;
+    ax = (uint16_t)(l5_dat_40b2 & 0xffc);
+    {
+        uint16_t t = ds_word(L5_TARGET_X + si);
+        if (ax != t) { dl = 0x1; if (!(ax < t)) dl = 0xff; }   /* jz / inc dl (no toca CF) / jb */
+    }
+    l5_dat_40b7 = dl;
+    dl = 0;
+    al = (uint8_t)(l5_dat_40b4 & 0xfe);
+    {
+        uint8_t t = ds_pool[L5_TARGET_Y + bx];
+        if (al != t) { dl = 0x1; if (!(al < t)) dl = 0xff; }
+    }
+    l5_dat_40b8 = dl;
+    if ((uint8_t)(dl | l5_dat_40b7) != 0) goto lab_442e;       /* or dl,[dat_40b7] / jnz */
+    dl = rnd_dl();
+    if (dl > 0x10) goto lab_442e;                      /* ja */
+    l5_dat_40c8 = 0xff;
+    play_random_chirp();
+    /* cae a lab_4402 */
+
+lab_4402:
+    dl = rnd_dl();
+    if (dl > 0x30) goto lab_4423;                      /* ja */
+    dl = (uint8_t)(dl & 0x1);
+    if (dl == 0) dl = 0xff;                            /* jnz lab_4411 */
+    l5_dat_40b7 = dl;
+    dl = rnd_dl();
+    dl = (uint8_t)(dl & 0x1);
+    if (dl == 0) dl = 0xff;                            /* jnz lab_441f */
+    l5_dat_40b8 = dl;
+
+lab_4423:
+    l5_dat_40c8 = (uint16_t)(cga_random() & 0xff);     /* call random / and dx,0xff */
+
+lab_442e:
+    al = l5_dat_40b4;
+    if (l5_dat_40b8 < 0x1) goto lab_4459;              /* jb */
+    if (l5_dat_40b8 != 0x1) goto lab_4449;             /* jnz */
+    al = (uint8_t)(al + 0x2);
+    if (al < 0xa8) goto lab_4456;                      /* jb */
+    al = 0xa7;
+    l5_dat_40b8 = 0xff;
+    goto lab_4456;
+lab_4449:
+    al = (uint8_t)(al - 0x2);
+    if (al >= 0x30) goto lab_4456;                     /* jnb */
+    al = 0x30;
+    l5_dat_40b8 = 0x1;
+lab_4456:
+    l5_dat_40b4 = al;
+
+lab_4459:
+    ax = l5_dat_40b2;
+    if (l5_dat_40b7 < 0x1) goto lab_4486;              /* jb */
+    if (l5_dat_40b7 != 0x1) goto lab_4477;             /* jnz */
+    ax = (uint16_t)(ax + 0x4);
+    if (ax < 0x136) goto lab_4483;                     /* jb */
+    ax = 0x135;
+    l5_dat_40b7 = 0xff;
+    goto lab_4483;
+lab_4477:
+    {
+        bool borrow = ax < 0x4;
+        ax = (uint16_t)(ax - 0x4);
+        if (!borrow) goto lab_4483;                    /* jnb */
+    }
+    ax = 0;
+    l5_dat_40b7 = 0x1;
+lab_4483:
+    l5_dat_40b2 = ax;
+
+lab_4486:
+    check_l5_cat_catch();
+    l5_dat_40bc = (uint16_t)calc_cga_addr(l5_dat_40b4, l5_dat_40b2, NULL);
+    if (l5_dat_40b9 == 0)                              /* borra el dibujo anterior */
+        blit_to_cga((const uint8_t *)l5_dat_3f2c, l5_dat_40ba, 1, 5);
+    if (check_l5_thrown()) return;                     /* lab_44b0: jb lab_44e6 */
+    l5_dat_40b9 = 0x0;
+    l5_dat_40be = (uint16_t)(l5_dat_40be + 0x2);
+    bx = (uint16_t)(l5_dat_40be & 0x6);
+    si = ds_word(L5_FRAME_PTRS + bx);
+    if (l5_dat_40b7 == 0xff) si = (uint16_t)(si + 0x1e);
+    l5_dat_40ba = l5_dat_40bc;
+    blit_transparent(&ds_pool[si], l5_dat_40bc, 1, 5, l5_dat_3f2c);
 }

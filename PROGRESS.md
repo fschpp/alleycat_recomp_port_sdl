@@ -15,7 +15,7 @@ graphics assets, so it is not meant to be published or redistributed.
 ## 0. Current focus / todo / blockers
 
 **Current focus:** `tareas.md` execution: T00, T10-T22 (§6g-§6s), T23 (§6t), T24 (§6u) **T25** (level-5 helpers A,
-§6v) and **T26** (level-5 helpers B, §6w) are done. Next up: T27 (`update_level5_anim`), then T28.
+§6v) and **T26** (level-5 helpers B, §6w) and **T27** (`update_level5_anim`, §6x) are done. Next up: T28 (`update_level5_objects`).
 T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-level4`, `test-level4-state`, `test-level5`). The death
 handler (`entry.asm` lab_01b7+, T41) is still replaced in `main.c` by "re-enter the alley".
 
@@ -3583,6 +3583,51 @@ against the ASM, not the C. All six tests pass, `-Wall -Wextra` clean, no SDL bu
 **Not verified:** the perch inside the real level-5 loop (T27/T28/T42).
 
 Suggested commit: `T26: level-5 helpers B (perch hit/draw/erase, thrown-near checks); real draw_l5_perch`
+
+
+## 6x. T27 — `update_level5_anim` (`src/level5.c`; level_objects.asm L2198-2361)
+
+Ported literally (label per label, `goto`). One step of the level-5 moving object per BIOS tick; it only acts once the
+perch is lowered (`dat_40aa >= 0xa4`, T28 changes it; at init it is 0x86 so the routine returns early). Direction is
+chosen in three ways: chase the cat (random dl <= 0x30 and `dat_40cc <= dat_40ce[2*difficulty]`), walk to one of 11
+target points (`dat_40de` X word table / `dat_40f4` Y byte table, index `dat_40c8` <= 0xa), or a random direction
+(`lab_4402`); then it moves (Y +-2 within 0x30..0xa7, X +-4 within 0..0x135), erases its previous drawing
+(`blit_to_cga` from `dat_3f2c` to `dat_40ba`) and draws the next frame with `blit_transparent`.
+
+**Data (all checked in `/tmp/data_segment.bin`).** `dat_40ce` word[8] = {46,92,140,140,160,170,180,180};
+`dat_40de` word[11] = {0x18,0xdc,0x60,0x40,0x110,0x40,0x104,0x10c,0xf8,0xf8,0xe0}; `dat_40f4` byte[11] =
+{0x6a,0x7a,0x52,0x7a,0x50,0x9a,0x9e,0x7a,0x62,0x50,0x50}; `dat_40c0` word[4] = {0x3ef0,0x3efa,0x3f04,0x3efa}:
+pointer deltas are 10 bytes (1 word x 5 rows, zero gaps) and `0x3f04 + 0x1e + 10 = 0x3f2c = dat_3f2c`, so the mirrored
+set (+0x1e, used when `dat_40b7 == 0xff`) is contiguous and `dat_3f2c` is the 10-byte save buffer (exported as
+`l5_dat_3f2c`, uint16_t[5]). New state: `dat_40b5` (last tick), `40b7` (X dir 0/1/0xff), `40ba`, `40bc`, `40be`
+(+2 per draw, `& 6` selects the frame), `40ff` (processed-tick counter). `dat_40b9` (T25, init 1) = "nothing drawn yet".
+
+**Translation notes.**
+- `check_l5_thrown` returns CF: its `mov byte [dat_40b8],0xff` does not touch flags, so it leaves CF=1 on collision and the
+  caller's `jb` depends on it. T25 had made it `void`; it is now `bool` (T25 test unaffected).
+- Every 4th processed tick (`(dat_40ff & 3) == 0`) does NOT store the tick, so the same tick is processed again.
+- Direction compare (`lab_43b4`): `jz` -> 0; else `inc dl` (does not change CF) + `jb` -> 1 if below target, else 0xff.
+- `db 0xd1,0xe6` is `shl si,1` (listing shows `shl si,0x0`, same artefact as T18/T24/T25).
+- `random()` call order is the original's: [1] direction roll; [2] only if 40c8 <= 0xa; [3] target-reached roll (no X/Y
+  movement left); `lab_4402` 1 roll + 2 more if <= 0x30; `lab_4423` 1 roll for the new `dat_40c8` (`and dx,0xff` = dl).
+- If the thrown object hits after the erase (`lab_44b0`) the routine returns with `dat_40b9 == 0` and nothing drawn; the next
+  tick erases the stale save buffer again (original behaviour, kept).
+- Tick: `l5_tick_override` hook (same idea as `l4_tick_override`); real clock = ms/55.
+
+**Verified:** `tests/test_level5_anim.c` (`make test-level5-anim`, part of `make test`; `play_random_chirp` counted via
+`-Wl,--wrap`). Expected values come from an INDEPENDENT Python model written straight from the ASM text (not from the C),
+stored in `tests/test_level5_anim.inc`: (a) early returns (perch 0x86, same tick, 4th-tick no-store + reprocess, thrown
+overlap); (b) exact first-row pixels and saved background of the first draw; (c) two 150-tick runs compared step by step
+(b2,b4,b7,b8,c8,ff,b5, repeated ticks included), final be/ba/bc, final `rng_seed` (proves the exact number/order of
+`random()` calls), chirp count (case B = 8 chase triggers), and that erasing the last drawing leaves the CGA byte-identical
+to the original background (no residue); (d) three 1500-tick runs: min/max X and Y hit exactly 0, 0x135, 0x30 and 0xa7 in
+the model, plus full final state. All seven tests pass, `-Wall -Wextra` clean, no SDL build here (no libsdl2-dev).
+**Caveat:** the model and the C were both written by me from the same reading of the ASM, so a shared misreading would not
+be caught (no x86 emulator available, unlike T21/T23); the model was written separately and re-derived `rect` from the ASM
+instead of calling the C. **Not verified:** the routine inside the real level-5 loop (T28/T42); the cat-caught side effect
+only through `check_l5_cat_catch` (T25 test), not end-to-end.
+
+Suggested commit: `T27: update_level5_anim (level-5 object movement/draw); check_l5_thrown now returns CF`
 
 
 ## 7. General lesson for this whole project

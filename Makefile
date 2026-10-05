@@ -57,6 +57,13 @@ build/test_level5: tests/test_level5.c $(TEST_SRC) include/*.h
 test-level5: build/test_level5
 	./build/test_level5
 
-test: test-alley test-l3doors test-level4 test-level4-state test-level5
+build/test_level5_anim: tests/test_level5_anim.c tests/test_level5_anim.inc $(TEST_SRC) include/*.h
+	@mkdir -p build
+	$(CC) $(CFLAGS) -Itests -Wl,--wrap=play_random_chirp tests/test_level5_anim.c $(TEST_SRC) -o $@
 
-.PHONY: all run clean test test-alley test-l3doors test-level4 test-level4-state test-level5
+test-level5-anim: build/test_level5_anim
+	./build/test_level5_anim
+
+test: test-alley test-l3doors test-level4 test-level4-state test-level5 test-level5-anim
+
+.PHONY: all run clean test test-alley test-l3doors test-level4 test-level4-state test-level5 test-level5-anim
