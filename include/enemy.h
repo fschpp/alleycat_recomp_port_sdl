@@ -10,6 +10,9 @@ void update_enemies(void);
  * entry.asm calls it on every level entry. */
 void init_sound(void);
 bool check_enemy_activate(void);
+/* activate_enemy_chase (enemy.asm): dispara la persecucion del perro. Expuesta (antes static) porque
+ * update_level6_timing (T31) la llama directamente. */
+void activate_enemy_chase(void);
 bool check_enemy_object_hit(void);
 /* check_dog_collision (enemy.asm L69-107, T18) — aterrizaje del proyectil en el nivel 0. */
 bool check_dog_collision(void);

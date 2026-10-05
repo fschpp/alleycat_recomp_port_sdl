@@ -15,8 +15,8 @@ graphics assets, so it is not meant to be published or redistributed.
 ## 0. Current focus / todo / blockers
 
 **Current focus:** `tareas.md` execution: T00, T10-T22 (§6g-§6s), T23 (§6t), T24 (§6u) **T25** (level-5 helpers A,
-§6v) and **T26** (level-5 helpers B, §6w) and **T27** (`update_level5_anim`, §6x) and **T28** (`update_level5_objects`, §6y) and **T29** (level-6 helpers A, §6z) and **T30** (level-6 helpers B, §6aa) are done. Next up: T31 (`update_level6_timing`).
-T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-level4`, `test-level4-state`, `test-level5`, `test-level5-anim`, `test-level5-objects`, `test-level6`, `test-level6b`). The death
+§6v) and **T26** (level-5 helpers B, §6w) and **T27** (`update_level5_anim`, §6x) and **T28** (`update_level5_objects`, §6y) and **T29** (level-6 helpers A, §6z) and **T30** (level-6 helpers B, §6aa) and **T31** (`update_level6_timing`, §6ab) are done. Next up: T32 (`update_level6_movement`).
+T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-level4`, `test-level4-state`, `test-level5`, `test-level5-anim`, `test-level5-objects`, `test-level6`, `test-level6b`, `test-level6c`). The death
 handler (`entry.asm` lab_01b7+, T41) is still replaced in `main.c` by "re-enter the alley".
 
 - [x] `sound.asm` — full port, wired into every previously-stubbed call site (§6e)
@@ -43,6 +43,7 @@ handler (`entry.asm` lab_01b7+, T41) is still replaced in `main.c` by "re-enter 
 - [x] T28 — `update_level5_objects` (`level5.c`): perch push / move / blocking descent; `l5_perch_save` grows to 68 words (§6y)
 - [x] T29 — level-6 helpers A (`level6.c`): tracker draw/erase, `init_level6_objects`, `draw_l6_tile`, `calc_l6_addr`; `level6_stubs` is a bare `ret` (§6z)
 - [x] T30 — level-6 helpers B (`level6.c`): `prepare_l6_erase`, `clear_l6_object`, `refresh_l6_display`, `check_l6_proximity`, `draw_l6_alert` (§6aa)
+- [x] T31 — `update_level6_timing` (`level6.c`); `activate_enemy_chase` exported from `enemy.c`; `l6_tick_override` test hook (§6ab)
 - [ ] T01 — full headless harness (`tests/harness.h`, `make test`); only `tests/test_alley_loop.c` exists so far
 - [ ] T41 — death handler / level selector (`entry.asm` lab_01b7+); `main.c` just re-enters the alley meanwhile
 - [ ] `ui.asm` — `window_open_state` toggling, the other half of item (h)
@@ -3765,6 +3766,50 @@ clean, full `make test` passes. No SDL build here (no libsdl2-dev).
 inside the real level-6 loop (T31/T32/T42), and the visual meaning of the 1x1 alert sprite on a real screen.
 
 Suggested commit: `T30: level-6 helpers B (prepare_l6_erase, clear_l6_object, refresh_l6_display, check_l6_proximity, draw_l6_alert)`
+
+
+## 6ab. T31 — `update_level6_timing` (`src/level6.c`; level_objects.asm L2666-2740)
+
+Ported literally (label per label, `goto`): `update_level6_timing`. New globals in `level6.c`: `l6_dat_44d7` (word, DS 0x44d7, init 0: last
+processed BIOS tick), `l6_dat_44fc` (byte, DS 0x44fc, init 0: "an object reached state 2 in this pass"), `l6_tick_override` (int32, test-only
+hook, -1 = real clock, same pattern as `l4_tick_override`; it only substitutes `int 0x1a` in this function, NOT the tick that
+`play_explosion_effect` reads in `sound.c`). Read-only DS tables (checked in `/tmp/data_segment.bin`): `dat_44dc` word[8] = {18,16,15,14,13,12,11,10}
+(ticks between passes, by `difficulty_level`), `dat_44ec` word[8] = {40,50,60,70,85,80,85,90} (max X distance). `dat_43e1`/`dat_43f9` (T30) as before.
+**Exported:** `activate_enemy_chase` was `static` in `enemy.c`; now public and declared in `enemy.h` (no body change).
+
+**Flow (one pass, only when `(tick - dat_44d7) > dat_44dc[dif]`, unsigned 16-bit, so a tick that went "backwards" also fires):**
+`dat_44d7 = tick`; if `enemy_active != 0` -> return (**`dat_44fc` is NOT cleared in that case**); else `dat_44fc = 0` and for `cx = 12..1`
+(`slot = cx-1`, slots 11 down to 0): skip if `dat_4441[slot] == 0`; if `low(dat_43f9[slot]) == cat_y` and `d <= dat_44ec[dif]` where
+`d = X - cat_x` or, on borrow, `~(X - cat_x)` (= `cat_x - X - 1`, so one less than the true distance on the left side) -> "near":
+`state >= 2` -> **chase path**: `dat_44da = l6_obj_x[slot]`, `prepare_l6_erase`, `clear_l6_object`, `draw_l1_thrown` (= `draw_thrown_sprite`),
+`draw_alley_foreground`, `activate_enemy_chase`, `return` (no more slots, no explosion); `state < 2` -> `state++`, and if it reached 2 then `dat_44fc++`.
+Not near: `state == 0` -> next slot (no `random()`); else `random()`, `dl <= 0x38` -> `state--`. Both non-chase branches then run
+`check_l6_proximity(slot)`, `draw_l6_alert(slot)`, `refresh_l6_display()` (T30). After slot 0: `dat_44fc != 0` -> `play_explosion_effect()` (blocking, 55-110 ms).
+
+**Translation notes.** `loop lab_488a` + `jmp near lab_4800` = `cx--; if (cx != 0) goto lab_4800` (do-while). `db 0xd0,0xe3` is `shl bl,1` and
+`db 0xd1,0xe6` is `shl si,1` (listing shows `shl .,0x0`; same artefact as T18-T29); `bx` is only used as `2*slot <= 22`, so no `bh` carry issue.
+`push cx / push bx ... pop bx ... pop cx` around `check_l6_proximity`: the C passes `slot` and does not need to preserve registers.
+`random()` -> `dl = cga_random() & 0xff` (same convention as `init_level6_objects`). `sub ax,[cat_x]` is done on `(uint16_t)cat_x`.
+**Observation (not changed):** `draw_l1_thrown` draws at `l1_next_draw_addr` (DS 0x3284, `static` in `level_objects.c`) without calling
+`erase_l1_thrown` first, exactly as the ASM (L2707 has no `erase_thrown_sprite`). In the real game that address is whatever the rain code left.
+
+**Verified:** `tests/test_level6c.c` (`make test-level6c`, part of `make test`, ~8 s because the explosion really blocks). Expected values do not
+come from the C: a loop model written from the ASM (slots 11..0), the LFSR of cga.asm, the rectangle of `check_rect_collision`, a model screen
+replaying every blit in order (restore 2x1, alert 1x1 with the +6/-6 variant, clear 5x13, OR of the thrown frame) and a wall-clock check that
+the explosion blocks iff `dat_44fc != 0` (>= 40 ms vs < 20 ms). Cases: (1) tick gate at the threshold +-1 for difficulties 0/3/7, including 16-bit
+wrap and tick < last; (2) `enemy_active != 0` updates only `dat_44d7`; (3) explicit state 0->1 (silent) and 1->2 (`dat_44fc = 1`, explosion);
+(4) chase path on slot 4 with a slot-11 pass before it, slots 3..0 untouched, no explosion, `activate_enemy_chase` ran (`enemy_active != 0`,
+`enemy_chasing == 1`, `cat_x` in {0, 0x122}); (5) 150 random scenarios (difficulty, cat position incl. +-1 around object X and the range limit, flags,
+states): `l6_obj_state`, `dat_44fc`, `dat_44d9`, `dat_44d7`, **final `rng_seed` (proves the exact number of `random()` calls)** and the whole CGA
+memory identical to the model. **Mutation check:** 16 deliberate edits (thresholds `>` vs `>=`, `0x38`, missing `~`, `state < 2`, `cx = 0xb`,
+missing `draw_l1_thrown` / `prepare_l6_erase` / `play_explosion_effect` / `dat_44fc = 0` / `dat_44d7` update / `enemy_active` guard, etc.)
+are all caught. `-Wall -Wextra` clean, full `make test` passes. No SDL build here (no libsdl2-dev).
+**Caveat:** no x86 emulator here; the model is written from the ASM text, so a shared misreading would not be caught. Random scenarios never
+put a state >= 2 on the cat's row (that is the chase path, covered by case 4 only for one slot). `activate_enemy_chase` itself keeps its
+earlier simplifications (`erase_enemy`/`draw_enemy` stubs, see `enemy.c`); T31 did not touch them. **Not verified:** the loop inside the real
+level-6 game (T32/T42/T75: `update_level6_timing` is not wired into `main.c` yet).
+
+Suggested commit: `T31: update_level6_timing (level 6 object timing/alert pass); export activate_enemy_chase`
 
 
 ## 7. General lesson for this whole project

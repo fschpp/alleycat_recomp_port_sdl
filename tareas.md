@@ -226,7 +226,7 @@ Estado compartido de los niveles 4 y 5: **los dos usan las variables `l5_obj_*`*
 - **Destino:** `src/level6.c`.
 - **Verificar:** `check_l6_proximity` con tres distancias; `clear_l6_object` restaura el fondo.
 
-### T31 — `update_level6_timing` [M · 75]
+### T31 — `update_level6_timing` [M · 75] ✅ HECHO (PROGRESS.md §6ab; `activate_enemy_chase` ahora exportada; hook `l6_tick_override`; sin cablear en `main.c` hasta T75)
 - **ASM:** `level_objects.asm` L2666–2740.
 - **Destino:** `src/level6.c`.
 - **Notas:** llama `activate_enemy_chase` (ya portado en `enemy.c`) y `play_explosion_effect` (sonido bloqueante, ya portado).

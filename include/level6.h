@@ -24,6 +24,9 @@ extern uint8_t  l6_dat_44be;       /* DS 0x44be (byte): init_level6_objects lo p
 extern uint8_t  l6_dat_44d6;       /* DS 0x44d6 (byte): init_level6_objects lo pone a 0xc */
 
 extern uint8_t  l6_dat_44d9;       /* DS 0x44d9 (byte): 1 = el gato esta cerca de un objeto (lo fija check_l6_proximity); init 0 */
+extern uint16_t l6_dat_44d7;       /* DS 0x44d7 (word): ultimo tick BIOS procesado por update_level6_timing; init 0 */
+extern uint8_t  l6_dat_44fc;       /* DS 0x44fc (byte): objetos que pasaron a estado 2 en este pase (-> explosion); init 0 */
+extern int32_t  l6_tick_override;  /* solo tests: >= 0 sustituye a `int 0x1a` (mismo patron que l4_tick_override); -1 = reloj real */
 extern uint16_t l6_dat_44da;       /* DS 0x44da (word): direccion CGA del objeto a limpiar (la fija update_level6_timing, T31); init 0 */
 
 /* erase_l6_tracker (L2984-2994): si dat_43e0 == 0, restaura el fondo en dat_43de (blit_to_cga 3x10 desde el buffer). */
@@ -58,6 +61,12 @@ void check_l6_proximity(uint16_t slot);
 /* draw_l6_alert (L2800-2816): blit 1 word x 1 fila desde dat_4100 + 2*l6_obj_state[slot] (+6 si el sprite del objeto no es
  * 0x429c) a l6_obj_x[slot] + 0xa7 (-6 en ese mismo caso). */
 void draw_l6_alert(uint16_t slot);
+
+/* update_level6_timing (L2666-2740, T31): cada (difficulty_level -> dat_44dc = {18,16,15,14,13,12,11,10}) ticks BIOS recorre
+ * los 12 slots de cx=12 a 1 (slot = cx-1): si el gato esta en la fila del objeto y a <= dat_44ec[dif] pixeles en X, sube
+ * l6_obj_state; con state >= 2 limpia el objeto y llama activate_enemy_chase (y termina); si no, con state != 0 baja el estado
+ * con probabilidad (dl <= 0x38). Luego dibuja alerta y refresca. Si algun objeto llego a 2, play_explosion_effect al final. */
+void update_level6_timing(void);
 
 /* level6_stubs (L3082): es un `ret` desnudo (entry.asm L288 lo llama como "init level 6"); lo que sigue son bytes
  * de relleno decodificados como codigo. No se porta: la llamada de entry.asm es un no-op. */

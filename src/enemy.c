@@ -129,7 +129,7 @@ bool check_enemy_object_hit(void) {
 }
 
 /* activate_enemy_chase — literal port. */
-static void activate_enemy_chase(void) {
+void activate_enemy_chase(void) {
     if (level_number == 6) {
         enemy_y_pos = cat_y;
         enemy_x = (uint16_t)cat_x;
