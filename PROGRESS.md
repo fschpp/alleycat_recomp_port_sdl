@@ -14,11 +14,10 @@ graphics assets, so it is not meant to be published or redistributed.
 
 ## 0. Current focus / todo / blockers
 
-**Current focus:** `tareas.md` execution: T00, T10-T18 (§6g-§6o) and now **T19** (alley loop
-integrated in `main.c`, §6p) are done. Next up: T20 (level-3 doors) and, in parallel, T01/T02
-(headless test harness / auto-generated pending list; T01 is only partially covered by
-`make test-alley`). Phase 1 ("playable alley") is closed except for the death handler
-(`entry.asm` lab_01b7+, task T41), which `main.c` still replaces with "re-enter the alley".
+**Current focus:** `tareas.md` execution: T00, T10-T19 (§6g-§6p) and **T20** (level-3 doors, §6q)
+are done. Next up: T21 (level-4 helpers A); T01/T02 (headless harness / auto-generated pending list)
+are still open (`make test-alley` and `make test-l3doors` cover only their own pieces). The death
+handler (`entry.asm` lab_01b7+, T41) is still replaced in `main.c` by "re-enter the alley".
 
 - [x] `sound.asm` — full port, wired into every previously-stubbed call site (§6e)
 - [x] PC speaker / PIT channel 2 emulation + SDL2 audio backend (§6e)
@@ -36,6 +35,7 @@ integrated in `main.c`, §6p) are done. Next up: T20 (level-3 doors) and, in par
 - [x] T17 — `update_viewport` (`alley.c`) and `render_sprites` (`alley_drawing.c`) (§6n)
 - [x] T18 — `init_player` (`fall_object.c`), `start_auto_walk` (`game_setup.c`), real `check_dog_collision` (`enemy.c`), wired into `apply_cat_gravity` (§6o)
 - [x] T19 — alley loop in `main.c` in `entry.asm` order (L131-180); `frame_counter`; `make test-alley` (§6p)
+- [x] T20 — `init_level3_doors`, `update_level3_doors`, `close_level3_door` in `level3_enemy.c`; `object_hit`/`cat_caught` unified (§6q)
 - [ ] T01 — full headless harness (`tests/harness.h`, `make test`); only `tests/test_alley_loop.c` exists so far
 - [ ] T41 — death handler / level selector (`entry.asm` lab_01b7+); `main.c` just re-enters the alley meanwhile
 - [ ] `ui.asm` — `window_open_state` toggling, the other half of item (h)
@@ -3302,6 +3302,48 @@ Pixel counts per color (cyan/magenta/white) are stable within ~2% across frames.
 cadence against the original (no emulator run for this task, unlike §6o).
 
 Suggested commit: `T19: alley loop in main.c following entry.asm; frame_counter; make test-alley`
+
+
+## 6q. T20 level-3 doors (`src/level3_enemy.c`)
+
+**Ported:** `init_level3_doors`, `update_level3_doors`, `close_level3_door` (level_objects.asm
+L1376-1440), declared in `src/level3_enemy.h`. Not yet called from `main.c` (the level-3 loop is
+T42/T43: entry.asm L377 `init_level3_doors`, L386 `update_level3_doors`).
+
+**Findings (from the ASM, not from tareas.md):**
+- tareas.md's data labels for this task (`l3_door_toggle=0x396b`, `l3_door_anim_frame`,
+  `l3_door_cga_1/2/3`, `l3_door_sprite_base`) are **not** the variables used here: 0x396b is the
+  bird's wing-flap toggle (already `l3_bird_frame_toggle`). The routine uses `dat_37af` (doors left,
+  init 3), `dat_37b0/2/4` (door i active, init 1, words), `dat_37b6` (loop bx), `dat_37b8` (last
+  tick), and two read-only word tables in the DS: `dat_37a3` = door X {0x00c0, 0x00e0, 0x0100} and
+  `dat_37a9` = door CGA offset {0x03f0, 0x03f8, 0x0400} (read from `ds_pool`, values checked in
+  `/tmp/data_segment.bin`). Rule 5 again: names don't encode addresses.
+- `update_level3_doors`: returns if the BIOS tick equals `dat_37b8`; otherwise loops `bx = 4, 2, 0`
+  (`sub 2 / jnb`); for an active door calls `check_rect_collision` with A = (door X, y=0x18,
+  w=0x10, h=cl=0x10) and B = (cat_x, cat_y, w=di=0x18, h=ch=0x0e) (`cx=0x0e10`). The first door that
+  overlaps wins: `start_tone(0xc00,0x8fd)`, `restore_alley_buffer`, `erase_l3_bird`,
+  `close_level3_door`, `save_alley_buffer`, `draw_l3_bird`, return. Doors overlap in X, so with
+  two overlaps the highest index (bx=4) is the one closed.
+- `close_level3_door`: fills the 2-word x 16-row door gap with 0xAAAA through the scratch
+  area DS:0x0e (a 64-byte `rep stosw` of 0xAAAA, then `blit_to_cga`); `--dat_37af == 0 &&
+  object_hit == 0` => `cat_caught = 1` (that is the level-complete flag of entry.asm).
+- **Pre-existing bug fixed:** `[0x552]`/`[0x553]` are `object_hit`/`cat_caught` (labels in the DS and
+  entry.asm L21-22), but `level3_enemy.c` had private copies `l3_bird_escaped`/`enemy_escape_active`
+  (also used by `level7_epilogue.c`) that nothing read, so those flags could never end a level. Both
+  copies and their `extern`s were removed; the code now uses `object_hit`/`cat_caught` directly
+  (bird escape => `object_hit = 1`, guard `cat_caught != 0`, cupid caught => `cat_caught = 1`).
+  Behavior change only matters once levels 3/7 are wired (T42/T43).
+
+**Verification:** `make` clean (`-Wall -Wextra`, 0 warnings). `make test-l3doors`
+(`tests/test_level3_doors.c`, no SDL): no overlap, X/Y boundaries just outside and just inside
+(door 0: x in [0xa8,0xd0], y in [0x0a,0x28]), only the touched door's gap is rewritten with 0xAA,
+a closed door is not reprocessed, bx=4 priority with two overlaps, last door sets `cat_caught=1`
+only when `object_hit==0`, and the same-tick early return — all pass. `make test-alley` unchanged.
+**Not verified:** no x86 emulator comparison this time (unlike §6o); the expectations were derived by
+hand from the ASM. The draw/erase interplay with the bird (`erase_l3_bird`/`draw_l3_bird`) is
+exercised only as calls, not pixel-compared.
+
+Suggested commit: `T20: level-3 doors; unify [0x552]/[0x553] with object_hit/cat_caught`
 
 
 ## 7. General lesson for this whole project
