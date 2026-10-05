@@ -121,3 +121,151 @@ void init_level4_bg_tail(void) {
         bx = (uint16_t)(bx + 1);
     }
 }
+
+/* ---- T23: update_level4_anim ---- */
+
+#include "alley.h"
+#include "sound.h"
+#include <time.h>
+
+int32_t l4_tick_override = -1;
+
+/* `sub ah,ah / int 0x1a` -> dx (mismo sustituto que en el resto del port). */
+static uint16_t read_bios_tick(void) {
+    if (l4_tick_override >= 0) return (uint16_t)l4_tick_override;
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    uint64_t ms = (uint64_t)ts.tv_sec * 1000 + (uint64_t)(ts.tv_nsec / 1000000);
+    return (uint16_t)(ms / 55);
+}
+
+/* Offsets DS (resueltos con tools/asm_label.sh; son CONSTANTES inmediatas del tipo `mov ax,label`,
+ * no datos, salvo las dos tablas que se leen con corchetes). */
+#define L4_SPRITE_CAUGHT_ICON 0x3d20  /* dat_3d20: 2 words x 12 filas = 48 bytes (icono de bonus Y 2º frame) */
+#define L4_SPRITE_A           0x3d80  /* 48 bytes */
+#define L4_SPRITE_B           0x3db0  /* 48 bytes */
+#define L4_SPRITE_FRAMES      0x3de0  /* dat_3de0: word[2] = {0x3d50, 0x3d20} (punteros a sprites) */
+#define L4_PROX_THRESHOLD     0x3ede  /* "l5_save_buf_ptrs" (nombre engañoso): word[8] por dificultad
+                                       * {20,80,100,120,120,140,140,140} = umbral bp de check_l4_proximity */
+
+uint16_t l4_dat_3de4;                 /* DS 0x3de4 (word): dirección CGA calculada para el dibujo (global solo para los tests) */
+
+static uint16_t ds_word(uint32_t ofs) {
+    return (uint16_t)(ds_pool[ofs] | (ds_pool[ofs + 1] << 8));
+}
+
+void update_level4_anim(void) {
+    uint16_t dx = read_bios_tick();                    /* sub ah,ah / int 0x1a */
+    if (dx == l5_last_tick) return;                    /* cmp dx,[l5_last_tick] / jnz lab_40cd */
+
+    /* lab_40cd */
+    l5_obj_index = (uint16_t)(l5_obj_index + 1);
+    uint16_t bx = l5_obj_index;
+    if (bx <= 0x2) goto lab_40e5;                      /* jbe (sin signo) */
+    if (bx < 0x4) goto lab_40e9;                       /* bx == 3: NO actualiza l5_last_tick */
+    bx = 0; l5_obj_index = 0;
+lab_40e5:
+    l5_last_tick = dx;
+lab_40e9:
+    /* mov si,bx / `db d1 e6` = shl si,1: si = 2*bx, implícito en los helpers que reciben el índice */
+    if (l5_obj_hit[bx] != 0) return;                   /* jnz lab_40cc (ret) */
+    if (check_l4_obj_cat(bx)) goto lab_4124;
+    /* lab_40fc */
+    if (check_l4_obj_thrown(bx)) return;               /* jb lab_40cc */
+    if (l5_obj_anim[bx] == 0) {
+        randomize_l4_pos(bx);
+        uint8_t dl = (uint8_t)(cga_random() & 0x7);
+        dl = (uint8_t)(dl + 0x14);
+        l5_obj_anim[bx] = dl;
+    }
+    /* lab_4118 */
+    l5_obj_anim[bx] = (uint8_t)(l5_obj_anim[bx] - 1);
+    if (check_l4_obj_cat(bx)) goto lab_4124;
+    goto lab_4181;
+
+lab_4124:                                              /* el gato toca al objeto */
+    if (l5_obj_active[bx] != 0) return;                /* jnz lab_4132 (ret) */
+    if (l5_obj_anim[bx] < 0x14) goto lab_4133;         /* jb */
+    return;                                            /* lab_4132 */
+
+lab_4133: {
+    restore_alley_buffer();
+    erase_level4_sprite();                             /* usa l5_obj_index, no bx */
+    bx = l5_obj_index;
+    l5_obj_hit[bx] = 0x1;
+    save_alley_buffer();
+    at_platform = 0x0;                                 /* mov byte [0x55c],0 */
+    l5_obj_count = (uint8_t)(l5_obj_count - 1);
+    if (l5_obj_count == 0) cat_caught = 0x1;           /* dec / jnz lab_4155 ; mov byte [0x553],1 */
+    /* lab_4155: icono de bonus en x = 0x51 + 4*(4 - count). bp=0xe (scratch DS:0xe) no lo consume
+     * nada: mask_save = NULL, igual que el blit de init_level4_bg. */
+    uint8_t al = (uint8_t)(4 - l5_obj_count);
+    al = (uint8_t)(al << 2);                           /* shl al,cl con cl=2 */
+    uint16_t di = (uint16_t)(al + 0x51);               /* ah = 0 */
+    blit_masked(&ds_pool[L4_SPRITE_CAUGHT_ICON], di, 2, 12, NULL);
+    start_tone(0x3e8, 0x2ee);
+    return;
+}
+
+lab_4181: {
+    calc_l4_obj_pos(bx);
+    uint16_t di = (uint16_t)(difficulty_level << 1);   /* `db d1 e7` = shl di,1 */
+    uint16_t bp = ds_word((uint32_t)((L4_PROX_THRESHOLD + di) & 0xffff));
+    if (check_l4_proximity(bx, bp)) {                  /* jnb lab_41b0 salta si NO hay CF */
+        if (l5_obj_anim[bx] >= 0x2) {                  /* cmp 2 / jb lab_41b0 */
+            uint8_t al = 0x1;
+            if (l5_obj_anim[bx] <= 0x11) goto lab_41ac;      /* jbe */
+            if (l5_obj_anim[bx] >= 0x14) goto lab_41b0;      /* jnb */
+            al = (uint8_t)(al - 1);                          /* dec al -> 0 */
+lab_41ac:
+            l5_obj_anim[bx] = al;
+        }
+    }
+}
+lab_41b0: {
+    uint8_t al = l5_obj_anim[bx];
+    uint16_t ax;
+    if (al <= 0x1) goto lab_41d8;                      /* jbe */
+    if (al < 0x12) goto lab_41f8;                      /* jb */
+    al = 0x1;
+    if (!(l5_obj_frame[bx] >= 0x3)) al = 0x3;          /* cmp word,3 / jnb: sin signo */
+    l5_obj_y_pos[bx] = (uint8_t)(l5_obj_y_pos[bx] + al);
+    if (l5_obj_anim[bx] < 0x13) goto lab_41f3;         /* jb */
+    if (l5_obj_anim[bx] == 0x13) goto lab_41ee;        /* jz */
+    ax = 0;                                            /* anim >= 0x14: no se dibuja */
+    goto lab_4204;
+lab_41d8:
+    al = 0x1;
+    if (!(l5_obj_frame[bx] >= 0x3)) al = 0x3;
+    l5_obj_y_pos[bx] = (uint8_t)(l5_obj_y_pos[bx] + al);
+    if (l5_obj_anim[bx] >= 0x1) goto lab_41f3;         /* jnb */
+lab_41ee:
+    ax = L4_SPRITE_B;
+    goto lab_4204;
+lab_41f3:
+    ax = L4_SPRITE_A;
+    goto lab_4204;
+lab_41f8: {
+    /* `db d0 e0` = shl al,1; mov di,ax; and di,2 -> solo importa el bit 0 de anim */
+    uint16_t d = (uint16_t)(((uint8_t)(al << 1)) & 0x2);
+    ax = ds_word((uint32_t)(L4_SPRITE_FRAMES + d));
+}
+lab_4204:
+    l5_obj_sprite_ptr = ax;
+    uint8_t dl = l5_obj_y_pos[bx];
+    uint16_t cx = l5_obj_dims[bx];
+    l4_dat_3de4 = (uint16_t)calc_cga_addr(dl, cx, NULL);
+}
+    erase_level4_sprite();
+    bx = l5_obj_index;                                 /* mov bx,[l5_obj_index] / mov si,bx / shl si,1 */
+    if (check_l4_obj_thrown(bx)) return;               /* jnb lab_4226 ; ret */
+    if (l5_obj_sprite_ptr == 0) {                      /* lab_4226 */
+        l5_obj_active[bx] = 0x1;
+        return;
+    }
+    /* lab_4233 */
+    l5_obj_active[bx] = 0x0;
+    l5_obj_cga_addr[bx] = l4_dat_3de4;
+    blit_masked(&ds_pool[l5_obj_sprite_ptr], l4_dat_3de4, 2, 12, (uint16_t *)(void *)l5_obj_save_buf[bx]);
+}
+

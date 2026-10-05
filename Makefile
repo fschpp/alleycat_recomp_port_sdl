@@ -38,7 +38,7 @@ test-l3doors: build/test_l3doors
 
 build/test_level4: tests/test_level4.c $(TEST_SRC) include/*.h
 	@mkdir -p build
-	$(CC) $(CFLAGS) tests/test_level4.c $(TEST_SRC) -o $@
+	$(CC) $(CFLAGS) -Wl,--wrap=restore_alley_buffer,--wrap=save_alley_buffer,--wrap=start_tone tests/test_level4.c $(TEST_SRC) -o $@
 
 test-level4: build/test_level4
 	./build/test_level4

@@ -180,7 +180,7 @@ Estado compartido de los niveles 4 y 5: **los dos usan las variables `l5_obj_*`*
 - **Destino:** `src/level4.c` y `src/level_background.c`.
 - **Verificar:** colisiones con casos solapado/no solapado; tras `init_level4_bg` la tabla sembrada coincide con la lectura manual del ASM para `difficulty_level` 0 y 5.
 
-### T23 — `update_level4_anim` [L · 161]
+### T23 — `update_level4_anim` [L · 161] ✅ HECHO (PROGRESS.md §6t; `l5_save_buf_ptrs` es una tabla de umbrales por dificultad, no punteros)
 - **ASM:** `level_objects.asm` L1933–2093.
 - **Destino:** `src/level4.c`.
 - **Notas:** usa `blit_masked`, `calc_cga_addr`, `save/restore_alley_buffer`, `start_tone`. Seguir la regla de corte si hace falta (cortar en el `lab_` más cercano a la mitad).
