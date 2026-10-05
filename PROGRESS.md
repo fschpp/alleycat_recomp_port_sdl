@@ -14,10 +14,8 @@ graphics assets, so it is not meant to be published or redistributed.
 
 ## 0. Current focus / todo / blockers
 
-**Current focus:** `tareas.md` execution: T00, T10-T22 (§6g-§6s) and **T23** (`update_level4_anim`, §6t) are
-done. Next up: **T24** (`update_level4_state`, L1720-1823, 104 lines): it consumes the `dat_3ce3/3cf3` tables
-seeded in T22 (`l4_dat_3ce3/3cf3`) and writes `l3_door_anim_frame` (L1781/1788). After that the level-5 block
-(T25-T28).
+**Current focus:** `tareas.md` execution: T00, T10-T22 (§6g-§6s), T23 (§6t) and **T24** (`update_level4_state`,
+§6u) are done. Next up: the level-5 block (T25-T28).
 T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-level4`). The death
 handler (`entry.asm` lab_01b7+, T41) is still replaced in `main.c` by "re-enter the alley".
 
@@ -40,6 +38,7 @@ handler (`entry.asm` lab_01b7+, T41) is still replaced in `main.c` by "re-enter 
 - [x] T20 — `init_level3_doors`, `update_level3_doors`, `close_level3_door` in `level3_enemy.c`; `object_hit`/`cat_caught` unified (§6q)
 - [x] T21 — level-4 helpers A (`level4.c`) + shared `l5_obj_*` state (`level45_state.[ch]`); `check_rect_collision` unsigned fix (§6r)
 - [x] T22 — `check_l4_obj_cat`, `check_l4_obj_thrown`, `init_level4_bg` tail (`init_level4_bg_tail`), `l3_door_anim_frame` (§6s)
+- [x] T24 — `update_level4_state` (`level4.c`), door/teleport state vars in `level45_state.c`, `joy_button` (§6u)
 - [x] T23 — `update_level4_anim` (`level4.c`), `l5_last_tick`/`l5_obj_sprite_ptr` state, 2-aligned save buffers (§6t)
 - [ ] T01 — full headless harness (`tests/harness.h`, `make test`); only `tests/test_alley_loop.c` exists so far
 - [ ] T41 — death handler / level selector (`entry.asm` lab_01b7+); `main.c` just re-enters the alley meanwhile
@@ -3490,6 +3489,41 @@ outside the 16 KB `cga_mem`, which the original never produces) and `l5_obj_inde
 **Not verified:** behaviour inside the real level-4 loop (needs T24/T42); real-clock tick; SDL build.
 
 Suggested commit: `T23: update_level4_anim (level 4 object animation/catch); l5_last_tick, l5_obj_sprite_ptr`
+
+
+## 6u. T24 — `update_level4_state` (level_objects.asm L1720-1823)
+
+Ported literally (label per label, `goto`) into `src/level4.c`. It is the level-4 door "teleport": with no
+animation running (`l3_door_anim_frame == 0`) and the cat on a door (`l3_platform_id != 0`) it picks the
+destination door, and then every BIOS tick steps `l3_door_anim_frame` 0xe -> 0 in steps of 2: frames >= 8 draw
+the origin door, frames < 8 draw the destination door and move the cat there; at 0 it calls
+`save_cat_background`.
+
+**Guards / data.** `[0x584]` = `auto_walk`, `[0x69a]` = `joy_button` (new C variable, 0 by default: joystick is
+T60; here it is written 0x10 when the animation starts and read by the guard), `[0x55c]` = `at_platform`,
+`[0x57c]` = `cat_y_bottom`. New state in `level45_state.c`, all 0 at start (checked in `/tmp/data_segment.bin`):
+`l3_door_cga_1/2/3` (0x39e2/4/6), `l3_door_sprite_base` (0x39e8), `l4_obj_cur_x` (0x3d03, word),
+`l4_obj_cur_y` (0x3d05), `l4_last_tick` (0x3d16), `l4_dat_3d18` (0x3d18). Tables read from `ds_pool`:
+`dat_3c5a` (0x3c5a, 4 bytes/door, first word = CGA addr), `l4_platform_offset` (0x1050),
+`l4_obj_x_table` (0x1137), `l4_anim_offset_table` (0x3d06, word[8] indexed by the even frame).
+`erase_thrown_sprite`/`draw_thrown_sprite` (L543/L583) are the same routines as `erase_l1_thrown`/`draw_l1_thrown`
+(2 words x 0x1e rows, OR-blit): checked against the ASM and made non-`static` (declared in `src/level_objects.h`).
+
+**Translation notes.** `db 0xd0,0xe3` = `shl bl,1` (the listing's `shl bl,0x0` is a disassembler artefact, same
+as T18); `cmp bl,3 / jnb` loads `al=0x80` only when `bl < 3`; the `sub ax,[dat_3d18] / cmp ax,0xc / jb` test is
+unsigned 16-bit; `mov bl,[bx+dat_3ce3]` replaces `bl` only (`bh` stays 0).
+
+**Verified:** `tests/test_level4_state.c` (`make test-level4-state`, part of `make test`): the 5 early-return
+guards, two full door sequences (platform ids 1 and 4, covering both `bl < 3` / `bl >= 3` branches), the frame
+sequence 0xc,0xa,...,0 and same-tick no-advance, cat placement at frames < 8 (`cat_y_bottom = y + 0x32`) and the
+first CGA row of each drawn sprite. **Caveat:** the expected values come from reading the ASM plus the real data
+tables (hand computed), not from running the original in an x86 emulator as T21/T23 did (no unicorn/nasm in this
+environment). `make test` passes in full; build with SDL not done here (no libsdl2-dev), compiled with
+`-Wall -Wextra` without warnings.
+**Not verified:** behaviour inside the real level-4 loop (needs T42/T43); `l4_dat_3ce3[bx]` is a 16-byte array:
+the original reads raw DS memory if `l3_platform_id > 16` (not expected in level 4).
+
+Suggested commit: `T24: update_level4_state (level 4 door teleport); joy_button, door/teleport state; expose draw/erase_l1_thrown`
 
 
 ## 7. General lesson for this whole project

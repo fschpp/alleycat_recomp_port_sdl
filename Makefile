@@ -43,6 +43,13 @@ build/test_level4: tests/test_level4.c $(TEST_SRC) include/*.h
 test-level4: build/test_level4
 	./build/test_level4
 
-test: test-alley test-l3doors test-level4
+build/test_level4_state: tests/test_level4_state.c $(TEST_SRC) include/*.h
+	@mkdir -p build
+	$(CC) $(CFLAGS) tests/test_level4_state.c $(TEST_SRC) -o $@
 
-.PHONY: all run clean test test-alley test-l3doors test-level4
+test-level4-state: build/test_level4_state
+	./build/test_level4_state
+
+test: test-alley test-l3doors test-level4 test-level4-state
+
+.PHONY: all run clean test test-alley test-l3doors test-level4 test-level4-state

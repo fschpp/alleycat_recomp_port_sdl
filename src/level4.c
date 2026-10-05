@@ -269,3 +269,78 @@ lab_4204:
     blit_masked(&ds_pool[l5_obj_sprite_ptr], l4_dat_3de4, 2, 12, (uint16_t *)(void *)l5_obj_save_buf[bx]);
 }
 
+
+/* ---- T24: update_level4_state (level_objects.asm L1720-1823) ---- */
+
+#include "level_objects.h"
+
+#define L4_DAT_3C5A 0x3c5a  /* DS 0x3c5a: word[2*n] = {dir. CGA, 0x3b92/0x3b12 (no se usa aquí)} por puerta, 4 bytes c/u */
+#define L4_ANIM_OFFSET_TABLE 0x3d06  /* word[8], indexado por l3_door_anim_frame (byte par 0..0xe) */
+
+void update_level4_state(void) {
+    uint16_t dx, ax, di, si, bx;
+    uint8_t bl;
+
+    if (l3_door_anim_frame == 0x0) goto lab_3ea4;
+    dx = read_bios_tick();                              /* sub ah,ah / int 0x1a */
+    if (dx == l4_last_tick) return;                     /* jz lab_3eb9 (ret) */
+    goto lab_3f35;
+
+lab_3ea4:
+    if (auto_walk != 0x0) return;                       /* cmp byte [0x584],0 / jnz lab_3eb9 */
+    if (joy_button != 0x0) return;                      /* cmp byte [0x69a],0 / jnz lab_3eb9 */
+    if (l3_platform_id != 0x0) goto lab_3eba;           /* jnz lab_3eba */
+    return;                                             /* lab_3eb9 */
+
+lab_3eba:
+    if (check_l4_thrown_collision()) return;            /* jb lab_3eb9 */
+    dx = read_bios_tick();
+    ax = (uint16_t)(dx - l4_dat_3d18);
+    if (ax < 0xc) return;                               /* cmp ax,0xc / jb (sin signo) */
+    l4_dat_3d18 = dx;
+    at_platform = 0x0;                                  /* mov byte [0x55c],0 */
+    bl = (uint8_t)(l3_platform_id - 1);                 /* dec bl (8 bits); bh = 0 */
+    bx = bl;
+    si = (uint16_t)(bx << 2);                           /* mov cl,2 / shl si,cl */
+    l3_door_cga_1 = ds_word(L4_DAT_3C5A + si);
+    ax = 0;
+    if (bl < 0x3) ax = 0x80;                            /* cmp bl,3 / jnb: al = 0x80 solo si bl < 3 */
+    l3_door_cga_2 = ax;
+    bl = l4_dat_3ce3[bx];                               /* mov bl,[bx+dat_3ce3]  (bh sigue en 0) */
+    bx = bl;
+    si = (uint16_t)(bx << 2);
+    l3_door_cga_3 = ds_word(L4_DAT_3C5A + si);
+    ax = 0;
+    if (bl < 0x3) ax = 0x80;
+    l3_door_sprite_base = ax;
+    l4_obj_cur_y = ds_pool[L4_PLATFORM_OFFSET + bx];    /* mov al,[bx+l4_platform_offset] */
+    bl = (uint8_t)(bl << 1);                            /* `db d0 e3` = shl bl,1 (no shl bl,0) */
+    bx = bl;
+    l4_obj_cur_x = (uint16_t)(ds_word(L4_OBJ_X_TABLE + bx) + 0x8);
+    restore_alley_buffer();
+    l3_door_anim_frame = 0xe;
+    joy_button = 0x10;                                  /* mov byte [0x69a],0x10 */
+
+lab_3f35:
+    if (enemy_chasing == 0x0) erase_l1_thrown();        /* erase_thrown_sprite */
+    l3_door_anim_frame = (uint8_t)(l3_door_anim_frame - 0x2);
+    bx = l3_door_anim_frame;                            /* sub bh,bh / mov bl,[...] */
+    if (bx < 0x8) goto lab_3f58;                        /* jb */
+    di = l3_door_cga_1;
+    ax = l3_door_cga_2;
+    goto lab_3f70;
+
+lab_3f58:
+    di = l3_door_cga_3;
+    cat_y = l4_obj_cur_y;
+    cat_y_bottom = (uint8_t)(l4_obj_cur_y + 0x32);      /* mov [0x57c],al */
+    cat_x = (int16_t)l4_obj_cur_x;
+    ax = l3_door_sprite_base;
+
+lab_3f70:
+    ax = (uint16_t)(ax + ds_word(L4_ANIM_OFFSET_TABLE + bx));
+    blit_to_cga(&ds_pool[ax], di, 2, 0x10);             /* mov si,ax / cx=0x1002 */
+    if (enemy_chasing == 0x0) draw_l1_thrown();         /* draw_thrown_sprite */
+    l4_last_tick = read_bios_tick();                    /* sub ah,ah / int 0x1a / mov [l4_last_tick],dx */
+    if (l3_door_anim_frame == 0x0) save_cat_background();
+}

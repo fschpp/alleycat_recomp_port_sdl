@@ -55,4 +55,14 @@ extern uint16_t l4_dat_3de4;   /* DS 0x3de4: dirección CGA del último dibujo (
  * la animación de aparición/desaparición/movimiento del objeto (`l5_obj_anim` 0x14..0 con sprites
  * 0x3de0[]/0x3d80/0x3db0, o ninguno si anim >= 0x14). */
 void update_level4_anim(void);
+
+/* --- T24: update_level4_state (level_objects.asm L1720-1823) --- */
+
+/* update_level4_state: puerta/"teletransporte" del nivel 4. Sin animación activa
+ * (l3_door_anim_frame == 0) y con el gato en una puerta (l3_platform_id != 0), cada >= 0xc ticks
+ * BIOS elige la puerta destino (dat_3ce3[]), fija el destino del gato y arranca la animación
+ * (frame 0xe, baja de 2 en 2 por tick BIOS): primero dibuja la puerta de origen (frames >= 8) y
+ * luego la de destino, donde coloca al gato (cat_x/cat_y/cat_y_bottom); al llegar a 0 guarda el
+ * fondo del gato. */
+void update_level4_state(void);
 #endif

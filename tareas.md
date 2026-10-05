@@ -186,7 +186,7 @@ Estado compartido de los niveles 4 y 5: **los dos usan las variables `l5_obj_*`*
 - **Notas:** usa `blit_masked`, `calc_cga_addr`, `save/restore_alley_buffer`, `start_tone`. Seguir la regla de corte si hace falta (cortar en el `lab_` más cercano a la mitad).
 - **Verificar:** correr 100 ticks con el gato fijo; comprobar que el objeto cambia de frame, se dibuja y se borra sin dejar residuo.
 
-### T24 — `update_level4_state` [M · 104]
+### T24 — `update_level4_state` [M · 104] ✅ HECHO (PROGRESS.md §6u; verificado contra el ASM y las tablas, no contra emulador)
 - **ASM:** `level_objects.asm` L1720–1823.
 - **Destino:** `src/level4.c`.
 - **Datos:** `l4_obj_cur_x=0x3d03`, `l4_obj_cur_y=0x3d05`, `l4_anim_offset_table=0x3d06`, `l4_last_tick=0x3d16`, `l3_platform_id`.
