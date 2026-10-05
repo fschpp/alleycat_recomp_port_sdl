@@ -26,7 +26,9 @@ bool check_rect_collision(int16_t a_x, uint8_t a_y, uint16_t a_w, uint8_t a_h,
     uint16_t a_right = (uint16_t)a_x + a_w;
     if (a_right < b_x) return false; /* jc: unsigned */
 
-    int32_t clamped_x = (int32_t)a_x - (int32_t)b_w;
+    /* `sub ax,di / jnc`: la resta es de 16 bits SIN signo; con a_x como int16_t (-17 = 0xFFEF) el
+     * clamp daba 0 y reportaba choque donde el ASM no (T21, PROGRESS.md §6r). */
+    int32_t clamped_x = (int32_t)(uint16_t)a_x - (int32_t)b_w;
     if (clamped_x < 0) clamped_x = 0;
     if ((uint16_t)clamped_x > b_x) return false; /* ja: unsigned */
 

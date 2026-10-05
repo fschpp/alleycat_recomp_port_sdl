@@ -168,14 +168,14 @@ Estado compartido de los niveles 4 y 5: **los dos usan las variables `l5_obj_*`*
 - **Datos:** `l3_door_toggle=0x396b`, `l3_door_anim_frame=0x39e1`, `l3_door_cga_1/2/3=0x39e2/4/6`, `l3_door_sprite_base=0x39e8`.
 - **Verificar:** test que avanza `update_level3_doors` unos ticks y comprueba que el frame de animación cicla y `close_level3_door` restaura el fondo (pixel count).
 
-### T21 — Nivel 4: helpers A [M · 110]
+### T21 — Nivel 4: helpers A [M · 110] ✅ HECHO (PROGRESS.md §6r; incluye también `check_l4_proximity`, que tareas.md ponía en T22)
 - **ASM:** `level_objects.asm` L1897–1932 (`check_l4_thrown_collision`, `init_level4_objects`) y L2094–2149 (`erase_level4_sprite`, `randomize_l4_pos`, `calc_l4_obj_pos`).
 - **Destino:** nuevo `src/level4.c` + `include/level4.h` + `include/level45_state.h`.
 - **Datos:** `l5_obj_*` (offsets en `data_segment_labels.txt`: `l5_obj_cga_addr=0x3ea6`, `l5_obj_active=0x3eae`, `l5_obj_hit=0x3eb2`, `l5_obj_anim=0x3eb6`, `l5_obj_frame=0x3eba`, `l5_obj_save_buf=0x3ec2`, `l5_obj_dims=0x3ecc`, `l5_obj_y_pos=0x3ed4`, `l5_obj_count=0x3ed8`, `l5_anim_delay=0x3ed9`, `l5_obj_index=0x3eda`), `l4_obj_x_table=0x1137`, `l4_platform_offset=0x1050`.
 - **Notas:** `randomize_l4_pos` ↔ `calc_l4_obj_pos` ↔ `check_l4_proximity` se llaman entre sí; declarar prototipos primero.
 - **Verificar:** semilla fija; `init_level4_objects` deja los arrays en valores conocidos que se anotan en el test.
 
-### T22 — Nivel 4: helpers B y cola de `init_level4_bg` [S · ~85]
+### T22 — Nivel 4: helpers B y cola de `init_level4_bg` [S · ~85] (`check_l4_proximity` ya portada en T21)
 - **ASM:** `level_objects.asm` L2150–2197 (`check_l4_obj_cat`, `check_l4_obj_thrown`, `check_l4_proximity`) y la **cola** de `init_level4_bg` (ver L1824–1896; el tramo que siembra `dat_3ce3/3ce4/3cf3/3cf4` desde `difficulty_level`, hoy diferido como código muerto).
 - **Destino:** `src/level4.c` y `src/level_background.c`.
 - **Verificar:** colisiones con casos solapado/no solapado; tras `init_level4_bg` la tabla sembrada coincide con la lectura manual del ASM para `difficulty_level` 0 y 5.

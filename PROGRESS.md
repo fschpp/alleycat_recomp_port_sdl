@@ -14,9 +14,10 @@ graphics assets, so it is not meant to be published or redistributed.
 
 ## 0. Current focus / todo / blockers
 
-**Current focus:** `tareas.md` execution: T00, T10-T19 (§6g-§6p) and **T20** (level-3 doors, §6q)
-are done. Next up: T21 (level-4 helpers A); T01/T02 (headless harness / auto-generated pending list)
-are still open (`make test-alley` and `make test-l3doors` cover only their own pieces). The death
+**Current focus:** `tareas.md` execution: T00, T10-T20 (§6g-§6q) and **T21** (level-4 helpers A, §6r)
+are done. Next up: T22 (rest of the level-4 helpers: `check_l4_obj_cat`, `check_l4_obj_thrown` and the
+`init_level4_bg` tail; `check_l4_proximity` was already ported here because `randomize_l4_pos` needs it).
+T01/T02 are still open (`make test` now runs `test-alley`, `test-l3doors`, `test-level4`). The death
 handler (`entry.asm` lab_01b7+, T41) is still replaced in `main.c` by "re-enter the alley".
 
 - [x] `sound.asm` — full port, wired into every previously-stubbed call site (§6e)
@@ -36,6 +37,7 @@ handler (`entry.asm` lab_01b7+, T41) is still replaced in `main.c` by "re-enter 
 - [x] T18 — `init_player` (`fall_object.c`), `start_auto_walk` (`game_setup.c`), real `check_dog_collision` (`enemy.c`), wired into `apply_cat_gravity` (§6o)
 - [x] T19 — alley loop in `main.c` in `entry.asm` order (L131-180); `frame_counter`; `make test-alley` (§6p)
 - [x] T20 — `init_level3_doors`, `update_level3_doors`, `close_level3_door` in `level3_enemy.c`; `object_hit`/`cat_caught` unified (§6q)
+- [x] T21 — level-4 helpers A (`level4.c`) + shared `l5_obj_*` state (`level45_state.[ch]`); `check_rect_collision` unsigned fix (§6r)
 - [ ] T01 — full headless harness (`tests/harness.h`, `make test`); only `tests/test_alley_loop.c` exists so far
 - [ ] T41 — death handler / level selector (`entry.asm` lab_01b7+); `main.c` just re-enters the alley meanwhile
 - [ ] `ui.asm` — `window_open_state` toggling, the other half of item (h)
@@ -3344,6 +3346,56 @@ hand from the ASM. The draw/erase interplay with the bird (`erase_l3_bird`/`draw
 exercised only as calls, not pixel-compared.
 
 Suggested commit: `T20: level-3 doors; unify [0x552]/[0x553] with object_hit/cat_caught`
+
+
+## 6r. T21 level-4 helpers A (new `src/level4.c`, `src/level45_state.c`)
+
+**Ported:** `check_l4_thrown_collision`, `init_level4_objects`, `erase_level4_sprite`, `randomize_l4_pos`,
+`calc_l4_obj_pos` (level_objects.asm L1897-1932, L2094-2149) in `src/level4.c` + `include/level4.h`,
+plus **`check_l4_proximity`** (L2171-2185, listed under T22) because `randomize_l4_pos` calls it.
+The shared level-4/5 state `l5_obj_*` is declared once in `include/level45_state.h` and defined in
+`src/level45_state.c` (both added to the Makefile). Helpers that take `bx`/`si=2*bx` in the ASM take the
+object index 0..3. Not called from `main.c` yet (level loops: T42/T43).
+
+**Data (verified against `/tmp/data_segment_labels.txt` and the initial DS bytes; here tareas.md's
+offsets were right):** `l5_obj_cga_addr=0x3ea6` (word[4]), `active=0x3eae`, `hit=0x3eb2`, `anim=0x3eb6`
+(byte[4]), `frame=0x3eba` (word[4]; level 4: platform index 0..15), `save_buf=0x3ec2` (word[4] = **pointers**,
+initial 0x3de6/0x3e16/0x3e46/0x3e76, 48-byte buffers = 2 words x 12 rows; modeled as `uint8_t *l5_obj_save_buf[4]`
+into 4 static buffers), `dims=0x3ecc` (word[4] = object X), `y_pos=0x3ed4`, `count=0x3ed8`,
+`anim_delay=0x3ed9`, `index=0x3eda` (word). Tables from `ds_pool`: `l4_platform_offset=0x1050` (byte[16]),
+`l4_obj_x_table=0x1137` (word[16]). `l5_obj_frame` starts at 0 (matters: `randomize_l4_pos` compares against
+the other objects' frames, so during init the not-yet-placed objects "occupy" frame 0).
+
+**Findings:**
+- `randomize_l4_pos`: frame = `random() & 0xf` must differ from the 3 *other* objects' frames (`cmp di,si / jz`
+  skips only itself), then `calc_l4_obj_pos`; if `anim_delay != 0` and `check_l4_proximity(bp=0x32)` says
+  "closer than 0x32 to the cat" it decrements `anim_delay` (starts at 0x20) and retries — so at most 32
+  proximity retries, after which any non-duplicate frame is accepted.
+- `check_l4_proximity` uses `not` (one's complement) instead of `neg` when the subtraction borrows, so
+  a distance of 10 on the borrow side measures 9; kept literal (`dh=0`, 16-bit add, result `< bp` = CF).
+- `erase_level4_sprite` restores the background only when `l5_obj_active[idx] == 0` (`jnz` returns when active):
+  literal, not inverted.
+- `init_level4_objects`: loops `cx=4..1` (objects 3,2,1,0), `random()` order per object = the calls inside
+  `randomize_l4_pos`, then one more for `anim = (random() & 0xf) + 0x14`.
+- **Pre-existing bug fixed in `check_rect_collision` (src/level_collision.c, §5n):** the clamp
+  `a_x - b_w` used `a_x` as a signed `int16_t`; the ASM does `sub ax,di / jnc` in unsigned 16 bits. For
+  `a_x >= 0x8000` (e.g. `thrown_obj_x = 0xFFEF`) the C code reported a collision where the ASM does not.
+  One cast (`(uint16_t)a_x`). It only changes results for X values >= 0x8000, but affects every caller.
+
+**Verification:** `make` clean (`-Wall -Wextra`, 0 warnings); `make test` passes (3 tests). Beyond reading the ASM,
+the original routines (check_rect_collision, random, and the 6 routines of this task + `check_l4_proximity`)
+were assembled with `nasm` straight from the disassembly and run in a `unicorn` x86-16 emulator on the same
+inputs as the C port: **9,624 cases, 0 differences** (THROWN 3000 [747 collisions], PROX 3000 [1,396 with
+CF=1, both borrow orders, y wrap], CALC 64 [16 frames x 4 objects], RAND 2000 [224 with at least one proximity
+retry], INIT 1500 with random preset frames/seed/cat, ERASE 60). Compared: CF, all 10 `l5_*` fields, the RNG
+seed after the call (so the **number of `random()` calls** matches) and the `blit_to_cga` call arguments
+(`--wrap`). The first run showed 13 differences, all the signed-`a_x` bug above; 0 after the fix.
+`tests/test_level4.c` (committed) keeps golden values taken from the emulator (16-frame table, 3 seeded
+`init_level4_objects` runs including final seed, proximity edge cases, the 0xFFEF case, erase gating).
+The emulator harness itself (`/tmp/t21/*`) is not committed.
+**Not verified:** how these helpers behave inside the real level-4 loop (`update_level4_anim`/`state`, T23/T24).
+
+Suggested commit: `T21: level-4 helpers A + shared l5_obj state; fix unsigned a_x clamp in check_rect_collision`
 
 
 ## 7. General lesson for this whole project
