@@ -80,3 +80,44 @@ void erase_level4_sprite(void) {
     if (l5_obj_active[bx] != 0) return;
     blit_to_cga(l5_obj_save_buf[bx], l5_obj_cga_addr[bx], 2, 12);
 }
+
+/* ---- T22: helpers B ---- */
+
+bool check_l4_obj_cat(uint16_t idx) {
+    /* ax=dims[si], dl=y_pos[bx], si=0x10 | bx=cat_x, dh=cat_y, di=0x18, cx=0x0e0c */
+    return check_rect_collision((int16_t)l5_obj_dims[idx], l5_obj_y_pos[idx], 0x10, 0x0c,
+                                (uint16_t)cat_x, cat_y, 0x18, 0x0e);
+}
+
+bool check_l4_obj_thrown(uint16_t idx) {
+    /* ax=dims[si], dl=y_pos[bx], si=0x10 | bx=thrown_obj_x, dh=thrown_obj_y, di=si=0x10, cx=0x1e0c */
+    return check_rect_collision((int16_t)l5_obj_dims[idx], l5_obj_y_pos[idx], 0x10, 0x0c,
+                                (uint16_t)thrown_obj_x, thrown_obj_y, 0x10, 0x1e);
+}
+
+/* ---- T22: cola de init_level4_bg ---- */
+
+#define L4_DAT_3CC3 0x3cc3  /* 4 grupos x 8 bytes = 32 (hasta dat_3ce3) */
+
+uint8_t l4_dat_3ce3[16];    /* DS 0x3ce3: valores iniciales = 0 (verificado en /tmp/data_segment.bin) */
+uint8_t l4_dat_3cf3[16];    /* DS 0x3cf3 */
+
+void init_level4_bg_tail(void) {
+    /* mov bx,[0x8] / mov cl,3 / and bl,cl / shl bl,cl: solo bl se toca (8 bits); bh queda como el
+     * byte alto de difficulty_level (0 en la práctica). */
+    uint8_t bl = (uint8_t)(difficulty_level & 0xff);
+    bl = (uint8_t)(bl & 0x3);
+    bl = (uint8_t)(bl << 3);
+    uint16_t bx = (uint16_t)((difficulty_level & 0xff00) | bl);
+    for (uint16_t si = 0; si < 0x10; si = (uint16_t)(si + 2)) {   /* lab_403c */
+        uint8_t al = ds_pool[L4_DAT_3CC3 + bx];
+        uint8_t ah = al;
+        al = (uint8_t)(al >> 4);
+        l4_dat_3ce3[si] = al;
+        l4_dat_3cf3[si] = 0x0;
+        ah = (uint8_t)(ah & 0xf);
+        l4_dat_3ce3[si + 1] = ah;          /* dat_3ce4 = dat_3ce3 + 1 */
+        l4_dat_3cf3[si + 1] = 0x0;         /* dat_3cf4 = dat_3cf3 + 1 */
+        bx = (uint16_t)(bx + 1);
+    }
+}

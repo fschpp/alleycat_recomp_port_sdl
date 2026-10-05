@@ -24,4 +24,23 @@ void calc_l4_obj_pos(uint16_t bx);
  * |dx| + |dy| a medias (usa `not` en vez de neg, como el original) comparada con bp. Devuelve CF
  * (true si la distancia < bp). */
 bool check_l4_proximity(uint16_t bx, uint16_t bp);
+
+/* --- T22: helpers B (level_objects.asm L2150-2177) y cola de init_level4_bg (L1877-1896) --- */
+
+/* check_l4_obj_cat: objeto idx (x = l5_obj_dims[idx], y = l5_obj_y_pos[idx], 0x10 x 0x0c) vs. gato
+ * (0x18 x 0x0e). Devuelve CF. En el ASM bx = idx y si = 2*idx; se preservan ambos (push/pop). */
+bool check_l4_obj_cat(uint16_t idx);
+/* check_l4_obj_thrown: igual pero contra el objeto lanzado (thrown_obj_x/y, 0x10 x 0x1e). */
+bool check_l4_obj_thrown(uint16_t idx);
+
+/* dat_3ce3/dat_3ce4 (DS 0x3ce3, 16 bytes entrelazados: par = dat_3ce3[si], impar = dat_3ce4[si]) y
+ * dat_3cf3/dat_3cf4 (DS 0x3cf3, 16 bytes igual). Los siembra la cola de init_level4_bg; los consume
+ * update_level4_state (L1762, T24). Semántica aún sin nombrar: se dejan con el nombre del ASM. */
+extern uint8_t l4_dat_3ce3[16];
+extern uint8_t l4_dat_3cf3[16];
+
+/* Cola de init_level4_bg (L1877-1896): bx = (difficulty_level & 3) << 3 (8 bits, bh intacto) y
+ * 8 bytes de dat_3cc3[bx..bx+7]; cada byte -> nibble alto en dat_3ce3[si], nibble bajo en
+ * dat_3ce4[si] (= dat_3ce3[si+1]); dat_3cf3/dat_3cf4 = 0. */
+void init_level4_bg_tail(void);
 #endif

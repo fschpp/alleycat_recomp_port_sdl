@@ -175,7 +175,7 @@ Estado compartido de los niveles 4 y 5: **los dos usan las variables `l5_obj_*`*
 - **Notas:** `randomize_l4_pos` ↔ `calc_l4_obj_pos` ↔ `check_l4_proximity` se llaman entre sí; declarar prototipos primero.
 - **Verificar:** semilla fija; `init_level4_objects` deja los arrays en valores conocidos que se anotan en el test.
 
-### T22 — Nivel 4: helpers B y cola de `init_level4_bg` [S · ~85] (`check_l4_proximity` ya portada en T21)
+### T22 — Nivel 4: helpers B y cola de `init_level4_bg` [S · ~85] (`check_l4_proximity` ya portada en T21) ✅ HECHO (PROGRESS.md §6s; añade `l3_door_anim_frame` y las 2 asignaciones iniciales que faltaban en `init_level4_bg`)
 - **ASM:** `level_objects.asm` L2150–2197 (`check_l4_obj_cat`, `check_l4_obj_thrown`, `check_l4_proximity`) y la **cola** de `init_level4_bg` (ver L1824–1896; el tramo que siembra `dat_3ce3/3ce4/3cf3/3cf4` desde `difficulty_level`, hoy diferido como código muerto).
 - **Destino:** `src/level4.c` y `src/level_background.c`.
 - **Verificar:** colisiones con casos solapado/no solapado; tras `init_level4_bg` la tabla sembrada coincide con la lectura manual del ASM para `difficulty_level` 0 y 5.

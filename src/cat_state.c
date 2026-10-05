@@ -56,6 +56,7 @@ uint16_t buffer_size = 0;
 uint16_t alley_save_buf[128] = {0};
 uint8_t  walk_anim_frame = 0;
 uint8_t l3_platform_id = 0;
+uint8_t l3_door_anim_frame = 0;
 uint8_t jump_hit = 0;
 
 uint8_t  enemy_active = 0;

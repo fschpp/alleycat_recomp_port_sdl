@@ -104,6 +104,7 @@ extern uint8_t  walk_anim_frame;          /* 0-5 walk-cycle phase used by update
 
 /* --- newly ported for climbing/window-transition (§5m) --- */
 extern uint8_t l3_platform_id;
+extern uint8_t l3_door_anim_frame;        /* DS 0x39e1 (byte): fotograma de la animación de puerta del nivel 4 (T22, §6s) */
 extern uint8_t jump_hit;
 
 /* --- newly ported for the dog enemy system (§5o) --- */
