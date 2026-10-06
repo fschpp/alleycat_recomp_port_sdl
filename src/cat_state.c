@@ -173,3 +173,4 @@ uint16_t prev_level = 0xffff;
 uint8_t  video_mode = 0;
 uint8_t  use_joystick = 0;
 uint16_t game_timer = 0;
+uint16_t game_tick = 0;
