@@ -14,7 +14,7 @@ graphics assets, so it is not meant to be published or redistributed.
 
 ## 0. Current focus / todo / blockers
 
-**Current focus:** `tareas.md` execution: T00, T10-T44 (§6g-§6ao) and **T45** (`animate_screen_wipe` in `src/wipe.c`, §6ap) are done. Next up: T46 (`show_level_result` + `draw_result_frame`, `enemy.asm` L275-358; replaces the stub in `flow_stubs.c`; needs `love_scene_outro` from T58, keep a stub). Still stubbed and called by `level_transition`: `show_level_result` (T46), `handle_level_complete` (T47). `main.c` runs the real flow for every level (alley via `game_alley_frame()`, levels 0-7 via `game_level_frame()`).
+**Current focus:** `tareas.md` execution: T00, T10-T45 (§6g-§6ap) and **T46** (`show_level_result` + `draw_result_frame` in `src/result.c`, §6aq) are done. Next up: T47 (`handle_level_complete`, `level_objects.asm` L1100-1227; replaces the stub in `flow_stubs.c`; `run_victory_sequence` already writes `l7_completion_counter`/`l7_completion_tick` for it). Still stubbed: `handle_level_complete` (T47), `love_scene_outro` (T58, called by `show_level_result` for level 7). `main.c` runs the real flow for every level.
 T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-level4`, `test-level4-state`, `test-level5`, `test-level5-anim`, `test-level5-objects`, `test-level6`, `test-level6b`, `test-level6c`, `test-level6d`, `test-level2`, `test-level2b`, `test-level2c`, `test-level2d`, `test-level7`, `test-level7b`, `test-level7c`, `test-game-flow`, `test-game-flow-loop`).
 
 - [x] `sound.asm` — full port, wired into every previously-stubbed call site (§6e)
@@ -55,6 +55,7 @@ T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-lev
 - [x] T43 — loops of levels 4, 3, 0/1, 2 + level-2 init shared with the level-1 `level_complete` jump (`game_flow.c`); `main.c` no longer has a level stand-in (§6an)
 - [x] T44 — `level_transition` (`transition.c`), `set_palette`/`set_ega_palette`/`bios_color_select`/`palette_rgb` (`palette.c`); `video.c` now takes its colours from `palette_rgb()`; `game_hw_init` models the BIOS palette call and `out 0x3d9,0x20` (§6ao)
 - [x] T45 — `animate_screen_wipe` (`wipe.c`): blocking centred-rectangle wipe, `wipe_step_hook` for presenting; `test-wipe` (§6ap)
+- [x] T46 — `show_level_result`, `draw_result_frame` (`result.c`); `love_scene_outro` stub until T58; `test-result` (§6aq)
 - [ ] T01 — full headless harness (`tests/harness.h`, `make test`); only `tests/test_alley_loop.c` exists so far
 - [x] T41 — alley loop pass, death handler, weighted level selector (`game_flow.c`); `main.c` wired to `game_start()`/`game_alley_frame()` (§6al)
 - [ ] `ui.asm` — `window_open_state` toggling, the other half of item (h)
@@ -4167,6 +4168,19 @@ Suggested commit: `T44: level_transition, set_palette/set_ega_palette + CGA colo
 **Verification:** `make test-wipe`: step-by-step trace `(x,y,width,height,flags)` for three cat positions (centre 0xa0,0x60 -> 15 steps; bottom-left 0,0xb4 -> 25; right edge 0x128,0x5f -> 21) compared with an independent Python model written from the ASM; after the last step all 200x80 visible bytes equal the pattern; after step 1 nothing changed and after step 2 exactly the 8-byte x 24-row rectangle changed (checked with the CGA bank interleave); word order of the pattern (low byte first). Mutations that fail: `width>>2` (2 failures), `dl>8` instead of `>=8` (2), flag 2 -> flag 1 (never reaches 0xf: caught by `timeout`). `make test` all green. No emulator comparison, no SDL run.
 
 Suggested commit: `T45: animate_screen_wipe (enemy.asm L159-233) in wipe.c, wipe_step_hook, test-wipe`
+
+
+## 6aq. T46 — `show_level_result` and `draw_result_frame` (`src/result.c`; enemy.asm L275-353)
+
+**Ported literally (goto):** `level_state==7` -> `love_scene_outro` only (stub in `flow_stubs.c` until T58). Otherwise `init_result_melody`; sprite = DS 0x185b by default; if `object_hit` (`[0x552]`) != 0: sprite = `result_sprite_table[game_timer&6]` (read BEFORE `game_timer += 2`), `lives_count--` if not 0; if `object_hit==0xdd && difficulty_level!=0 && lives_count>=1` (unsigned `jb`) -> `show_extra_life` + `silence_speaker` and return with no frames. Else 28 frames (`result_frame_counter=0x1c`): `draw_result_frame`, wait until the BIOS tick changes while calling `play_result_note` (blocking spin like the original), then next mask: counter > 0x14 -> `rcr al,1` with carry set (the `rcr al,0x0` in the ASM is `,1`; `ah=al`), else `result_mask_table[counter&6]`; ends with `silence_speaker`. `[0x6]`=`level_state`, `[0x8]`=`difficulty_level`.
+
+**DS verified in `/tmp/data_segment.bin`:** `result_mask_table=0x1c1e` = `{ffff,aaaa,ffff,5555}` (4 words, to `result_sprite_table`), `result_sprite_table=0x1c26` = `{191b,19db,1a9b,1b5b}`, default sprite `0x185b` (+192 bytes = `0x191b`: five contiguous 192-byte sprites), `result_dissolve_mask=0x1c1b`, `result_frame_counter=0x1c1d`, `result_sprite_ptr=0x1c2e`, `result_last_tick=0x1830`. Sprite = 96 words = 8 words x 12 rows, blitted to CGA 0xed0 (row 94, byte 32).
+
+**Deviations:** the scratch DS:0x000e is a local buffer. Tick source = `game_tick_fn` hook or 18.2 Hz clock (same as `game_flow.c`). The spin loop calls `play_result_note` until the tick changes; with `game_tick_fn == NULL` it takes ~28 ticks (~1.5 s), as in the original.
+
+**Verification:** `make test-result` (wraps `init_result_melody`, `play_result_note`, `show_extra_life`, `silence_speaker`, `love_scene_outro`; fake tick that advances each call): 28 masks compared with an independent Python model; sprite pointer per frame; first frame on screen = sprite & 0x80 per byte, last = sprite & 0xaa; all 4 `game_timer&6` entries, `game_timer+=2`, lives 3->2 and 0 stays 0; `0xdd` branch for lives 3/2 (extra life) and 1 (-> 0, frames), difficulty 0, `0xdc`; level 7 only calls `love_scene_outro`. Mutations detected: `bx&=4`, `|0x40`, `lives<2`. One equivalent mutant (`counter>0x15`: at counter 21 shift and table both give 0xffff). `make test` all green. No emulator or SDL run.
+
+Suggested commit: `T46: show_level_result/draw_result_frame (enemy.asm L275-353) in result.c, love_scene_outro stub, test-result`
 
 
 ## 7. General lesson for this whole project

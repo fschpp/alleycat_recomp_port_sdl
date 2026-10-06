@@ -5,7 +5,7 @@
 #include "input.h"
 
 void show_title_screen(void) { /* TODO(T52): ui.asm show_title_screen */ }
-void show_level_result(void)     { /* TODO(T46): enemy.asm L275-358 */ }
+void love_scene_outro(void)     { /* TODO(T58): ui.asm L489-570 */ }
 void handle_level_complete(void) { /* TODO(T47): level_objects.asm L1100-1227 */ }
 void reset_cupid(void)       { /* TODO(T56): ui.asm reset_cupid */ }
 void update_cupid(void)      { /* TODO(T56): ui.asm update_cupid */ }
