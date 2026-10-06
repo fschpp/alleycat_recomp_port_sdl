@@ -313,7 +313,7 @@ Estado compartido de los niveles 4 y 5: **los dos usan las variables `l5_obj_*`*
 - **Notas:** la paleta CGA/EGA se traduce a una tabla de colores SDL (selección de paleta/intensidad); `int 0x10` no existe.
 - **Verificar:** test que llama `set_palette` con los valores del ASM y confirma el color resultante de los 4 índices CGA.
 
-### T45 — `animate_screen_wipe` [M · 83]
+### T45 — `animate_screen_wipe` [M · 83] ✅ HECHO (PROGRESS.md §6ap; `src/wipe.c`, bloqueante con `wipe_step_hook`; el original no espera ticks; verificado con modelo Python independiente)
 - **ASM:** `enemy.asm` L159–241.
 - **Destino:** `src/game_flow.c`.
 - **Notas:** llama `calc_cga_addr`, `play_wipe_note` y `wipe_sound_start` (esta última es un `ret` vacío, ver §6e). El wipe es una animación de duración fija: puede ser bloqueante (cutscene) o convertirse en estado por frame; documentar la elección.

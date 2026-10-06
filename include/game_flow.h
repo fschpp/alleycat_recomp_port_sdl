@@ -70,11 +70,13 @@ void read_pit_counter(void);
 /* --- Pendientes de otras tareas: stubs en src/flow_stubs.c. Cada uno se
  * borra de ahi cuando su tarea lo porte de verdad. --- */
 void show_title_screen(void);    /* TODO(T52): ui.asm L55-163 */
-void animate_screen_wipe(void);  /* TODO(T45): enemy.asm L159-241 (lee wipe_fill_pattern) */
 void show_level_result(void);    /* TODO(T46): enemy.asm L275-358 */
 void handle_level_complete(void);/* TODO(T47): level_objects.asm L1100-1227 */
 /* level_transition (T44, src/transition.c): enemy.asm L110-158; set_palette esta en palette.h. */
 void level_transition(void);
+/* animate_screen_wipe (T45, src/wipe.c): enemy.asm L159-233; bloqueante, lee wipe_fill_pattern. */
+void animate_screen_wipe(void);
+extern void (*wipe_step_hook)(void);   /* llamado tras cada paso del barrido (NULL = nada) */
 void reset_cupid(void);          /* TODO(T56): ui.asm L571-: init del estado del cupido (nivel 7) */
 void update_cupid(void);         /* TODO(T56): ui.asm update_cupid */
 void show_attract_mode(void);    /* TODO(T54): ui.asm L307-382 (fija use_joystick y difficulty_counter) */

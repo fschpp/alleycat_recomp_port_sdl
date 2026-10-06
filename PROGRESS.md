@@ -14,7 +14,7 @@ graphics assets, so it is not meant to be published or redistributed.
 
 ## 0. Current focus / todo / blockers
 
-**Current focus:** `tareas.md` execution: T00, T10-T43 (§6g-§6an) and **T44** (`level_transition` in `src/transition.c`, `set_palette`/`set_ega_palette` + CGA colour-select model in `src/palette.c`, §6ao) are done. Next up: T45 (`animate_screen_wipe`, `enemy.asm` L159-241; replaces the stub in `flow_stubs.c`; it reads `wipe_fill_pattern`). Still stubbed and called by `level_transition`: `animate_screen_wipe` (T45), `show_level_result` (T46), `handle_level_complete` (T47). `main.c` runs the real flow for every level (alley via `game_alley_frame()`, levels 0-7 via `game_level_frame()`).
+**Current focus:** `tareas.md` execution: T00, T10-T44 (§6g-§6ao) and **T45** (`animate_screen_wipe` in `src/wipe.c`, §6ap) are done. Next up: T46 (`show_level_result` + `draw_result_frame`, `enemy.asm` L275-358; replaces the stub in `flow_stubs.c`; needs `love_scene_outro` from T58, keep a stub). Still stubbed and called by `level_transition`: `show_level_result` (T46), `handle_level_complete` (T47). `main.c` runs the real flow for every level (alley via `game_alley_frame()`, levels 0-7 via `game_level_frame()`).
 T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-level4`, `test-level4-state`, `test-level5`, `test-level5-anim`, `test-level5-objects`, `test-level6`, `test-level6b`, `test-level6c`, `test-level6d`, `test-level2`, `test-level2b`, `test-level2c`, `test-level2d`, `test-level7`, `test-level7b`, `test-level7c`, `test-game-flow`, `test-game-flow-loop`).
 
 - [x] `sound.asm` — full port, wired into every previously-stubbed call site (§6e)
@@ -54,6 +54,7 @@ T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-lev
 - [x] T42 — level dispatch (lab_0238) + loops of levels 7/6/5 + exit handler lab_0427 (`game_flow.c`); stubs `level_transition`/`reset_cupid`/`update_cupid` in `flow_stubs.c`; `level_state` in `cat_state` (§6am)
 - [x] T43 — loops of levels 4, 3, 0/1, 2 + level-2 init shared with the level-1 `level_complete` jump (`game_flow.c`); `main.c` no longer has a level stand-in (§6an)
 - [x] T44 — `level_transition` (`transition.c`), `set_palette`/`set_ega_palette`/`bios_color_select`/`palette_rgb` (`palette.c`); `video.c` now takes its colours from `palette_rgb()`; `game_hw_init` models the BIOS palette call and `out 0x3d9,0x20` (§6ao)
+- [x] T45 — `animate_screen_wipe` (`wipe.c`): blocking centred-rectangle wipe, `wipe_step_hook` for presenting; `test-wipe` (§6ap)
 - [ ] T01 — full headless harness (`tests/harness.h`, `make test`); only `tests/test_alley_loop.c` exists so far
 - [x] T41 — alley loop pass, death handler, weighted level selector (`game_flow.c`); `main.c` wired to `game_start()`/`game_alley_frame()` (§6al)
 - [ ] `ui.asm` — `window_open_state` toggling, the other half of item (h)
@@ -4151,6 +4152,21 @@ Suggested commit: `T43: loops of levels 4/3/0-1/2 in game_level_enter/game_level
 **Verification:** `make test-palette`: AH=0Bh semantics, `set_palette` for levels 0-7 (port value 0x20/0x00 from the hand-copied table, dirty state in), colours of both palettes at low/high intensity, PCjr registers 1-3 per level without touching the others. `make test-transition`: hand-written call traces for entering levels 1-7 (wipe patterns 0 then 0xaaaa, or 0x5555 for 2 and 7), leaving to the alley with/without `cat_caught`, from level 7 with/without completion (cat to 0x98,0x5f), from 2, and the odd 7/5 state. `test_game_flow` now also checks `cga_color_select` after entry (0x20 non-PCjr; PCjr only BH=1,BL=1). Mutations that fail: pattern rule `!= 3` instead of `!= 2` (2 fails), BIOS mask 0xf0/0x0f (19), table index x2 (4). `make test` all green. Not done: running the SDL build (no libsdl2-dev), comparing the on-screen colours against a real CGA capture.
 
 Suggested commit: `T44: level_transition, set_palette/set_ega_palette + CGA colour-select model, video.c palette from palette_rgb, tests`
+
+
+## 6ap. T45 — `animate_screen_wipe` (`src/wipe.c`; enemy.asm L159-233)
+
+**Ported literally (goto, `lab_1c8c/1ca0/1cca/1cd6/1cf4/1d0b/1d17`):** rectangle starts at `x=(cat_x+0xc)&0xfff0`, `y=cat_y+8` (8-bit wrap), `width=1`, `height=8`, `edge_flags=0`. Each step: `play_wipe_note`, fill `height` rows with `wipe_fill_pattern` (`rep stosw`, `width>>3` words per row; the three `shr cx,0x0` in the ASM are `shr cx,1`), then grow: `width+=0x20`, `height+=0x10`, `x-=0x10` (borrow -> `x=0`, flag 1), `x+width>=0x140` -> `width=0x140-x` (flag 2), `y-=8` (borrow -> `y=0`, flag 4), `height+y` carries or `>=0xc8` -> `height=0xc8-y` (flag 8). Ends after drawing the step whose flags are already `0xf`. The first step has `width=1` -> 0 words: draws nothing. `wipe_sound_start` is the bare `ret` (§6e).
+
+**DS state:** `wipe_rect_x=0x1832`, `wipe_rect_y=0x1834`, `wipe_width=0x1835`, `wipe_height=0x1837`, `wipe_edge_flags=0x1838` (all verified in `/tmp/data_segment_labels.txt`); `wipe_fill_pattern=0x1839` already lived in `transition.c`. They are plain globals in `wipe.c` (only this routine uses them).
+
+**Decision — blocking, with a hook:** the original never waits for a tick (only `play_wipe_note` per step; the XT's fill speed is the delay), and it is a fixed-duration, input-free effect, so it stays blocking like the other one-shot cutscenes. Because `main.c` only calls `video_present()` between loop passes, `wipe_step_hook` (NULL by default; declared in `game_flow.h`) is called after each step; `main.c` sets it to `SDL_PumpEvents + video_present + SDL_Delay(25)`. Without the hook the wipe is instantaneous (tests). The SDL path is not compiled here (no libsdl2-dev).
+
+**Deviation:** writes beyond `cga_mem` (original: `di` past `B800:3FFF` if `y+height>200`) are discarded; it can't happen with the clamp in `lab_1d17` as long as `cat_y+8+8<=200`. The original does not check it either.
+
+**Verification:** `make test-wipe`: step-by-step trace `(x,y,width,height,flags)` for three cat positions (centre 0xa0,0x60 -> 15 steps; bottom-left 0,0xb4 -> 25; right edge 0x128,0x5f -> 21) compared with an independent Python model written from the ASM; after the last step all 200x80 visible bytes equal the pattern; after step 1 nothing changed and after step 2 exactly the 8-byte x 24-row rectangle changed (checked with the CGA bank interleave); word order of the pattern (low byte first). Mutations that fail: `width>>2` (2 failures), `dl>8` instead of `>=8` (2), flag 2 -> flag 1 (never reaches 0xf: caught by `timeout`). `make test` all green. No emulator comparison, no SDL run.
+
+Suggested commit: `T45: animate_screen_wipe (enemy.asm L159-233) in wipe.c, wipe_step_hook, test-wipe`
 
 
 ## 7. General lesson for this whole project
