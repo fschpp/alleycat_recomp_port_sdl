@@ -15,6 +15,7 @@
 /* --- per-frame drivers (called from the main loop) --- */
 void play_sound(void);          /* entry.asm calls this once per frame */
 void play_music_note(void);     /* title-screen music, ui.asm */
+void title_music_restart(uint16_t tick);   /* title_music_tick = tick, title_music_pos = 0 (ui.asm lab_5d54) */
 void init_music(void);
 void init_chase_sound(void);
 

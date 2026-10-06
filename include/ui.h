@@ -32,4 +32,14 @@ void display_text_line(void);
 /* clear_cga: pone a 0 los dos bancos de la CGA (0xfa0 words cada uno, desde 0 y desde 0x2000). */
 void clear_cga(void);
 
+
+/* --- T52/T53: pantalla de titulo (ui.asm L55-163 y L164-236). PROGRESS.md §6aw. --- */
+/* show_title_screen: dibuja la pantalla, y bloquea (como el original) hasta una tecla/boton o hasta el timeout hacia
+ * el modo demo. Gira llamando a ui_wait_hook (main.c presenta y bombea SDL) en cada vuelta. */
+void show_title_screen(void);
+/* move_title_cat: rebota el gato entre x=0x20 y 0x120 con cambios de direccion aleatorios y avanza su animacion. */
+void move_title_cat(void);
+/* animate_title_icon: alterna los 2 frames del icono del titulo (attract_icon_ptrs). */
+void animate_title_icon(void);
+
 #endif

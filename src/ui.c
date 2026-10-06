@@ -7,6 +7,16 @@
 #include "cga.h"
 #include "bios_text.h"
 #include "gen/ds_pool.h"
+#include "game_flow.h"
+#include "score.h"
+#include "sound.h"
+#include "input.h"
+#include "alley_drawing.h"
+#include "alley_movement.h"
+#include "cycle_objects.h"
+#include "fall_object.h"
+#include "game_setup.h"
+#include "enemy.h"
 
 uint16_t keyboard_counter;                 /* DS 0x0693 */
 uint16_t title_joy_offset;                 /* DS 0x6d8f */
@@ -73,4 +83,124 @@ void display_text_line(void) {
 void clear_cga(void) {
     memset(&cga_mem[0], 0, 0xfa0 * 2);
     memset(&cga_mem[0x2000], 0, 0xfa0 * 2);
+}
+
+/* ================= T52/T53: pantalla de titulo ================= */
+static uint16_t attract_anim_idx;      /* DS 0x6a8d */
+static uint8_t  attract_key_pressed;   /* DS 0x6a8a */
+static uint16_t attract_save_int;      /* DS 0x6150 */
+static uint16_t attract_last_tick;     /* DS 0x6a8b */
+static uint16_t attract_frame_tick;    /* DS 0x6a93 */
+static uint16_t attract_start_tick;    /* DS 0x6a88 */
+
+#define DS_ATTRACT_ICON_PTRS 0x6a8f    /* 2 words: frames del icono */
+#define DS_ATTRACT_TIMING    0x56da    /* word: ticks hasta el modo demo (0x34e) */
+#define CGA_TITLE_ICON       0x1d38     /* dat_1d38 */
+
+/* animate_title_icon (L221-231): attract_anim_idx += 2; frame = word [(idx & 2) + attract_icon_ptrs]; blit 10 words x
+ * 12 filas a dat_1d38. */
+void animate_title_icon(void) {
+    attract_anim_idx = (uint16_t)(attract_anim_idx + 0x2);
+    uint16_t bx = (uint16_t)(attract_anim_idx & 0x2);
+    uint16_t si = ui_ds_word((uint16_t)(bx + DS_ATTRACT_ICON_PTRS));
+    blit_to_cga(&ds_pool[si], CGA_TITLE_ICON, 0x0a, 0x0c);   /* mov cx,0xc0a */
+}
+
+/* move_title_cat (L164-197). check_vsync se toma como "en retrace" (ZF=0): el `jz lab_5e2a` no salta y la animacion
+ * avanza en cada llamada; el ritmo lo marca el bucle del titulo (un paso por vuelta de ui_wait_hook). */
+void move_title_cat(void) {
+    uint16_t dx, ax;
+    if ((uint16_t)cat_x > 0x20) goto lab_5de2;             /* cmp word [cat_x],0x20 / ja */
+    input_horizontal = 0x1;
+    goto lab_5e1c;
+lab_5de2:
+    if ((uint16_t)cat_x < 0x120) goto lab_5df1;            /* cmp word [cat_x],0x120 / jc */
+    input_horizontal = (int8_t)0xff;
+    goto lab_5e1c;
+lab_5df1:
+    dx = score_tick();                                     /* sub ah,ah / int 0x1a */
+    ax = (uint16_t)(dx - attract_start_tick);
+    if (ax < 0x12) goto lab_5e1c;                          /* cmp ax,0x12 / jc */
+    attract_start_tick = dx;
+    dx = cga_random();                                     /* call random (dx) */
+    input_horizontal = 0x0;
+    if ((uint8_t)dx > 0xa0) goto lab_5e1c;                 /* cmp dl,0xa0 / ja */
+    {
+        uint8_t dl = (uint8_t)(dx & 0x1);
+        if (dl == 0) dl = 0xff;                            /* jnz / mov dl,0xff */
+        input_horizontal = (int8_t)dl;
+    }
+lab_5e1c:
+    scroll_speed = 0x4;                                    /* check_vsync != 0 */
+    update_alley_movement();                               /* update_animation (auditoria T70-T73) */
+}
+
+/* show_title_screen (L55-156). Bloqueante como el original; ui_wait_hook presenta/bombea en cada vuelta. */
+void show_title_screen(void) {
+    uint16_t dx, ax;
+    level_number = 0x0;
+    init_player();
+    init_cycle_objects();                                  /* init_objects */
+    draw_alley_scene();
+    blit_to_cga(&ds_pool[0x6152], 0x00bd, 0x0b, 0x1d);     /* mov cx,0x1d0b: alto 0x1d, ancho 0x0b words */
+    blit_to_cga(&ds_pool[0x63d0], 0x069e, 0x0e, 0x16);
+    blit_to_cga(&ds_pool[0x6638], 0x0a78, 0x03, 0x0c);
+    blit_to_cga(&ds_pool[0x6680], 0x0ca8, 0x0e, 0x08);
+    blit_to_cga(&ds_pool[0x6760], 0x1d6e, 0x0c, 0x0b);     /* dat_1d6e */
+    blit_to_cga(&ds_pool[0x6868], 0x1dec, 0x04, 0x08);     /* dat_1dec */
+    attract_anim_idx = 0x0;
+    animate_title_icon();
+    cat_x = 0x0;
+    setup_alley();
+    cat_y = 0x60;
+    cat_y_bottom = 0x92;
+    draw_high_score_display();                             /* draw_score (nombres cruzados, §5v) */
+    draw_current_score();                                  /* draw_high_score */
+    lives_count = 0x9;
+    lives_display = 0xff;
+    draw_lives();
+    init_sound();
+    input_horizontal = 0x0;
+    input_vertical = 0x0;
+    attract_key_pressed = 0x0;
+    attract_save_int = keyboard_counter;
+lab_5d54:
+    dx = score_tick();                                     /* sub ah,ah / int 0x1a */
+    attract_last_tick = dx;
+    title_music_restart(dx);                               /* title_music_tick = dx / title_music_pos = 0 */
+    attract_frame_tick = dx;
+    attract_start_tick = (uint16_t)(dx - 0x30);
+lab_5d71:
+    if (ui_wait_hook) ui_wait_hook();                      /* port: presentar y bombear SDL (el original gira sin pausa) */
+    dx = score_tick();
+    ax = (uint16_t)(dx - attract_frame_tick);
+    if (ax < 0x24) goto lab_5d89;                          /* cmp ax,0x24 / jc */
+    attract_frame_tick = dx;
+    animate_title_icon();
+lab_5d89:
+    dx = (uint16_t)(dx - attract_last_tick);
+    ax = ui_ds_word(DS_ATTRACT_TIMING);                    /* mov ax,[attract_timing] */
+    if (attract_shown == 0x0) goto lab_5da0;               /* cmp byte [0x41a],0 / jz */
+    ax = (uint16_t)(ax + 0x48);
+    if (dx >= ax) goto lab_5d54;                           /* cmp dx,ax / jnc: reinicia el ciclo del titulo */
+    goto lab_5da7;
+lab_5da0:
+    ax = (uint16_t)(ax + 0x6);
+    if (dx > ax) goto lab_5dd3;                            /* ja: timeout -> modo demo */
+lab_5da7:
+    play_music_note();
+    move_title_cat();
+    if (use_joystick == 0x0) goto lab_5dca;
+    {
+        uint8_t al = joy_port_fn ? joy_port_fn() : 0xff;   /* mov dx,0x201 / in al,dx */
+        if ((al & 0x10) == 0) goto lab_5dc3;               /* and al,0x10 / jz */
+    }
+    attract_key_pressed = 0x1;                             /* boton suelto: ya se puede aceptar una pulsacion */
+    goto lab_5dca;
+lab_5dc3:
+    if (attract_key_pressed != 0x0) goto lab_5dd3;
+lab_5dca:
+    if (attract_save_int == keyboard_counter) goto lab_5d71;   /* sin tecla nueva: otra vuelta */
+lab_5dd3:
+    return;
 }
