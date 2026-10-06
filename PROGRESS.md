@@ -14,7 +14,7 @@ graphics assets, so it is not meant to be published or redistributed.
 
 ## 0. Current focus / todo / blockers
 
-**Current focus:** `tareas.md` execution: T00, T10-T45 (§6g-§6ap) and **T46** (`show_level_result` + `draw_result_frame` in `src/result.c`, §6aq) **T47** (`handle_level_complete` in `src/score.c`, §6ar) **T48** (bonus text/flash/mask + BIOS text model and font, §6as) and **T49** (`animate_score_bar`, `binary_to_bcd` in `src/score_bar.c`, §6at) are done: the bonus bar is fully real now. Next up: T50 (text helpers; reuse `bios_text.c`/`font8x8.c`). Still stubbed: `love_scene_outro` (T58, called by `show_level_result` for level 7). `main.c` runs the real flow for every level.
+**Current focus:** `tareas.md` execution: T00, T10-T45 (§6g-§6ap) and **T46** (`show_level_result` + `draw_result_frame` in `src/result.c`, §6aq) **T47** (`handle_level_complete` in `src/score.c`, §6ar) **T48** (bonus text/flash/mask + BIOS text model and font, §6as) and **T49** (`animate_score_bar`, `binary_to_bcd` in `src/score_bar.c`, §6at) are done: the bonus bar is fully real now. **T50** (`src/ui.c`: `print_string`, `set_cursor`, `wait_for_input`, `display_text_line`, `clear_cga`, §6au) is done too. Next up: T51 (hardware/startup, `check_special_keys`). Still stubbed: `love_scene_outro` (T58, called by `show_level_result` for level 7). `main.c` runs the real flow for every level.
 T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-level4`, `test-level4-state`, `test-level5`, `test-level5-anim`, `test-level5-objects`, `test-level6`, `test-level6b`, `test-level6c`, `test-level6d`, `test-level2`, `test-level2b`, `test-level2c`, `test-level2d`, `test-level7`, `test-level7b`, `test-level7c`, `test-game-flow`, `test-game-flow-loop`).
 
 - [x] `sound.asm` — full port, wired into every previously-stubbed call site (§6e)
@@ -59,6 +59,7 @@ T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-lev
 - [x] T47 — `handle_level_complete` (`score.c`): bonus from the BIOS tick, BCD add, blink loop; `save_score_regions` real; `[0x412]` is one variable (`start_tick`); `test-level-complete` (§6ar)
 - [x] T48 — `mask_score_tiles`, `print_bonus_score`, `print_level7_bonus`, `flash_score_color` (`score_bar.c`); `bios_text.c` + `font8x8.c` (§6as)
 - [x] T49 — `animate_score_bar`, `binary_to_bcd` (`score_bar.c`); stubs removed from `flow_stubs.c`; `test-score-bar-b` (§6at)
+- [x] T50 — `print_string`, `set_cursor`, `wait_for_input`, `display_text_line`, `clear_cga` (`ui.c`, `ui.h`); `ui_wait_hook` wired in `main.c`; `test-ui-text` (§6au)
 - [ ] T01 — full headless harness (`tests/harness.h`, `make test`); only `tests/test_alley_loop.c` exists so far
 - [x] T41 — alley loop pass, death handler, weighted level selector (`game_flow.c`); `main.c` wired to `game_start()`/`game_alley_frame()` (§6al)
 - [ ] `ui.asm` — `window_open_state` toggling, the other half of item (h)
@@ -4232,6 +4233,19 @@ Suggested commit: `T48: mask_score_tiles, print_bonus_score, print_level7_bonus,
 **Verification:** `make test-score-bar-b` (no SDL; wraps `play_melody_step`/`silence_speaker`): `binary_to_bcd` for 0, 1, 9, 10, 99, 100, 255, 4096, 8191, 0x2000, 0xffff, 12345 against a direct BCD computation (masked to 13 bits) plus a sweep of all values < 8192 in steps of 37; byte 7 stays 0. `animate_score_bar`: positions drawn for limit 0x1000 (0x1b80 down to 0x1180 and not below), single position for limit 0x1b80, 12 positions for limit 0 (down to offset 0), no write beyond 5 bytes per row, melody variant: one step and a 2-tick wait per position (tick counter crossing 0xffff), one `silence_speaker` per call. `make test` all green (26 OK). Not verified against an emulator; no SDL run (no `libsdl2-dev` in the sandbox).
 
 Suggested commit: `T49: animate_score_bar, binary_to_bcd (level_objects.asm L1317-1367) en score_bar.c; quita stubs; test-score-bar-b`
+
+
+## 6au. T50 — text helpers and blocking waits (`src/ui.c`, `include/ui.h`; ui.asm L199-214, L233-242, L379-429)
+
+**Ported literally (goto):** `print_string` (lodsb until 0, teletype colour 2, returns SI past the terminator), `set_cursor(dh)` (cursor to (dh, 0)), `wait_for_input` (joystick: repeat `in 0x201` until bit 4 is 0; keyboard: wait for `keyboard_counter` to change), `display_text_line` (cursor row = high byte of `attract_icon_sprite_b[title_joy_offset]`, string = `attract_icon_sprite_a[...]`, offset += 2 between the two reads), `clear_cga` (2 x 0xfa0 words at 0 and 0x2000).
+
+**New state / hooks (not in the ASM as C):** `keyboard_counter` (DS 0x693; the original's INT 9 handler increments it, here `main.c` does it on `SDL_KEYDOWN` without repeat), `title_joy_offset` (DS 0x6d8f), `joy_port_fn` (stand-in for `in al,0x201`; NULL = no joystick, bit 4 reads 1) and `ui_wait_hook` (called on every spin of `wait_for_input`; `main.c` pumps SDL, presents and delays 10 ms so the window does not freeze; SDL_QUIT exits cleanly).
+
+**Findings:** the two text tables (`attract_icon_sprite_a/b`, mis-named in the disassembly: they are string pointers and cursor words, 22 entries each) store the row in the HIGH byte of each cursor word and the column in the low byte (always 0, and `set_cursor` forces 0 anyway). One line of the table is exactly 40 characters ("   Esc     puts the game into paws mode."): the BIOS cursor wraps to the next row, which `bios_text.c` models. `tareas.md` suggested a new embedded font and `blit_to_cga`; T48 already added `font8x8.c` and the BIOS text model, which are reused.
+
+**Verification:** `make test-ui-text` (no SDL): `print_string` against the font cell by cell (colour 2, neighbours untouched, return pointer, final cursor, empty string); `set_cursor`; `wait_for_input` by keyboard (counter wrapping 0xffff -> 0, returns on the 5th spin) and by joystick (returns when the button bit goes low, 4 reads); `display_text_line` for all 22 real table entries (row, text, offset += 2, cursor incl. the 40-column wrap); `clear_cga` zeroes both banks and leaves bytes 8000.. untouched. `make test` all green. **`main.c` (ui_wait_pump) was not compiled or run: no `libsdl2-dev` in the sandbox**; it uses only `SDL_PollEvent`, `SDL_Delay`, `video_present` and `exit`, like the existing loop.
+
+Suggested commit: `T50: print_string, set_cursor, wait_for_input, display_text_line, clear_cga (ui.asm) en ui.c; ui_wait_hook en main.c; test-ui-text`
 
 
 ## 7. General lesson for this whole project
