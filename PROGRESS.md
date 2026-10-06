@@ -14,8 +14,8 @@ graphics assets, so it is not meant to be published or redistributed.
 
 ## 0. Current focus / todo / blockers
 
-**Current focus:** `tareas.md` execution: T00, T10-T37 (§6g-§6ah) and **T38** (level 7: `tick_level_thrown_objects`, §6ai) are done. Next up: T39 (`draw_love_scene_bg`, `draw_bg_tile`). Still pending for level 7: whatever fills `l7_obj_spawn_slot` initially (the DS image has 0, so the first tick must see a valid slot; look at the level-7 init, T42/T75).
-T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-level4`, `test-level4-state`, `test-level5`, `test-level5-anim`, `test-level5-objects`, `test-level6`, `test-level6b`, `test-level6c`, `test-level6d`, `test-level2`, `test-level2b`, `test-level2c`, `test-level2d`, `test-level7`, `test-level7b`). The death
+**Current focus:** `tareas.md` execution: T00, T10-T38 (§6g-§6ai) and **T39** (level-7 background `draw_love_scene_bg`/`draw_bg_tile`, §6aj) are done. Next up: T40 (`entry.asm` part 1). `draw_love_scene_bg` now leaves `l7_obj_spawn_slot=0xffff`, so the level-7 spawn/tick state is initialised by the background draw itself.
+T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-level4`, `test-level4-state`, `test-level5`, `test-level5-anim`, `test-level5-objects`, `test-level6`, `test-level6b`, `test-level6c`, `test-level6d`, `test-level2`, `test-level2b`, `test-level2c`, `test-level2d`, `test-level7`, `test-level7b`, `test-level7c`). The death
 handler (`entry.asm` lab_01b7+, T41) is still replaced in `main.c` by "re-enter the alley".
 
 - [x] `sound.asm` — full port, wired into every previously-stubbed call site (§6e)
@@ -50,6 +50,7 @@ handler (`entry.asm` lab_01b7+, T41) is still replaced in `main.c` by "re-enter 
 - [x] T36 — `animate_level2_blocks`, `update_entrance_anim` (`level2.c`); **fix** of `draw_level2_background` (2 bytes per block, records `l2_block_types`) (§6ag)
 - [x] T37 — `spawn_thrown_object` (`level7_epilogue.c`): level-7 heart drop from the window row nearest to `cat_y`; `l7_obj_*` state now public (§6ah)
 - [x] T38 — `tick_level_thrown_objects` (`level7_epilogue.c`): once per BIOS tick, the cat picks up the level-7 hearts it touches; frees the slot for `spawn_thrown_object` (§6ai)
+- [x] T39 — `draw_love_scene_bg`, `draw_bg_tile` (`level_background.c`); hooked into `draw_level_background` for level 7 (§6aj)
 - [ ] T01 — full headless harness (`tests/harness.h`, `make test`); only `tests/test_alley_loop.c` exists so far
 - [ ] T41 — death handler / level selector (`entry.asm` lab_01b7+); `main.c` just re-enters the alley meanwhile
 - [ ] `ui.asm` — `window_open_state` toggling, the other half of item (h)
@@ -4030,6 +4031,24 @@ Literal port (`lab_2f71`…`lab_2ffb`, with `goto`). Not wired into `main.c` yet
 **Verification (`make test-level7b`, `tests/test_level7b.c`):** independent model from the ASM (own AABB, banked CGA screen model, `--wrap` event log, fake BIOS clock): same-tick no-op; pending spawn; dx/dy boundary sweep; 30000 random configurations (20802 pickups, 886 ignored by `last_picked`, 2256 no-contact) comparing active mask, `spawn_slot`, `last_picked`, events RESTORE→FG→TONE(0x3e8,0x349) and the CGA contents; and a full cycle pickup → `spawn_thrown_object` refills the same slot → not re-picked while on top → re-armed after moving away → picked again. Mutations (swapped heights, no `last_picked` guard) both fail. `make test` all green.
 
 Suggested commit: `T38: tick_level_thrown_objects (level 7 heart pickup) + l7_tick_fn hook, test-level7b`
+
+
+## 6aj. T39 — `draw_love_scene_bg` and `draw_bg_tile` (`src/level_background.c`, `include/level_background.h`; level_objects.asm L209-299)
+
+Literal port (`lab_3022`…`lab_30b8`, with `goto`); the level-7 branch of `draw_level_background` now calls it (it was a no-op). The draw variables `l7_obj_draw_x/y/row_index` (DS 0x2e88/0x2e8a/0x2e8b) are only used here, so they are locals.
+
+**DS data verified (`grep -w` + `/tmp/data_segment.bin`):** `l7_bg_block_list`=0x2e24 (dims 0x1808 = 8 bytes x 24 rows), `l7_bg_tile_ptrs`=0x2e20, `window_row_col_offset`=0x2bdb = {0,18,36,54,72,90,108}, `window_open_state`=0x2be2 (7x18), `l7_obj_init_x_table`=0x2b4a = {0x60,0xc8,0x40,0xe8,0x20,0x108,0x80,0xa8}, `l7_obj_sprite`=0x2af0.
+
+**Traps handled:**
+- `l7_bg_tile_ptrs` only has **2 useful words** ({0x2de0, 0x2e00}); the next words (0x1808, 0x2c60) are already the start of `l7_bg_block_list` at 0x2e24. It works because `bl = random & 2` is only ever 0 or 2.
+- Row 0 (y=0xbf) always uses tile 0 **without calling `random`**; the other 6 rows call it once per tile (6 x 15 = 90 calls; the test compares the final `rng_seed` to count them).
+- Grid: y = 0xbf, 0xa7, …, 0x2f (loop continues while `y >= 0x2f`, `jnb`) = 7 rows; x = 0x20..0x110 step 0x10 (`jb 0x111`) = 15 columns. `window_open_state[row*18 + col] = bl`, `col = max(0, (x>>4)-2)` (so 0..14; the 0x11 cap is never reached).
+- Hearts: `l7_completion_counter` ([0x414]) = number of hearts (0 → stored as 1; > 8 → 8, but the stored value is **not** clamped), placed from slot cx-1 down to 0 at y=0xb0, x from the init table. It also sets `l7_obj_spawn_slot = l7_obj_last_picked = 0xffff` and clears the 8 `l7_obj_active`. This answers the open question from §6ai about who initialises `spawn_slot`.
+- `shl bl,0x0` = `SHL BL,1` (word index), as in T37/T38.
+
+**Verification:** `make test-level7c` (`tests/test_level7c.c`): independent model (own LFSR, banked CGA model, block list read from the DS, grid, heart placement) over 12 seeds x 10 counters (0,1,2,3,5,7,8,9,20,0xffff) + the dispatch via `draw_level_background` with `level_number==7` + `draw_bg_tile` alone: whole CGA memory, `window_open_state`, `rng_seed`, `l7_obj_*` and the counter. Mutations (`y > 0x2f`, random also on row 0) both fail. Rendered to PNG (CGA palette 1): cupid border, 7 window rows, 5 hearts on the bottom row, 30758 non-black pixels (counter=5, seed 0xFA59). `make test` all green.
+
+Suggested commit: `T39: draw_love_scene_bg + draw_bg_tile (level 7 background), hook into draw_level_background, test-level7c`
 
 
 ## 7. General lesson for this whole project

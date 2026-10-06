@@ -3,6 +3,7 @@
 #include "level_background.h"
 #include "level4.h"
 #include "level2.h"
+#include "level7_epilogue.h"
 #include "gen/ds_pool.h"
 #include <stdint.h>
 #include <string.h>
@@ -286,9 +287,87 @@ static void init_level4_bg(void) {
     init_level4_bg_tail();                      /* L1877-1896 (T22) */
 }
 
+/* --- Level 7 ("love scene") background, T39 — level_objects.asm L209-299 ---
+ * DS (grep -w en /tmp/data_segment_labels.txt): l7_bg_block_list=0x2e24 (dims 0x1808 = 8 bytes x 24 filas), l7_bg_tile_ptrs=0x2e20 (el
+ * desensamblador etiqueta solo 2 words utiles: {0x2de0, 0x2e00}; lo que sigue desde 0x2e24 ya es el block list, por eso el indice
+ * `bl = rand & 2` solo vale 0 o 2), window_row_col_offset=0x2bdb ({0,18,...,108}), window_open_state=0x2be2 (7 filas x 18),
+ * l7_obj_init_x_table=0x2b4a, l7_obj_sprite=0x2af0 (3 words x 15 filas). */
+#define L7_BG_BLOCK_LIST      0x2e24
+#define L7_BG_TILE_PTRS       0x2e20
+#define WINDOW_ROW_COL_OFFSET 0x2bdb
+#define L7_OBJ_INIT_X_TABLE   0x2b4a
+#define L7_OBJ_SPRITE_OFS     0x2af0
+
+/* draw_bg_tile (L289-299): tile de 2 words x 8 filas en (x=cx, y=dl); `bx` es el offset en bytes dentro de l7_bg_tile_ptrs (0 o 2).
+ * mov cx,0x802 / blit_to_cga: ancho 2 words, alto 8. */
+void draw_bg_tile(uint16_t x, uint8_t y, uint16_t bx) {
+    uint16_t src = (uint16_t)(ds_pool[L7_BG_TILE_PTRS + bx] | (ds_pool[L7_BG_TILE_PTRS + bx + 1] << 8));
+    blit_to_cga(&ds_pool[src], calc_cga_addr(y, x, NULL), 2, 8);
+}
+
+/* draw_love_scene_bg (L209-288) — literal, con goto. Las variables l7_obj_draw_x/_y/row_index (DS 0x2e88/0x2e8a/0x2e8b) solo las usa
+ * esta rutina, asi que son locales aqui.
+ *  - 7 filas (y = 0xbf, 0xa7, ..., 0x2f; el bucle sigue mientras y >= 0x2f) x 15 columnas (x = 0x20..0x110 de a 0x10, `jb 0x111`).
+ *  - La fila 0 (y=0xbf) usa siempre el tile 0 (bx=0, sin llamar a random); las demas llaman a random: bl = dl & 2.
+ *  - window_open_state[row*18 + col] = bl, con col = max(0, (x>>4) - 2) y tope 0x11 (el tope nunca se alcanza: col <= 14).
+ *  - Despues deja spawn_slot=last_picked=0xffff, apaga los 8 l7_obj_active y coloca l7_completion_counter corazones (min 1, max 8;
+ *    si el contador era 0 lo deja en 1) en y=0xb0, x = l7_obj_init_x_table[slot], del slot cx-1 hacia el 0.
+ *  - `shl bl,0x0` = SHL BL,1 (indice de word). */
+void draw_love_scene_bg(void) {
+    uint16_t draw_x, row_index, bx, ax, cx;
+    uint8_t draw_y, dl;
+
+    draw_block_list(0, L7_BG_BLOCK_LIST);                 /* sub ax,ax / mov bx,l7_bg_block_list */
+    draw_y = 0xbf;
+    row_index = 0x0;
+lab_3022:
+    draw_x = 0x20;
+lab_3028:
+    bx = 0;                                               /* sub bx,bx */
+    if (draw_y == 0xbf) goto lab_3039;
+    dl = (uint8_t)(cga_random() & 0xff);                  /* call random -> dl */
+    bx = (uint16_t)(dl & 0x2);                            /* mov bl,dl / and bl,2 */
+lab_3039:
+    draw_bg_tile(draw_x, draw_y, bx);
+    ax = (uint16_t)(draw_x >> 4);
+    if (ax < 0x2) ax = 0; else ax = (uint16_t)(ax - 0x2); /* sub ax,2 / jnb / sub ax,ax */
+    if (ax < 0x12) goto lab_3060;
+    ax = 0x11;
+lab_3060:
+    dl = ds_pool[WINDOW_ROW_COL_OFFSET + row_index];
+    ax = (uint16_t)(ax + dl);
+    window_open_state[ax] = (uint8_t)bx;                  /* mov [si+window_open_state],bl */
+    draw_x = (uint16_t)(draw_x + 0x10);
+    if (draw_x < 0x111) goto lab_3028;
+    row_index++;
+    draw_y = (uint8_t)(draw_y - 0x18);
+    if (draw_y >= 0x2f) goto lab_3022;                    /* cmp / jnb */
+    l7_obj_spawn_slot = 0xffff;
+    l7_obj_last_picked = 0xffff;
+    for (int k = 0; k < 8; k++) l7_obj_active[k] = 0;     /* 4 words a cero */
+    cx = l7_completion_counter;                           /* [0x414] */
+    if (cx != 0x0) goto lab_30b0;
+    cx++;
+    l7_completion_counter = cx;
+lab_30b0:
+    if (cx <= 0x8) goto lab_30b8;                         /* jbe */
+    cx = 0x8;
+lab_30b8:
+    bx = (uint16_t)(cx - 1);
+    l7_obj_active[bx] = 0x1;
+    dl = 0xb0;
+    l7_obj_y[bx] = dl;
+    {
+        uint16_t x = (uint16_t)(ds_pool[L7_OBJ_INIT_X_TABLE + bx * 2] | (ds_pool[L7_OBJ_INIT_X_TABLE + bx * 2 + 1] << 8));
+        l7_obj_x[bx] = (int16_t)x;
+        blit_to_cga(&ds_pool[L7_OBJ_SPRITE_OFS], calc_cga_addr(dl, x, NULL), 3, 15);   /* cx=0xf03 */
+    }
+    cx = (uint16_t)(cx - 1);                              /* pop cx / loop */
+    if (cx != 0) goto lab_30b8;
+}
+
 /* draw_level_background — literal port of score.asm's top dispatcher.
- * NOT ported: level 7 (delegates to draw_love_scene_bg, the victory
- * epilogue — roadmap item (e), separately scoped). Levels 1/3/4 added
+ * Level 7 delegates to draw_love_scene_bg (T39). Levels 1/3/4 added
  * in this pass; levels 2/5/6 were already ported. Note level_number is
  * never 0 here — the alley (level 0) doesn't call this at all, it uses
  * its own separate setup_alley path (see game_setup.c); the jump table
@@ -311,7 +390,7 @@ void draw_level_background(void) {
         return;
     }
     if (level_number == 7) {
-        /* draw_love_scene_bg — not ported, see roadmap item (e) */
+        draw_love_scene_bg();                    /* T39 */
         return;
     }
     if (level_number == 6) {
