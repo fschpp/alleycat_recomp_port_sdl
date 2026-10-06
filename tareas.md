@@ -319,7 +319,7 @@ Estado compartido de los niveles 4 y 5: **los dos usan las variables `l5_obj_*`*
 - **Notas:** llama `calc_cga_addr`, `play_wipe_note` y `wipe_sound_start` (esta última es un `ret` vacío, ver §6e). El wipe es una animación de duración fija: puede ser bloqueante (cutscene) o convertirse en estado por frame; documentar la elección.
 - **Verificar:** correr el wipe sobre una pantalla llena y comprobar que termina con todos los bytes en el valor final del ASM.
 
-### T46 — `show_level_result` y `draw_result_frame` [M · 84]
+### T46 — `show_level_result` y `draw_result_frame` [M · 84] ✅ HECHO (PROGRESS.md §6aq; `src/result.c`; `love_scene_outro` queda como stub de T58; espera de tick bloqueante como el original)
 - **ASM:** `enemy.asm` L275–358.
 - **Destino:** `src/game_flow.c`.
 - **Datos:** `result_melody_bonus=0x5aa3`, `cga_palette_table` (ver §5k).
