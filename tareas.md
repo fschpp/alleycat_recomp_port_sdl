@@ -268,7 +268,7 @@ Estado compartido de los niveles 4 y 5: **los dos usan las variables `l5_obj_*`*
 - **Datos:** `l7_obj_x=0x2b5a`, `l7_obj_y=0x2b6a`, `l7_obj_active=0x2b72`, `l7_obj_erase_sprite=0x2b7a` (ya verificados en §6b).
 - **Verificar:** al correr el spawn con semilla fija se activa un slot de `l7_obj_*`; `check_l7_object_overlap` (ya portado) deja de ser inerte.
 
-### T38 — Nivel 7: `tick_level_thrown_objects` [M · 70]
+### T38 — Nivel 7: `tick_level_thrown_objects` [M · 70] ✅ HECHO (PROGRESS.md §6ai; no hace caer nada: es la recogida del corazón por el gato, una vez por tick; sin cablear)
 - **ASM:** `level_objects.asm` L139–208.
 - **Destino:** `src/level7_epilogue.c`.
 - **Verificar:** 100 ticks; los objetos de `l7_obj_*` caen y se desactivan al salir de pantalla.

@@ -32,6 +32,11 @@ void check_l7_all_objects(void);
  * de cat_x. Usa l7_obj_spawn_slot (0..7) como slot a ocupar. */
 void spawn_thrown_object(void);
 
+/* tick_level_thrown_objects (level_objects.asm L139-208, T38): recoge los corazones que toca el gato (una vez por tick BIOS). */
+void tick_level_thrown_objects(void);
+extern uint16_t (*l7_tick_fn)(void);  /* solo tests: reloj falso; NULL = reloj real */
+extern uint16_t l7_obj_last_tick;     /* DS 0x2e8f */
+
 extern int16_t  l7_obj_x[8];          /* DS 0x2b5a */
 extern uint8_t  l7_obj_y[8];          /* DS 0x2b6a */
 extern uint8_t  l7_obj_active[8];     /* DS 0x2b72 */
