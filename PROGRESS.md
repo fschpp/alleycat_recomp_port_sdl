@@ -14,7 +14,7 @@ graphics assets, so it is not meant to be published or redistributed.
 
 ## 0. Current focus / todo / blockers
 
-**Current focus:** `tareas.md` execution: T00, T10-T45 (§6g-§6ap) and **T46** (`show_level_result` + `draw_result_frame` in `src/result.c`, §6aq) and **T47** (`handle_level_complete` in `src/score.c`, §6ar) are done. Next up: T48 (`mask_score_tiles`, `print_bonus_score`, `print_level7_bonus`, `flash_score_color`; `save_score_regions` is already real) and T49 (`animate_score_bar`, `binary_to_bcd`); their stubs live in `flow_stubs.c`. Still stubbed: `love_scene_outro` (T58, called by `show_level_result` for level 7). `main.c` runs the real flow for every level.
+**Current focus:** `tareas.md` execution: T00, T10-T45 (§6g-§6ap) and **T46** (`show_level_result` + `draw_result_frame` in `src/result.c`, §6aq) **T47** (`handle_level_complete` in `src/score.c`, §6ar) and **T48** (bonus text/flash/mask + BIOS text model and font, §6as) are done. Next up: T49 (`animate_score_bar`, `binary_to_bcd`); their stubs live in `flow_stubs.c`. Still stubbed: `love_scene_outro` (T58, called by `show_level_result` for level 7). `main.c` runs the real flow for every level.
 T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-level4`, `test-level4-state`, `test-level5`, `test-level5-anim`, `test-level5-objects`, `test-level6`, `test-level6b`, `test-level6c`, `test-level6d`, `test-level2`, `test-level2b`, `test-level2c`, `test-level2d`, `test-level7`, `test-level7b`, `test-level7c`, `test-game-flow`, `test-game-flow-loop`).
 
 - [x] `sound.asm` — full port, wired into every previously-stubbed call site (§6e)
@@ -57,6 +57,7 @@ T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-lev
 - [x] T45 — `animate_screen_wipe` (`wipe.c`): blocking centred-rectangle wipe, `wipe_step_hook` for presenting; `test-wipe` (§6ap)
 - [x] T46 — `show_level_result`, `draw_result_frame` (`result.c`); `love_scene_outro` stub until T58; `test-result` (§6aq)
 - [x] T47 — `handle_level_complete` (`score.c`): bonus from the BIOS tick, BCD add, blink loop; `save_score_regions` real; `[0x412]` is one variable (`start_tick`); `test-level-complete` (§6ar)
+- [x] T48 — `mask_score_tiles`, `print_bonus_score`, `print_level7_bonus`, `flash_score_color` (`score_bar.c`); `bios_text.c` + `font8x8.c` (§6as)
 - [ ] T01 — full headless harness (`tests/harness.h`, `make test`); only `tests/test_alley_loop.c` exists so far
 - [x] T41 — alley loop pass, death handler, weighted level selector (`game_flow.c`); `main.c` wired to `game_start()`/`game_alley_frame()` (§6al)
 - [ ] `ui.asm` — `window_open_state` toggling, the other half of item (h)
@@ -4201,6 +4202,21 @@ Suggested commit: `T46: show_level_result/draw_result_frame (enemy.asm L275-353)
 **Verification:** `make test-level-complete` (wraps the six helpers + notes + `silence_speaker`; `binary_to_bcd` replaced by a reference BCD writer): levels 3 (dt=700 and saturated), 5, 6 and 7 (spawn slot 0xffff and 3, difficulty 1 and 2) against an independent Python model, with no `ds_pool` reads in the expectations: bonus binary/BCD, final score, `[0x414]`/`[0x418]` only for levels != 7, mask/bar call sequence and arguments, 30 / 68 blink iterations, `silence_speaker` only for levels != 7, regions restored to their original content after the "text" scribbled over them. `make test` all green (25 OK, 83 s). Not verified against an emulator; no SDL run (no `libsdl2-dev` in the sandbox).
 
 Suggested commit: `T47: handle_level_complete (level_objects.asm L1100-1227) in score.c, save_score_regions, [0x412] unificado, test-level-complete`
+
+
+## 6as. T48 — bonus bar A (`src/score_bar.c`, `src/bios_text.c`, `src/font8x8.c`; level_objects.asm L1244-1316)
+
+**Ported literally (goto):** `flash_score_color` (reads the tick, border colour 0 if tick bit 2 is set else `bonus_color`, BH=0, returns the tick it read), `print_bonus_score` (cursor row `bonus_row>>3`, col 0x12; `bonus_bcd[3..6]` + '0', colour 3), `print_level7_bonus` (cursor (10,10); the word `dat_36ec[dat_370c]` overwrites the last 2 characters of the 20-byte text `dat_370e` = "BONUS MULTIPLIER: 12"), `mask_score_tiles` (30 words `dat_35e0` AND dx -> `score_tiles`, the DS:0xe scratch that `animate_score_bar` will read in T49). `save_score_regions` was already real (§6ar).
+
+**File:** these live in `src/score_bar.c`, not `score.c`: `--wrap` does not intercept calls inside one translation unit, and `test-level-complete` wraps them. T49 goes in the same file.
+
+**New, not from the ASM:** the original prints with BIOS INT 10h (AH=02h cursor, AH=0Eh teletype), which uses the PC ROM font. `include/bios_text.h` / `src/bios_text.c` model both in mode 4 (40x25 cells of 8x8 px) and `src/font8x8.c` embeds the public-domain 8x8 font (Daniel Hepper's `font8x8_basic.h`, from Marcel Sondaar/IBM). This is the font piece of T50; T50 should reuse it. Assumption (the ASM does not fix it): lit pixels take the colour in BL, unlit pixels are written as 0 (the IBM BIOS overwrites the cell). The glyphs are the font8x8 ones, not the ROM's: shapes can differ slightly from the original.
+
+**`tareas.md` verification corrected:** it suggested comparing with `digit_sprites`, but those are the game's own glyphs (HUD), not what the teletype draws; the test checks the cells against the font instead.
+
+**Verification:** `make test-score-bar-a`: `mask_score_tiles` with 5 masks against the 60 bytes of `dat_35e0`; `print_bonus_score` digit cells, neighbours untouched, final cursor, `bonus_row=0x3a` -> cell 7; `print_level7_bonus` for 4 indices (text + neighbours untouched); `flash_score_color` returned tick and border for 8 ticks x 2 colours, palette bit kept. 6 mutations detected (tick bit, column, loop bound, text offset, AND->OR, cursor). `make test` all green.
+
+Suggested commit: `T48: mask_score_tiles, print_bonus_score, print_level7_bonus, flash_score_color; texto BIOS modo 4 + font8x8; test-score-bar-a`
 
 
 ## 7. General lesson for this whole project

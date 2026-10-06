@@ -49,6 +49,9 @@ extern uint16_t bonus_duration;    /* DS 0x3722: duracion del parpadeo final, en
 
 /* Regiones de pantalla que save_score_regions guarda en DS:0x000e (4 words x 8 filas = 64 bytes) y DS:0x004e
  * (20 words x 8 filas = 320 bytes) y que el final del nivel 7 devuelve a CGA 0x8e4 / 0xc94. */
+/* Azulejos enmascarados que deja mask_score_tiles en DS:0x000e (30 words = 60 bytes) y que lee animate_score_bar via
+ * draw_block_list (T49). Buffer compartido T48/T49. */
+extern uint8_t  score_tiles[60];
 extern uint8_t  score_save_a[64];
 extern uint8_t  score_save_b[320];
 
@@ -60,12 +63,12 @@ uint16_t score_tick(void);
 /* --- Helpers de T48/T49: STUBS en src/flow_stubs.c hasta que se porten. Las firmas siguen los registros del ASM:
  * mask_score_tiles(dx), animate_score_bar(ax), binary_to_bcd(ax) y flash_score_color() devuelve dx (el tick
  * leido al entrar: el bucle de handle_level_complete lo usa en `sub dx,[dat_3695]` sin releerlo). --- */
-void     mask_score_tiles(uint16_t dx);      /* TODO(T48) */
+void     mask_score_tiles(uint16_t dx);      /* T48 (score.c) */
 void     animate_score_bar(uint16_t ax);     /* TODO(T49) */
 void     binary_to_bcd(uint16_t ax);         /* TODO(T49) */
-void     print_bonus_score(void);            /* TODO(T48) */
-void     print_level7_bonus(void);           /* TODO(T48) */
-uint16_t flash_score_color(void);            /* TODO(T48) */
+void     print_bonus_score(void);            /* T48 (score.c) */
+void     print_level7_bonus(void);           /* T48 (score.c) */
+uint16_t flash_score_color(void);            /* T48 (score.c) */
 void     save_score_regions(void);           /* T47: portada aqui (8 lineas de ASM, la necesita el final del nivel 7) */
 
 #endif
