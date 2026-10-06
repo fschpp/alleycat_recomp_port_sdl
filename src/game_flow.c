@@ -31,6 +31,10 @@
 #include "alley_movement.h"
 #include "jump_gravity.h"
 #include "throw.h"
+#include "level_objects.h"
+#include "level_background.h"
+#include "level5.h"
+#include "level6.h"
 
 uint16_t (*game_tick_fn)(void) = NULL;
 uint16_t (*pit_counter_fn)(void) = NULL;
@@ -239,4 +243,116 @@ gf_next_t game_alley_frame(void) {
     if (lives_count == 0x0) return GF_TO_0081;      /* game over */
     game_death_handler();                           /* lab_01b7 */
     return GF_TO_0238;
+}
+
+/* ===================== T42: entry.asm L237-330 ===================== */
+
+/* Despacho (lab_0238). Tabla de saltos del ASM (cs:0x250), literal:
+ *   nivel 0,1 -> lab_03e2 | 2 -> lab_0459 | 3 -> lab_0394 | 4 -> lab_0349 (todos T43)
+ *   nivel 5 -> lab_02fe | 6 -> lab_02aa | 7 -> lab_0260 (portados aqui). */
+bool game_level_enter(void) {
+    uint16_t bx;
+    level_state = 0x0;
+    bx = (uint16_t)level_number;
+    if (bx > 0x7) bx = 0;                          /* cmp bx,7 / jbe: clamp a 0 (sin signo) */
+    switch (bx) {
+    case 7: goto lab_0260;
+    case 6: goto lab_02aa;
+    case 5: goto lab_02fe;
+    default: return false;                         /* niveles 0-4: TODO(T43) */
+    }
+
+    /* --- Level 7 (love scene) --- */
+lab_0260:
+    level_number = 0x7;
+    level_transition();
+    draw_level_background();                       /* "draw score bar" segun el ASM */
+    setup_level();
+    init_sound();
+    init_thrown_objects();
+    reset_cupid();
+    init_level7_objects();
+    init_music();
+    return true;                                   /* -> lab_027e: game_level_frame() */
+
+    /* --- Level 6 --- */
+lab_02aa:
+    level_number = 0x6;
+    level_transition();
+    draw_level_background();
+    /* call level6_stubs: un `ret` desnudo (level6.h, T29): no hace nada. */
+    setup_level();
+    init_thrown_objects();
+    init_sound();
+    init_music();
+    return true;                                   /* -> lab_02c5 */
+
+    /* --- Level 5 --- */
+lab_02fe:
+    level_number = 0x5;
+    level_transition();
+    draw_level_background();
+    init_level5_objects();
+    setup_level();
+    init_thrown_objects();
+    init_sound();
+    init_music();
+    return true;                                   /* -> lab_0319 */
+}
+
+gl_next_t game_level_frame(void) {
+    switch (level_number) {
+    case 7:
+        /* lab_027e */
+        input_process_keys();                      /* process_keyboard */
+        /* poll_joystick: TODO(T60) */
+        play_sound();
+        update_alley_movement();                   /* update_animation */
+        update_cupid();
+        tick_level_thrown_objects();
+        spawn_thrown_object();
+        update_level7_objects();
+        /* mov al,[cat_died] / or [cat_caught],[show_attract],[restart_game] (NO object_hit) */
+        if ((cat_died | cat_caught | (uint8_t)show_attract | (uint8_t)restart_game) == 0) return GL_STAY;
+        return GL_EXIT;
+    case 6:
+        /* lab_02c5 */
+        input_process_keys();
+        /* poll_joystick: TODO(T60) */
+        play_sound();
+        update_level6_movement();
+        update_level6_timing();
+        update_alley_movement();
+        if (enemy_active != 0x0) update_enemies();     /* lab_02e3: si no, tick_thrown_objects */
+        else tick_thrown_objects();
+        /* cat_died | object_hit | cat_caught | restart_game | show_attract */
+        if ((cat_died | object_hit | cat_caught | (uint8_t)restart_game | (uint8_t)show_attract) == 0) return GL_STAY;
+        return GL_EXIT;
+    case 5:
+        /* lab_0319 */
+        input_process_keys();
+        /* poll_joystick: TODO(T60) */
+        play_sound();
+        update_level5_objects();
+        update_level5_anim();
+        update_alley_movement();
+        tick_thrown_objects();
+        update_enemies();                          /* sin el `if enemy_active` del nivel 6 */
+        /* object_hit | cat_caught | cat_died | show_attract | restart_game */
+        if ((object_hit | cat_caught | cat_died | (uint8_t)show_attract | (uint8_t)restart_game) == 0) return GL_STAY;
+        return GL_EXIT;
+    default:
+        return GL_EXIT;                            /* niveles 0-4: TODO(T43) */
+    }
+}
+
+gf_next_t game_level_exit(void) {
+    /* lab_0427 */
+    if (restart_game) return GF_TO_00AE;
+    if (show_attract) return GF_TO_00A3;
+    if (object_hit != 0x0) start_in_level = 0x0;    /* respawn in alley */
+    level_state = (uint16_t)level_number;           /* save last level played */
+    level_number = 0x0;                             /* back to alley */
+    level_transition();
+    return GF_TO_00F3;
 }

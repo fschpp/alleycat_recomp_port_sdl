@@ -162,6 +162,13 @@ build/test_game_flow_loop: tests/test_game_flow_loop.c $(TEST_SRC) include/*.h
 test-game-flow-loop: build/test_game_flow_loop
 	./build/test_game_flow_loop
 
-test: test-alley test-l3doors test-level4 test-level4-state test-level5 test-level5-anim test-level5-objects test-level6 test-level6b test-level6c test-level6d test-level2 test-level2b test-level2c test-level2d test-level7 test-level7b test-level7c test-game-flow test-game-flow-loop
+build/test_game_level: tests/test_game_level.c $(TEST_SRC) include/*.h
+	@mkdir -p build
+	$(CC) $(CFLAGS) -Wl,--wrap=level_transition,--wrap=draw_level_background,--wrap=setup_level,--wrap=init_sound,--wrap=init_thrown_objects,--wrap=reset_cupid,--wrap=init_level7_objects,--wrap=init_music,--wrap=init_level5_objects,--wrap=play_sound,--wrap=update_alley_movement,--wrap=update_cupid,--wrap=tick_level_thrown_objects,--wrap=spawn_thrown_object,--wrap=update_level7_objects,--wrap=update_level6_movement,--wrap=update_level6_timing,--wrap=update_enemies,--wrap=tick_thrown_objects,--wrap=update_level5_objects,--wrap=update_level5_anim tests/test_game_level.c $(TEST_SRC) -o $@
 
-.PHONY: all run clean test test-alley test-l3doors test-level4 test-level4-state test-level5 test-level5-anim test-level5-objects test-level6 test-level6b test-level6c test-level6d test-level2 test-level2b test-level2c test-level2d test-level7 test-level7b test-level7c test-game-flow test-game-flow-loop
+test-game-level: build/test_game_level
+	./build/test_game_level
+
+test: test-alley test-l3doors test-level4 test-level4-state test-level5 test-level5-anim test-level5-objects test-level6 test-level6b test-level6c test-level6d test-level2 test-level2b test-level2c test-level2d test-level7 test-level7b test-level7c test-game-flow test-game-flow-loop test-game-level
+
+.PHONY: all run clean test test-alley test-l3doors test-level4 test-level4-state test-level5 test-level5-anim test-level5-objects test-level6 test-level6b test-level6c test-level6d test-level2 test-level2b test-level2c test-level2d test-level7 test-level7b test-level7c test-game-flow test-game-flow-loop test-game-level

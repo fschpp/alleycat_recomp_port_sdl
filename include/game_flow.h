@@ -2,6 +2,7 @@
 #define GAME_FLOW_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
 /* entry.asm L27-143 (T40, PROGRESS.md §6ak): arranque, titulo, nueva partida y
  * preparacion del callejon, hasta justo antes de lab_0155 (el loop del callejon,
@@ -30,7 +31,8 @@ typedef enum {
     GF_TO_0081,     /* game over -> titulo: game_flow_run(GF_LAB_0081) */
     GF_TO_00A3,     /* timeout -> attract: game_flow_run(GF_LAB_00A3) */
     GF_TO_00AE,     /* restart -> nueva partida: game_flow_run(GF_LAB_00AE) */
-    GF_TO_0238      /* la gata murio: level_number ya elegido, saltar al despacho (T42) */
+    GF_TO_0238,     /* la gata murio: level_number ya elegido, saltar al despacho (T42) */
+    GF_TO_00F3      /* lab_0427 tras salir de un nivel: preparar el callejon (game_flow_run(GF_LAB_00F3)) */
 } gf_next_t;
 
 gf_next_t game_alley_frame(void);
@@ -40,6 +42,22 @@ void game_death_handler(void);
 /* lab_01e5..lab_022a: elige un nivel con las tablas de dificultad, evita repetir los
  * dos ultimos y desplaza last_level/prev_level. Devuelve el nivel (tambien en level_number). */
 uint16_t select_next_level(void);
+
+/* entry.asm L237-330 (T42, PROGRESS.md §6am): despacho de nivel (lab_0238) y los niveles 7, 6 y 5.
+ * Igual que el callejon: game_level_enter() hace el despacho + la init del nivel (todo lo anterior al
+ * primer `call process_keyboard`), game_level_frame() es UNA pasada del loop del nivel. Niveles 0-4:
+ * pendientes de T43. */
+typedef enum { GL_STAY = 0, GL_EXIT } gl_next_t;   /* GL_EXIT = salto a lab_0427 */
+
+/* lab_0238: level_state=0, clamp de level_number a 0 si > 7, salto por tabla. Devuelve true si el nivel
+ * ya esta portado (7, 6, 5) y su init se ejecuto; false si es de T43 (no toca nada mas). */
+bool game_level_enter(void);
+/* Una pasada del loop del nivel actual (level_number). Solo 7, 6 y 5; otro nivel => GL_EXIT. */
+gl_next_t game_level_frame(void);
+/* lab_0427 (manejador de salida; el ASM esta en el rango de T43, se porta aqui porque sin el los niveles
+ * de T42 no pueden terminar): restart -> GF_TO_00AE, attract -> GF_TO_00A3; si no, aplica
+ * start_in_level/level_state/level_number y level_transition y devuelve GF_TO_00F3. */
+gf_next_t game_level_exit(void);
 
 /* Hooks de test (NULL = hardware real). */
 extern uint16_t (*game_tick_fn)(void);        /* int 0x1a: ticks BIOS (18.2 Hz) */
@@ -52,6 +70,9 @@ void read_pit_counter(void);
  * borra de ahi cuando su tarea lo porte de verdad. --- */
 void set_palette(void);          /* TODO(T44): enemy.asm L242-274 (CGA palette 1 + out 0x3d9) */
 void show_title_screen(void);    /* TODO(T52): ui.asm L55-163 */
+void level_transition(void);     /* TODO(T44): enemy.asm L114-158 */
+void reset_cupid(void);          /* TODO(T56): ui.asm L571-: init del estado del cupido (nivel 7) */
+void update_cupid(void);         /* TODO(T56): ui.asm update_cupid */
 void show_attract_mode(void);    /* TODO(T54): ui.asm L307-382 (fija use_joystick y difficulty_counter) */
 
 #endif
