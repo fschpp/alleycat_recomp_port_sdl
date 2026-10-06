@@ -64,8 +64,8 @@ uint16_t score_tick(void);
  * mask_score_tiles(dx), animate_score_bar(ax), binary_to_bcd(ax) y flash_score_color() devuelve dx (el tick
  * leido al entrar: el bucle de handle_level_complete lo usa en `sub dx,[dat_3695]` sin releerlo). --- */
 void     mask_score_tiles(uint16_t dx);      /* T48 (score.c) */
-void     animate_score_bar(uint16_t ax);     /* TODO(T49) */
-void     binary_to_bcd(uint16_t ax);         /* TODO(T49) */
+void     animate_score_bar(uint16_t ax);     /* T49 (score_bar.c) */
+void     binary_to_bcd(uint16_t ax);         /* T49 (score_bar.c) */
 void     print_bonus_score(void);            /* T48 (score.c) */
 void     print_level7_bonus(void);           /* T48 (score.c) */
 uint16_t flash_score_color(void);            /* T48 (score.c) */

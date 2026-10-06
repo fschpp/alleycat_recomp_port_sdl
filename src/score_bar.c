@@ -68,3 +68,74 @@ void mask_score_tiles(uint16_t dx) {
         score_tiles[2 * i + 1] = (uint8_t)(w >> 8);
     }
 }
+
+/* ---- T49 (level_objects.asm L1317-1367) ---- */
+#include "sound.h"
+
+#define DS_SCORE_TILE_LIST 0x361c   /* dat_361c: dims 0x0c05 (12 filas x 5 bytes) + 4 destinos + 0xffff */
+#define DS_BCD_POW_TABLE   0x3684   /* dat_3684: BCD de 2^12; las potencias menores estan 7 bytes antes cada una */
+#define SCORE_BAR_START    0x1b80   /* ax inicial: offset CGA de la primera posicion de la barra */
+
+static uint16_t bar_limit;     /* DS 0x369a */
+static uint16_t bar_base;      /* DS 0x369c */
+static uint16_t bcd_src_bin;   /* DS 0x368b: copia del valor binario (solo scratch de binary_to_bcd) */
+
+/* draw_block_list con la lista dat_361c: el origen de los 5 bloques es DS:0x000e, que el port modela como
+ * `score_tiles` (lo deja mask_score_tiles), no como ds_pool (const). Mismo recorrido que level_background.c. */
+static void draw_score_tiles(uint16_t base) {
+    uint16_t list = DS_SCORE_TILE_LIST;
+    uint8_t cols = ds_pool[list], rows = ds_pool[list + 1];
+    list += 2;
+    for (;;) {
+        uint16_t src = score_ds_word(list);
+        if (src == 0xffff) return;
+        uint16_t dst = (uint16_t)(base + score_ds_word((uint16_t)(list + 2)));
+        blit_bytes_to_cga(src == 0x000e ? score_tiles : &ds_pool[src], dst, cols, rows);
+        list += 4;
+    }
+}
+
+/* animate_score_bar (L1317-1347): dibuja los azulejos enmascarados de la barra de bonus desde la posicion 0x1b80
+ * hacia atras en pasos de 0x280 (una fila de texto de 8 px) mientras la posicion siga >= el limite `ax`. Con
+ * bonus_bar_flag != 0 suena un paso de melodia y espera 2 ticks BIOS (bloqueante, como el original) por paso. */
+void animate_score_bar(uint16_t ax) {
+    uint16_t dx;
+    bar_limit = ax;                                        /* mov [dat_369a],ax */
+    init_level_melody();
+    ax = SCORE_BAR_START;
+lab_3aba:
+    bar_base = ax;                                         /* mov [dat_369c],ax */
+    draw_score_tiles(ax);                                  /* bx=dat_361c / call draw_block_list */
+    if (bonus_bar_flag == 0) goto lab_3ae2;                /* cmp byte [dat_369f],0 / jz */
+    play_melody_step();
+    bonus_tick_start = score_tick();                       /* sub ah,ah / int 0x1a / mov [dat_3695],dx */
+lab_3ad5:
+    dx = (uint16_t)(score_tick() - bonus_tick_start);      /* int 0x1a / sub dx,[dat_3695] */
+    if (dx < 0x2) goto lab_3ad5;                           /* jb (sin signo) */
+lab_3ae2:
+    if (bar_base < 0x280) goto lab_3af0;                   /* sub ax,0x280 / jb */
+    ax = (uint16_t)(bar_base - 0x280);
+    if (ax >= bar_limit) goto lab_3aba;                    /* cmp ax,[dat_369a] / jnb */
+lab_3af0:
+    silence_speaker();
+}
+
+/* binary_to_bcd (L1348-1367): suma en bonus_bcd (limpio) el BCD de cada potencia de 2 activa en `ax`. Recorre solo
+ * los bits 12..0 (dx = 0x1000 desplazado a la derecha hasta sacar el 1 final): los bits 13-15 se ignoran. */
+void binary_to_bcd(uint16_t ax) {
+    uint16_t bx, dx;
+    bcd_src_bin = ax;                                      /* mov [dat_368b],ax */
+    for (int i = 0; i < 8; i++) bonus_bcd[i] = 0;          /* dat_368d/368f/3691/3693 = 0 (4 words) */
+    bx = DS_BCD_POW_TABLE;
+    dx = 0x1000;
+lab_3b0b:
+    if ((bcd_src_bin & dx) == 0) goto lab_3b19;            /* test [dat_368b],dx / jz */
+    add_bcd_scores(bonus_bcd, &ds_pool[bx]);               /* si=bx / di=dat_368d */
+lab_3b19:
+    bx = (uint16_t)(bx - 0x7);
+    {
+        uint8_t cf = (uint8_t)(dx & 1);                    /* shr dx,1 */
+        dx >>= 1;
+        if (!cf) goto lab_3b0b;                            /* jnb */
+    }
+}

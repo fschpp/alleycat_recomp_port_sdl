@@ -14,7 +14,7 @@ graphics assets, so it is not meant to be published or redistributed.
 
 ## 0. Current focus / todo / blockers
 
-**Current focus:** `tareas.md` execution: T00, T10-T45 (§6g-§6ap) and **T46** (`show_level_result` + `draw_result_frame` in `src/result.c`, §6aq) **T47** (`handle_level_complete` in `src/score.c`, §6ar) and **T48** (bonus text/flash/mask + BIOS text model and font, §6as) are done. Next up: T49 (`animate_score_bar`, `binary_to_bcd`); their stubs live in `flow_stubs.c`. Still stubbed: `love_scene_outro` (T58, called by `show_level_result` for level 7). `main.c` runs the real flow for every level.
+**Current focus:** `tareas.md` execution: T00, T10-T45 (§6g-§6ap) and **T46** (`show_level_result` + `draw_result_frame` in `src/result.c`, §6aq) **T47** (`handle_level_complete` in `src/score.c`, §6ar) **T48** (bonus text/flash/mask + BIOS text model and font, §6as) and **T49** (`animate_score_bar`, `binary_to_bcd` in `src/score_bar.c`, §6at) are done: the bonus bar is fully real now. Next up: T50 (text helpers; reuse `bios_text.c`/`font8x8.c`). Still stubbed: `love_scene_outro` (T58, called by `show_level_result` for level 7). `main.c` runs the real flow for every level.
 T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-level4`, `test-level4-state`, `test-level5`, `test-level5-anim`, `test-level5-objects`, `test-level6`, `test-level6b`, `test-level6c`, `test-level6d`, `test-level2`, `test-level2b`, `test-level2c`, `test-level2d`, `test-level7`, `test-level7b`, `test-level7c`, `test-game-flow`, `test-game-flow-loop`).
 
 - [x] `sound.asm` — full port, wired into every previously-stubbed call site (§6e)
@@ -58,6 +58,7 @@ T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-lev
 - [x] T46 — `show_level_result`, `draw_result_frame` (`result.c`); `love_scene_outro` stub until T58; `test-result` (§6aq)
 - [x] T47 — `handle_level_complete` (`score.c`): bonus from the BIOS tick, BCD add, blink loop; `save_score_regions` real; `[0x412]` is one variable (`start_tick`); `test-level-complete` (§6ar)
 - [x] T48 — `mask_score_tiles`, `print_bonus_score`, `print_level7_bonus`, `flash_score_color` (`score_bar.c`); `bios_text.c` + `font8x8.c` (§6as)
+- [x] T49 — `animate_score_bar`, `binary_to_bcd` (`score_bar.c`); stubs removed from `flow_stubs.c`; `test-score-bar-b` (§6at)
 - [ ] T01 — full headless harness (`tests/harness.h`, `make test`); only `tests/test_alley_loop.c` exists so far
 - [x] T41 — alley loop pass, death handler, weighted level selector (`game_flow.c`); `main.c` wired to `game_start()`/`game_alley_frame()` (§6al)
 - [ ] `ui.asm` — `window_open_state` toggling, the other half of item (h)
@@ -4217,6 +4218,20 @@ Suggested commit: `T47: handle_level_complete (level_objects.asm L1100-1227) in 
 **Verification:** `make test-score-bar-a`: `mask_score_tiles` with 5 masks against the 60 bytes of `dat_35e0`; `print_bonus_score` digit cells, neighbours untouched, final cursor, `bonus_row=0x3a` -> cell 7; `print_level7_bonus` for 4 indices (text + neighbours untouched); `flash_score_color` returned tick and border for 8 ticks x 2 colours, palette bit kept. 6 mutations detected (tick bit, column, loop bound, text offset, AND->OR, cursor). `make test` all green.
 
 Suggested commit: `T48: mask_score_tiles, print_bonus_score, print_level7_bonus, flash_score_color; texto BIOS modo 4 + font8x8; test-score-bar-a`
+
+
+## 6at. T49 — bonus bar B (`src/score_bar.c`; level_objects.asm L1317-1367)
+
+**Ported literally (goto):** `animate_score_bar(ax)`: stores the limit (`dat_369a`), `init_level_melody`, then from CGA offset 0x1b80 draws the 5 masked tiles of `dat_361c` (12 rows x 5 bytes, destinations +0x06/+0x10/+0x3b/+0x45), stepping back 0x280 per iteration while `pos-0x280` does not borrow and is `>= limit` (unsigned). With `bonus_bar_flag != 0` each step plays `play_melody_step` and busy-waits 2 BIOS ticks (blocking, like the original); it ends with `silence_speaker`. `binary_to_bcd(ax)`: zeroes the 8 bytes of `bonus_bcd`, then for each set bit of `ax` adds the 7-byte BCD of 2^k from the table that ends at `dat_3684` (7 bytes per entry, walking down) with `add_bcd_scores`.
+
+**Deviations / findings:**
+- `draw_block_list` cannot be called as is: its source for these tiles is DS:0x000e (the scratch that `mask_score_tiles` fills), which the port models as the C array `score_tiles`, while `draw_block_list` reads the const `ds_pool`. `animate_score_bar` uses a local `draw_score_tiles` that walks the same list and maps source 0x000e to `score_tiles`.
+- `dat_3695` is the same variable as `bonus_tick_start`: the wait loop overwrites it, and `handle_level_complete` rewrites it right after (L255), so there is no conflict. `dat_369a`/`dat_369c`/`dat_368b` are file-static (no one else reads them).
+- `binary_to_bcd` only looks at bits 12..0: the loop starts at `dx=0x1000` and ends when `shr dx,1` shifts out the final 1. Bits 13-15 of `ax` are ignored (`tareas.md` asked to check 65535 against the direct value; the faithful result is the one for 8191). The ASM text `shr dx,0x0` is `shr dx,1` (same disassembler quirk as T18/T35).
+
+**Verification:** `make test-score-bar-b` (no SDL; wraps `play_melody_step`/`silence_speaker`): `binary_to_bcd` for 0, 1, 9, 10, 99, 100, 255, 4096, 8191, 0x2000, 0xffff, 12345 against a direct BCD computation (masked to 13 bits) plus a sweep of all values < 8192 in steps of 37; byte 7 stays 0. `animate_score_bar`: positions drawn for limit 0x1000 (0x1b80 down to 0x1180 and not below), single position for limit 0x1b80, 12 positions for limit 0 (down to offset 0), no write beyond 5 bytes per row, melody variant: one step and a 2-tick wait per position (tick counter crossing 0xffff), one `silence_speaker` per call. `make test` all green (26 OK). Not verified against an emulator; no SDL run (no `libsdl2-dev` in the sandbox).
+
+Suggested commit: `T49: animate_score_bar, binary_to_bcd (level_objects.asm L1317-1367) en score_bar.c; quita stubs; test-score-bar-b`
 
 
 ## 7. General lesson for this whole project

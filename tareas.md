@@ -338,7 +338,7 @@ Estado compartido de los niveles 4 y 5: **los dos usan las variables `l5_obj_*`*
 - **Destino:** `src/score.c`.
 - **Verificar:** `print_bonus_score` con un valor BCD conocido, comparando el volcado de píxeles con el patrón de `digit_sprites`.
 
-### T49 — Barra de bonus B [M · 71]
+### T49 — Barra de bonus B [M · 71] ✅ HECHO (PROGRESS.md §6at; `src/score_bar.c`; `binary_to_bcd` solo recorre los bits 12..0 (65535 da lo mismo que 8191); `draw_block_list` no sirve para los azulejos porque su origen DS:0xe es `score_tiles`, no `ds_pool`; stubs borrados)
 - **Nota (T48):** escribir `animate_score_bar`/`binary_to_bcd` en `src/score_bar.c` (no en `score.c`, para que `--wrap` funcione) y borrar sus stubs de `flow_stubs.c`.
 - **Nota (T47):** `binary_to_bcd` recibe el valor en `ax` (no lee `dat_3697`) y `animate_score_bar(ax)` recibe el límite; stubs en `src/flow_stubs.c`, estado compartido en `include/score.h`.
 - **ASM:** `level_objects.asm` L1305–1375 (`reloc_8` y datos, `animate_score_bar`, `binary_to_bcd`).
