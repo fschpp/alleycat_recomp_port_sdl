@@ -170,6 +170,7 @@ uint8_t  start_in_level = 0;
 uint8_t  attract_shown = 0;
 uint16_t last_level = 0xffff;
 uint16_t prev_level = 0xffff;
+uint16_t level_state = 0;
 uint8_t  video_mode = 0;
 uint8_t  use_joystick = 0;
 uint16_t game_timer = 0;

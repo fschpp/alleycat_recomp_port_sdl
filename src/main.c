@@ -46,6 +46,7 @@ int main(int argc, char **argv) {
     game_start();
 
     bool running = true;
+    bool in_level = false;                         /* true while a level loop (T42) runs instead of the alley */
     while (running) {
         SDL_Event ev;
         while (SDL_PollEvent(&ev)) {
@@ -56,23 +57,33 @@ int main(int argc, char **argv) {
         if (!running) break;
 
         input_poll();                              /* read_keyboard_dirs (port: SDL) */
-        gf_next_t next = game_alley_frame();       /* one pass of lab_0155 (entry.asm L144-212) */
+        gf_next_t next;
+        if (in_level) {
+            /* one pass of the level loop (entry.asm lab_027e/lab_02c5/lab_0319, T42) */
+            next = (game_level_frame() == GL_EXIT) ? game_level_exit() : GF_STAY;
+        } else {
+            next = game_alley_frame();             /* one pass of lab_0155 (entry.asm L144-212) */
+        }
 
         video_present();
         SDL_Delay(33); /* ~30Hz: the original has a closed loop with no delay */
 
         switch (next) {
         case GF_STAY:   break;
-        case GF_TO_0081: game_flow_run(GF_LAB_0081); break;   /* game over -> title */
-        case GF_TO_00A3: game_flow_run(GF_LAB_00A3); break;   /* attract timeout */
-        case GF_TO_00AE: game_flow_run(GF_LAB_00AE); break;   /* restart */
+        case GF_TO_0081: in_level = false; game_flow_run(GF_LAB_0081); break;   /* game over -> title */
+        case GF_TO_00A3: in_level = false; game_flow_run(GF_LAB_00A3); break;   /* attract timeout */
+        case GF_TO_00AE: in_level = false; game_flow_run(GF_LAB_00AE); break;   /* restart */
+        case GF_TO_00F3: in_level = false; game_flow_run(GF_LAB_00F3); break;   /* level exit -> alley (lab_0427) */
         case GF_TO_0238:
-            /* The cat died: game_death_handler() already saved the position and picked
-             * level_number. TODO(T42/T43/T75): lab_0238 dispatches the level loop here.
-             * Until then behave as if the level ended at once (entry.asm L435:
-             * start_in_level = 0 -> respawn in the alley). */
-            start_in_level = 0;
-            game_flow_run(GF_LAB_00F3);
+            /* The cat died: game_death_handler() already picked level_number. lab_0238 dispatches:
+             * levels 7/6/5 run their real loop (T42); levels 0-4 are T43 -> until then behave as if
+             * the level ended at once (entry.asm L435: start_in_level = 0 -> respawn in the alley). */
+            if (game_level_enter()) {
+                in_level = true;
+            } else {
+                start_in_level = 0;
+                game_flow_run(GF_LAB_00F3);
+            }
             break;
         }
     }

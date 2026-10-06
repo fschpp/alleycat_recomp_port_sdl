@@ -295,7 +295,7 @@ Estado compartido de los niveles 4 y 5: **los dos usan las variables `l5_obj_*`*
 - **Notas:** incluye el selector de nivel ponderado aleatorio tras la muerte; extraer los pesos como tabla verificada (`grep` del label correspondiente en `data_segment_labels.txt`).
 - **Verificar:** test del selector con semilla fija: histograma de 1000 tiradas vs. los pesos.
 
-### T42 — `entry.asm` parte 3: tabla de saltos y primeros niveles [M · 94]
+### T42 — `entry.asm` parte 3: tabla de saltos y primeros niveles [M · 94] ✅ HECHO (PROGRESS.md §6am; `game_level_enter`/`game_level_frame`/`game_level_exit`; niveles 7, 6 y 5 (el loop del 5 entero, hasta L340) y `lab_0427`; niveles 0-4 quedan para T43; sin tabla genérica `run_level`, un `switch` literal)
 - **ASM:** `entry.asm` L237–330 (lab_0238 y los primeros bloques de nivel).
 - **Destino:** `src/game_flow.c`.
 - **Notas:** los 7 bloques son casi iguales (init, `process_keyboard`, `poll_joystick`, `play_sound`, `update_animation`, update específico, flag de salida). Escribir un `run_level(n)` genérico con la tabla de funciones por nivel (init/update/exit) en lugar de 7 copias, **solo si** se documenta cada diferencia entre bloques.
