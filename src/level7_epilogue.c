@@ -14,7 +14,9 @@
 
 /* BIOS `int 0x1a` tick substitute — same convention used throughout this
  * port. */
+uint16_t (*l7_tick_fn)(void) = NULL;   /* gancho para tests (como l2_tick_fn); NULL = reloj real */
 static uint16_t read_bios_tick(void) {
+    if (l7_tick_fn) return l7_tick_fn();
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     uint64_t ms = (uint64_t)ts.tv_sec * 1000 + (uint64_t)(ts.tv_nsec / 1000000);
@@ -214,6 +216,7 @@ uint16_t l7_obj_spawn_slot = 0;       /* 0x2e8d (word) slot a spawnear; >= 8 = n
 uint8_t  l7_obj_closest_dist = 0;     /* 0x2e91 */
 uint16_t l7_obj_closest_row = 0;      /* 0x2e92 (word) */
 uint16_t l7_obj_last_picked = 0;      /* 0x2e94 (word) */
+uint16_t l7_obj_last_tick = 0;        /* 0x2e8f (word) ultimo tick BIOS procesado por tick_level_thrown_objects */
 uint16_t l7_obj_cur_x = 0;            /* 0x2e96 (word) */
 uint8_t  l7_obj_cur_y = 0;            /* 0x2e98 */
 /* l7_obj_sprite (0x2af0..0x2b4a = 0x5a bytes = 3 palabras x 15 filas, verificado contra l7_obj_init_x_table=0x2b4a). */
@@ -369,6 +372,54 @@ lab_2f16:
 lab_2f59:
     l7_draw_alley_foreground();
     start_tone(0x3e8, 0x4a5);
+}
+
+/* tick_level_thrown_objects (level_objects.asm L139-208, T38) — literal. Pese al nombre NO mueve nada: una vez por tick BIOS mira si el
+ * gato toca algun corazon activo (rect A = objeto 0x18x0xf, rect B = gato 0x18x0xe, cx=0xe0f); si si, lo "recoge": lo desactiva, lo
+ * borra con l7_obj_erase_sprite y deja su slot en l7_obj_spawn_slot para que spawn_thrown_object lo reutilice.
+ *  - `shl bl,0x0` del desensamblado = SHL BL,1 (ver spawn_thrown_object).
+ *  - Con un spawn pendiente (spawn_slot < 8) no se escanea: solo se limpia l7_obj_last_picked.
+ *  - Si el slot tocado es el ultimo recogido (l7_obj_last_picked) se sale sin tocar nada (ni siquiera last_picked).
+ *  - `mov bx,1 / mov ah,0xb / int 0x10` (color de fondo/borde 1): sin efecto visible en el port. */
+void tick_level_thrown_objects(void) {
+    uint16_t cx, bx, tick;
+    uint8_t dl;
+
+    tick = read_bios_tick();                              /* sub ah,ah / int 0x1a -> dx */
+    if (tick != l7_obj_last_tick) goto lab_2f71;
+    return;
+lab_2f71:
+    l7_obj_last_tick = tick;
+    if (l7_obj_spawn_slot < 0x8) goto lab_2fac;
+    cx = 0x8;
+lab_2f7f:
+    bx = (uint16_t)(cx - 1);
+    if (l7_obj_active[bx] == 0x0) goto lab_2faa;
+    dl = l7_obj_y[bx];
+    if (check_rect_collision(l7_obj_x[bx], dl, 0x18, 0xf, (uint16_t)cat_x, cat_y, 0x18, 0xe)) goto lab_2fb3;   /* jb */
+lab_2faa:
+    cx = (uint16_t)(cx - 1);                              /* loop */
+    if (cx != 0) goto lab_2f7f;
+lab_2fac:
+    l7_obj_last_picked = 0xffff;
+lab_2fb2:
+    return;
+lab_2fb3:
+    bx = (uint16_t)(cx - 1);
+    if (bx == l7_obj_last_picked) goto lab_2fb2;
+    l7_restore_alley_buffer();
+    if (cupid_active == 0x0) goto lab_2fca;
+    erase_cupid_stub();
+lab_2fca:
+    l7_obj_active[bx] = 0x0;
+    dl = l7_obj_y[bx];
+    l7_obj_spawn_slot = bx;
+    blit_to_cga(&ds_pool[L7_OBJ_ERASE_SPRITE], calc_cga_addr(dl, (uint16_t)l7_obj_x[bx], NULL), 3, 15);   /* cx=0xf03 */
+    if (cupid_active == 0x0) goto lab_2ffb;
+    draw_cupid_stub();
+lab_2ffb:
+    l7_draw_alley_foreground();
+    start_tone(0x3e8, 0x349);
 }
 
 /* check_l7_all_objects — literal port. Sweeps every heart-cat slot that

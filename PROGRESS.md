@@ -14,8 +14,8 @@ graphics assets, so it is not meant to be published or redistributed.
 
 ## 0. Current focus / todo / blockers
 
-**Current focus:** `tareas.md` execution: T00, T10-T36 (§6g-§6ag) and **T37** (level 7: `spawn_thrown_object`, §6ah) are done. Next up: T38 (level 7: `tick_level_thrown_objects`; it is what sets `l7_obj_spawn_slot` and fills `l7_obj_*`).
-T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-level4`, `test-level4-state`, `test-level5`, `test-level5-anim`, `test-level5-objects`, `test-level6`, `test-level6b`, `test-level6c`, `test-level6d`, `test-level2`, `test-level2b`, `test-level2c`, `test-level2d`, `test-level7`). The death
+**Current focus:** `tareas.md` execution: T00, T10-T37 (§6g-§6ah) and **T38** (level 7: `tick_level_thrown_objects`, §6ai) are done. Next up: T39 (`draw_love_scene_bg`, `draw_bg_tile`). Still pending for level 7: whatever fills `l7_obj_spawn_slot` initially (the DS image has 0, so the first tick must see a valid slot; look at the level-7 init, T42/T75).
+T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-level4`, `test-level4-state`, `test-level5`, `test-level5-anim`, `test-level5-objects`, `test-level6`, `test-level6b`, `test-level6c`, `test-level6d`, `test-level2`, `test-level2b`, `test-level2c`, `test-level2d`, `test-level7`, `test-level7b`). The death
 handler (`entry.asm` lab_01b7+, T41) is still replaced in `main.c` by "re-enter the alley".
 
 - [x] `sound.asm` — full port, wired into every previously-stubbed call site (§6e)
@@ -49,6 +49,7 @@ handler (`entry.asm` lab_01b7+, T41) is still replaced in `main.c` by "re-enter 
 - [x] T35 — `update_level2_objects` (`level2.c`): one slot per call, time-sliced by the BIOS tick; `dat_3509` becomes shared state (§6af)
 - [x] T36 — `animate_level2_blocks`, `update_entrance_anim` (`level2.c`); **fix** of `draw_level2_background` (2 bytes per block, records `l2_block_types`) (§6ag)
 - [x] T37 — `spawn_thrown_object` (`level7_epilogue.c`): level-7 heart drop from the window row nearest to `cat_y`; `l7_obj_*` state now public (§6ah)
+- [x] T38 — `tick_level_thrown_objects` (`level7_epilogue.c`): once per BIOS tick, the cat picks up the level-7 hearts it touches; frees the slot for `spawn_thrown_object` (§6ai)
 - [ ] T01 — full headless harness (`tests/harness.h`, `make test`); only `tests/test_alley_loop.c` exists so far
 - [ ] T41 — death handler / level selector (`entry.asm` lab_01b7+); `main.c` just re-enters the alley meanwhile
 - [ ] `ui.asm` — `window_open_state` toggling, the other half of item (h)
@@ -4007,6 +4008,28 @@ Literal port (labels `lab_2e67`…`lab_2f59`, with `goto`). Not wired into `main
 **Verification (`make test-level7`, `tests/test_level7.c`):** independent model written from the ASM (own LFSR, own AABB, banked CGA screen model, `--wrap` event log for `restore_alley_buffer`/`draw_alley_foreground`/`start_tone`): all 256 `cat_y` x 9 `cat_x` values (row, X clamp `0x107 & 0xffc`, `closest_row/dist`, `cur_x/y`, `last_picked`, `spawn_slot=0xffff`, event order RESTORE→FG→TONE(0x3e8,0x4a5)); sprite drawn on the CGA model; guards (`slot>=8`, `joy_button!=0` touch nothing); overlap sweep dx/dy ±0x20/±0x14 (inclusive limits, inactive and own slot ignored); and `check_l7_object_overlap` is no longer inert: with `init_level7_objects` seeded, a heart dropped on top of heart-cat 1 is caught (slot deactivated), one dropped 0x30 px away is not. A mutation `not`→`neg` makes the test fail. `make test` all green.
 
 Suggested commit: `T37: spawn_thrown_object (level 7 heart drop) + public l7_obj_* state, test-level7`
+
+
+## 6ai. T38 — `tick_level_thrown_objects` (`src/level7_epilogue.c`, `include/level7_epilogue.h`; level_objects.asm L139-208)
+
+Literal port (`lab_2f71`…`lab_2ffb`, with `goto`). Not wired into `main.c` yet (T42/T75).
+
+**Correction to the task text:** despite its name it does **not** move or drop anything. Once per BIOS tick it checks whether the cat touches an active heart (`l7_obj_*`); if so it picks it up (deactivates it, erases it with `l7_obj_erase_sprite`) and leaves its slot in `l7_obj_spawn_slot`, which `spawn_thrown_object` (T37) then reuses. The "fall" is not here.
+
+**DS data verified (`grep -w`):** `l7_obj_last_tick`=0x2e8f (word), `l7_obj_last_picked`=0x2e94, `l7_obj_spawn_slot`=0x2e8d, `l7_obj_erase_sprite`=0x2b7a (90 bytes, 3 words x 15 rows, same blit as `check_l7_object_overlap`).
+
+**Traps handled:**
+- `shl bl,0x0` is `SHL BL,1` again (word index); byte arrays are indexed before the shift.
+- `cx`=0xe0f: A = object (x, y, 0x18, **0xf**), B = cat (`cat_x`, `cat_y`, 0x18, **0xe**) — heights are asymmetric; swapping them is caught by the test.
+- The scan walks slots 7→0, so the **highest** colliding index wins.
+- If the touched slot equals `l7_obj_last_picked` the function returns without touching anything (not even `last_picked`): a heart just dropped on the cat is not picked up again until the cat moves away and a scan finds nothing (`last_picked = 0xffff`).
+- With a pending spawn (`spawn_slot < 8`) no scan happens, only `last_picked = 0xffff`.
+- `mov bx,1 / mov ah,0xb / int 0x10` has no visible effect in the port. Tone: `start_tone(0x3e8, 0x349)`.
+- New test hook `l7_tick_fn` (like `l2_tick_fn`): `NULL` = real clock. `l7_obj_last_tick` is a public global.
+
+**Verification (`make test-level7b`, `tests/test_level7b.c`):** independent model from the ASM (own AABB, banked CGA screen model, `--wrap` event log, fake BIOS clock): same-tick no-op; pending spawn; dx/dy boundary sweep; 30000 random configurations (20802 pickups, 886 ignored by `last_picked`, 2256 no-contact) comparing active mask, `spawn_slot`, `last_picked`, events RESTORE→FG→TONE(0x3e8,0x349) and the CGA contents; and a full cycle pickup → `spawn_thrown_object` refills the same slot → not re-picked while on top → re-armed after moving away → picked again. Mutations (swapped heights, no `last_picked` guard) both fail. `make test` all green.
+
+Suggested commit: `T38: tick_level_thrown_objects (level 7 heart pickup) + l7_tick_fn hook, test-level7b`
 
 
 ## 7. General lesson for this whole project
