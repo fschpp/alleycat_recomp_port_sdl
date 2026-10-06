@@ -326,18 +326,20 @@ Estado compartido de los niveles 4 y 5: **los dos usan las variables `l5_obj_*`*
 - **Notas:** llama `init_result_melody`, `play_result_note`, `show_extra_life`, `love_scene_outro` (T58) y `silence_speaker`.
 - **Verificar:** renderizar el marco a PPM; revisar que se llama la melodía correcta según el resultado.
 
-### T47 — `handle_level_complete` [M · 128]
+### T47 — `handle_level_complete` [M · 128] ✅ HECHO (PROGRESS.md §6ar; `src/score.c`; nivel != 7 hace el primer bloque ([0x414]++, [0x418]=1, barra sin melodía), el 7 lo salta; `[0x412]` unificado con `start_tick`; `save_score_regions` ya real; helpers de T48/T49 como stubs en `flow_stubs.c`)
 - **ASM:** `level_objects.asm` L1100–1227.
 - **Destino:** `src/game_flow.c` (o `src/score.c`).
 - **Notas:** `run_victory_sequence` ya escribe `l7_completion_counter`/`l7_completion_tick` esperando esta función; conectarlos.
 - **Verificar:** simular fin de nivel con `difficulty_level` y puntaje conocidos; comprobar los incrementos esperados.
 
 ### T48 — Barra de bonus A [M · 77]
+- **Nota (T47):** `save_score_regions` ya está portada (§6ar); los stubs a reemplazar están en `src/flow_stubs.c` con sus contratos de registros en `include/score.h` (`mask_score_tiles(dx)`, `flash_score_color()` devuelve el tick).
 - **ASM:** `level_objects.asm` L1228–1304 (`save_score_regions`, `flash_score_color`, `print_bonus_score`, `print_level7_bonus`, `mask_score_tiles`).
 - **Destino:** `src/score.c`.
 - **Verificar:** `print_bonus_score` con un valor BCD conocido, comparando el volcado de píxeles con el patrón de `digit_sprites`.
 
 ### T49 — Barra de bonus B [M · 71]
+- **Nota (T47):** `binary_to_bcd` recibe el valor en `ax` (no lee `dat_3697`) y `animate_score_bar(ax)` recibe el límite; stubs en `src/flow_stubs.c`, estado compartido en `include/score.h`.
 - **ASM:** `level_objects.asm` L1305–1375 (`reloc_8` y datos, `animate_score_bar`, `binary_to_bcd`).
 - **Destino:** `src/score.c`.
 - **Verificar:** `binary_to_bcd` para 0, 9, 10, 99, 100, 255 y 65535 contra el cálculo directo; `animate_score_bar` termina y deja la barra completa.

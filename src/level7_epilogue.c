@@ -4,6 +4,7 @@
 #include "speaker.h"
 #include "cga.h"
 #include "level7_epilogue.h"
+#include "game_flow.h"
 #include "level_collision.h"
 #include "level3_enemy.h"
 #include "input.h"
@@ -649,7 +650,7 @@ static uint16_t l7_cupid_tick;
  * too). Exposed via level7_epilogue.h rather than kept static, so a
  * future port of that subsystem has a real value to pick up. */
 uint16_t l7_completion_counter; /* [0x414] */
-uint16_t l7_completion_tick;    /* [0x412] */
+/* l7_completion_tick: macro de level7_epilogue.h sobre start_tick ([0x412]) */
 
 /* sound.asm is ported now (src/sound.c), so these forward to the real
  * functions instead of being no-ops. Kept as _stub-suffixed wrappers so the
@@ -661,7 +662,6 @@ static void play_swoop_sound_stub(void) { play_swoop_sound(); }
 static void init_victory_melody_stub(void) { init_victory_melody(); }
 static void play_full_victory_stub(void) { play_full_victory(); }
 static void init_victory_melody_call(void) { init_victory_melody_stub(); }
-static void handle_level_complete_stub(void) { /* TODO: score-bar subsystem */ }
 static void silence_speaker_stub(void) { silence_speaker(); }
 
 /* move_victory_object — literal port. */
@@ -804,7 +804,7 @@ static void position_victory_cat(void) {
         }
 
         if (l7_cupid_tick == 0xa) {
-            handle_level_complete_stub();
+            handle_level_complete();                /* level_objects.asm L3618 (T47) */
             /* original also resets the CGA border/background color to
              * black here (int 10h, ah=0xb, bx=0) — no equivalent needed,
              * this port doesn't model a separately-settable border. */
