@@ -283,7 +283,7 @@ Estado compartido de los niveles 4 y 5: **los dos usan las variables `l5_obj_*`*
 
 ## FASE 3: flujo del juego (`entry.asm` y pantallas)
 
-### T40 — `entry.asm` parte 1: arranque, título y nueva partida [M · 117]
+### T40 — `entry.asm` parte 1: arranque, título y nueva partida [M · 117] ✅ HECHO (PROGRESS.md §6ak; `game_flow_run(entry)` con 5 puntos de entrada para T41; `elapsed_ticks` es el mismo DS 0x414 que `l7_completion_counter`; stubs de T44/T52/T54 en `src/flow_stubs.c`)
 - **ASM:** `entry.asm` L27–143 (`entry` hasta `lab_0140`).
 - **Destino:** nuevo `src/game_flow.c` + `include/game_flow.h`.
 - **Qué hacer:** leer todo el rango, listar qué llamadas ya existen en C y cuáles faltan (T50–T55), y escribir `game_start()` con ellas como llamadas a funciones declaradas (las que faltan, stubs con `/* TODO(Txx) */`). Respetar `sound_enabled=0xFF` y `init_music`.

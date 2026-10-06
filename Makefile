@@ -2,7 +2,7 @@ CC      := cc
 CFLAGS  := -std=c11 -D_POSIX_C_SOURCE=199309L -Wall -Wextra -O2 -Iinclude $(shell pkg-config --cflags sdl2)
 LDFLAGS := $(shell pkg-config --libs sdl2)
 
-SRC := src/main.c src/cga.c src/speaker.c src/sound.c src/audio.c src/video.c src/input.c src/cat_state.c src/animation.c src/movement.c src/game_setup.c src/alley.c src/alley_movement.c src/level_collision.c src/throw.c src/alley_drawing.c src/enemy.c src/cycle_objects.c src/jump_gravity.c src/fall_object.c src/score.c src/level_background.c src/level3_enemy.c src/level_objects.c src/level45_state.c src/level4.c src/level5.c src/level6.c src/level2.c src/level7_epilogue.c src/gen_cat_walk_frames.c src/gen_cat_alley_walk_frames.c src/gen_cat_gap1_sprites.c src/gen_death_sprite.c src/gen_object_sprites.c src/gen_level_geometry.c src/gen_enemy_sprites.c src/gen_obj_hit_sprites.c src/gen_enemy_verified_sprites.c src/gen_fall_sprite.c src/gen_digit_sprites.c src/gen_ds_pool.c
+SRC := src/main.c src/cga.c src/speaker.c src/sound.c src/audio.c src/video.c src/input.c src/cat_state.c src/animation.c src/movement.c src/game_setup.c src/alley.c src/alley_movement.c src/level_collision.c src/throw.c src/alley_drawing.c src/enemy.c src/cycle_objects.c src/jump_gravity.c src/fall_object.c src/score.c src/level_background.c src/level3_enemy.c src/level_objects.c src/level45_state.c src/level4.c src/level5.c src/level6.c src/level2.c src/level7_epilogue.c src/game_flow.c src/flow_stubs.c src/gen_cat_walk_frames.c src/gen_cat_alley_walk_frames.c src/gen_cat_gap1_sprites.c src/gen_death_sprite.c src/gen_object_sprites.c src/gen_level_geometry.c src/gen_enemy_sprites.c src/gen_obj_hit_sprites.c src/gen_enemy_verified_sprites.c src/gen_fall_sprite.c src/gen_digit_sprites.c src/gen_ds_pool.c
 OBJ := $(SRC:src/%.c=build/%.o)
 BIN := build/alleycat
 
@@ -148,6 +148,13 @@ build/test_level6d: tests/test_level6d.c $(TEST_SRC) include/*.h
 test-level6d: build/test_level6d
 	./build/test_level6d
 
-test: test-alley test-l3doors test-level4 test-level4-state test-level5 test-level5-anim test-level5-objects test-level6 test-level6b test-level6c test-level6d test-level2 test-level2b test-level2c test-level2d test-level7 test-level7b test-level7c
+build/test_game_flow: tests/test_game_flow.c $(TEST_SRC) include/*.h
+	@mkdir -p build
+	$(CC) $(CFLAGS) -Wl,--wrap=update_high_score,--wrap=set_palette,--wrap=silence_speaker,--wrap=show_title_screen,--wrap=show_attract_mode,--wrap=clear_score,--wrap=clear_high_score,--wrap=clear_screen,--wrap=render_sprites,--wrap=setup_alley,--wrap=setup_level,--wrap=init_sound,--wrap=init_player,--wrap=reset_jump,--wrap=init_cycle_objects,--wrap=draw_high_score_display,--wrap=draw_current_score,--wrap=init_music tests/test_game_flow.c $(TEST_SRC) -o $@
 
-.PHONY: all run clean test test-alley test-l3doors test-level4 test-level4-state test-level5 test-level5-anim test-level5-objects test-level6 test-level6b test-level6c test-level6d test-level2 test-level2b test-level2c test-level2d test-level7 test-level7b test-level7c
+test-game-flow: build/test_game_flow
+	./build/test_game_flow
+
+test: test-alley test-l3doors test-level4 test-level4-state test-level5 test-level5-anim test-level5-objects test-level6 test-level6b test-level6c test-level6d test-level2 test-level2b test-level2c test-level2d test-level7 test-level7b test-level7c test-game-flow
+
+.PHONY: all run clean test test-alley test-l3doors test-level4 test-level4-state test-level5 test-level5-anim test-level5-objects test-level6 test-level6b test-level6c test-level6d test-level2 test-level2b test-level2c test-level2d test-level7 test-level7b test-level7c test-game-flow
