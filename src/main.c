@@ -23,6 +23,7 @@
 #include "throw.h"
 #include "game_flow.h"
 #include "ui.h"
+#include "hardware.h"
 
 /* T45: el barrido de level_transition bloquea (como el original); presentar cada paso para que se vea. */
 static void wipe_present_step(void) {
@@ -82,6 +83,7 @@ int main(int argc, char **argv) {
             if (ev.type == SDL_KEYDOWN && ev.key.keysym.scancode == SDL_SCANCODE_ESCAPE)
                 running = false;
         }
+        if (reboot_requested) running = false;     /* T51: Ctrl+Alt+Del (reinicio en caliente en el original) */
         if (!running) break;
 
         input_poll();                              /* read_keyboard_dirs (port: SDL) */

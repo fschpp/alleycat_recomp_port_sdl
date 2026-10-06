@@ -19,6 +19,7 @@
 #include "cga.h"
 #include "cat_state.h"
 #include "input.h"
+#include "hardware.h"
 #include "game_flow.h"
 #include "game_setup.h"
 #include "alley_drawing.h"
@@ -69,12 +70,14 @@ void read_pit_counter(void) {
  *   detect_video      -> no-op (SDL crea la ventana CGA 320x200).
  *   read_rom_id       -> rom_id queda en 0xff (PC/XT, no PCjr; cat_state.c).
  *   install_handlers  -> no-op (SDL reemplaza INT 9/8 y el teclado; input.c).
- *   init_bios_data    -> no-op (limpia el buffer de teclas 0x6b7 y keyboard_prev).
+ *   init_bios_data    -> real (T51, hardware.c): matriz de teclas a 0x80 y keyboard_prev.
  *   pause_screen_addr = keyboard_counter+0x240 -> no modelado: solo lo usa la pausa (T55).
- *   int 0x10 modo 4, luego video_mode = 4 si rom_id==0xfd, si no 6 -> con rom_id=0xff: 6.
+ *   int 0x10 modo 4, luego video_mode = 4 si rom_id==0xfd, si no 6 -> con rom_id=0xff: 6. (video_mode NO es un modo:
+ *     es el desplazamiento horizontal del CRTC que ajusta check_special_keys, CRTC[2] = video_mode+0x27, T51.)
  *   int 0x10 ah=0xb bx=0x101 (paleta 1) y out 0x3d9,0x20 (solo no-PCjr) -> modelados (T44) en el registro
  *     cga_color_select (palette.c); la paleta de video.c sale de palette_rgb(). */
 static void game_hw_init(void) {
+    init_bios_data();
     video_mode = 0x4;
     diff_icon_idx = 0x0;                 /* difficulty_counter */
     use_joystick = 0x0;
