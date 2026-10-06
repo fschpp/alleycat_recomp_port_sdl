@@ -14,7 +14,7 @@ graphics assets, so it is not meant to be published or redistributed.
 
 ## 0. Current focus / todo / blockers
 
-**Current focus:** `tareas.md` execution: T00, T10-T41 (§6g-§6al) and **T42** (`entry.asm` L237-340: level dispatch `game_level_enter()`, loops of levels 7/6/5 `game_level_frame()`, exit handler `game_level_exit()` = lab_0427, §6am) are done. Next up: T43 (`entry.asm` L331-467: levels 4, 3, 2, 0/1 and the closing; extend `game_level_enter`/`game_level_frame`, reuse `game_level_exit`). `main.c` runs the real flow: alley via `game_alley_frame()`, levels 7/6/5 via `game_level_frame()` (`in_level` flag); the only stand-in left is levels 0-4 in `GF_TO_0238` (`game_level_enter()` returns false -> "level ended at once": `start_in_level=0`, back to `lab_00f3`) until T43/T75.
+**Current focus:** `tareas.md` execution: T00, T10-T42 (§6g-§6am) and **T43** (`entry.asm` L343-467: loops of levels 4, 3, 0/1 and 2 added to `game_level_enter`/`game_level_frame`; the whole jump table of lab_0238 is now ported, §6an) are done. Next up: T44 (`level_transition` + `set_palette`/`set_ega_palette`, `enemy.asm` L114-158 and L242-274; replaces the stubs in `flow_stubs.c`). `main.c` runs the real flow for every level: alley via `game_alley_frame()`, levels 0-7 via `game_level_frame()` (`in_level` flag).
 T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-level4`, `test-level4-state`, `test-level5`, `test-level5-anim`, `test-level5-objects`, `test-level6`, `test-level6b`, `test-level6c`, `test-level6d`, `test-level2`, `test-level2b`, `test-level2c`, `test-level2d`, `test-level7`, `test-level7b`, `test-level7c`, `test-game-flow`, `test-game-flow-loop`).
 
 - [x] `sound.asm` — full port, wired into every previously-stubbed call site (§6e)
@@ -52,6 +52,7 @@ T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-lev
 - [x] T39 — `draw_love_scene_bg`, `draw_bg_tile` (`level_background.c`); hooked into `draw_level_background` for level 7 (§6aj)
 - [x] T40 — `game_start()` / `game_flow_run()` (`game_flow.c`): hardware init, title, new game, alley setup up to lab_0155; stubs for T44/T52/T54 in `flow_stubs.c`; `read_pit_counter`; entry state vars in `cat_state` (§6ak)
 - [x] T42 — level dispatch (lab_0238) + loops of levels 7/6/5 + exit handler lab_0427 (`game_flow.c`); stubs `level_transition`/`reset_cupid`/`update_cupid` in `flow_stubs.c`; `level_state` in `cat_state` (§6am)
+- [x] T43 — loops of levels 4, 3, 0/1, 2 + level-2 init shared with the level-1 `level_complete` jump (`game_flow.c`); `main.c` no longer has a level stand-in (§6an)
 - [ ] T01 — full headless harness (`tests/harness.h`, `make test`); only `tests/test_alley_loop.c` exists so far
 - [x] T41 — alley loop pass, death handler, weighted level selector (`game_flow.c`); `main.c` wired to `game_start()`/`game_alley_frame()` (§6al)
 - [ ] `ui.asm` — `window_open_state` toggling, the other half of item (h)
@@ -4115,6 +4116,23 @@ Suggested commit: `T41: game_alley_frame, game_death_handler, select_next_level 
 **Verification:** `make test-game-level` (`tests/test_game_level.c`): levels 0-4/9/0xffff do not dispatch and clear `level_state`; the three init call traces; one-frame call traces for L7, L6 (with/without enemy) and L5; 15 exit-flag cases (including that L7 ignores `object_hit`); the four branches of `lab_0427` (restart beats attract, `object_hit` clears `start_in_level`, `level_state`/`level_number`, `level_transition` call). Traces are hand-written from the ASM, not derived from the code. `make test` all green (exit 0). Not run: the SDL build, and no emulator comparison.
 
 Suggested commit: `T42: game_level_enter/game_level_frame/game_level_exit (entry.asm L237-340, lab_0427), levels 7/6/5, main.c in_level, test-game-level`
+
+
+## 6an. T43 — `entry.asm` part 4: levels 4, 3, 0/1, 2 and closing (`src/game_flow.c`; entry.asm L343-467)
+
+**Ported literally:**
+- Init order per level: L4 `level_transition, draw_level_background, setup_level, init_thrown_objects, init_sound, init_level4_objects, init_music` (`init_level4_objects` goes AFTER `init_sound`); L3 `..., setup_level, init_thrown_objects, init_sound, init_level3_doors, init_level3_enemy, init_music`; L0/1 `..., setup_level, init_thrown_objects, init_sound, init_music`; L2 `level_transition, draw_level_background, init_level2_objects, setup_level, enemy_chasing=0, enemy_active=0, init_music` (**no** `init_sound`, **no** `init_thrown_objects`).
+- **Level 0 and 1 share lab_03e2 and it writes `level_number=1`** (also when it was 0). The unsigned clamp of `lab_0238` sends 9 / 0xffff to the same block. `level_number=2` can never come from there.
+- Loop bodies: L4 `..., update_animation, update_level4_state, update_level4_anim, tick_thrown_objects, update_enemies`; L3 `..., update_level3_enemy, update_level3_doors, tick_thrown_objects, update_enemies`; L0/1 `..., tick_thrown_objects, update_enemies, update_entrance_anim`; L2 `..., update_level2_objects, animate_level2_blocks` (no enemies, no thrown objects).
+- **Exit flags differ per level** (all kept): L4 and L3 = `object_hit|cat_caught|cat_died|show_attract|restart_game`; **L0/1 = `object_hit|cat_died|restart_game|show_attract` (no `cat_caught`)**; **L2 = `object_hit|cat_caught|show_attract|restart_game` (no `cat_died`)**.
+- **L0/1 -> L2 jump:** after `update_entrance_anim` the loop does `cmp BYTE [level_complete],0 / jnz lab_0459` BEFORE reading any exit flag. It tests only the LOW byte of `level_complete` (a word in the C port): `0x0100` does not complete the level. The jump runs the L2 init (`level2_init()`, shared with the jump-table entry) and `game_level_frame()` returns `GL_STAY` with `level_number==2`; the next pass is `lab_0478`.
+- `lab_0427` (the exit handler) was already ported in §6am; nothing else in L331-467 beyond the `db 0,0,0` padding at the end.
+
+**`main.c`:** the level stand-in is gone: `GF_TO_0238` is `in_level = game_level_enter();`. `game_level_enter()` keeps its `bool` return (always true now) so the T42 callers/tests still compile. Syntax-checked by hand only (no libsdl2-dev here).
+
+**Verification:** `make test-game-level` extended: init traces for L4/L3/L2/L0/L1 and the clamp cases, one-frame traces for L4, L3, L0/1, L2, the L1->L2 jump (full trace including the L2 init and no exit-flag evaluation), `level_complete=0x0100` not completing, and the exit-flag matrix now covers 5 flags x levels 7/6/5/4/3/1/2 (20 -> 35 cases), with the three flags each level does NOT read (L7 `object_hit`, L0/1 `cat_caught`, L2 `cat_died`). Mutations that fail as expected: L2 also reading `cat_died`; `level_complete` compared as a word. `make test` all green. Traces hand-written from the ASM; no emulator comparison, no SDL run.
+
+Suggested commit: `T43: loops of levels 4/3/0-1/2 in game_level_enter/game_level_frame (entry.asm L343-467), main.c without level stand-in, test-game-level`
 
 
 ## 7. General lesson for this whole project

@@ -35,6 +35,9 @@
 #include "level_background.h"
 #include "level5.h"
 #include "level6.h"
+#include "level4.h"
+#include "level3_enemy.h"
+#include "level2.h"
 
 uint16_t (*game_tick_fn)(void) = NULL;
 uint16_t (*pit_counter_fn)(void) = NULL;
@@ -247,9 +250,22 @@ gf_next_t game_alley_frame(void) {
 
 /* ===================== T42: entry.asm L237-330 ===================== */
 
+/* lab_0459: init del nivel 2. Se llega por la tabla de saltos (nivel 2) y tambien por salto desde el
+ * loop del nivel 0/1 cuando level_complete != 0 (lab_0403). */
+static void level2_init(void) {
+    level_number = 0x2;
+    level_transition();
+    draw_level_background();
+    init_level2_objects();
+    setup_level();
+    enemy_chasing = 0x0;
+    enemy_active = 0x0;
+    init_music();                                  /* sin init_sound ni init_thrown_objects */
+}
+
 /* Despacho (lab_0238). Tabla de saltos del ASM (cs:0x250), literal:
- *   nivel 0,1 -> lab_03e2 | 2 -> lab_0459 | 3 -> lab_0394 | 4 -> lab_0349 (todos T43)
- *   nivel 5 -> lab_02fe | 6 -> lab_02aa | 7 -> lab_0260 (portados aqui). */
+ *   nivel 0,1 -> lab_03e2 | 2 -> lab_0459 | 3 -> lab_0394 | 4 -> lab_0349 | 5 -> lab_02fe
+ *   | 6 -> lab_02aa | 7 -> lab_0260. Todos portados (T42 + T43). */
 bool game_level_enter(void) {
     uint16_t bx;
     level_state = 0x0;
@@ -259,7 +275,10 @@ bool game_level_enter(void) {
     case 7: goto lab_0260;
     case 6: goto lab_02aa;
     case 5: goto lab_02fe;
-    default: return false;                         /* niveles 0-4: TODO(T43) */
+    case 4: goto lab_0349;
+    case 3: goto lab_0394;
+    case 2: goto lab_0459;
+    default: goto lab_03e2;                        /* niveles 0 y 1 comparten bloque */
     }
 
     /* --- Level 7 (love scene) --- */
@@ -298,6 +317,47 @@ lab_02fe:
     init_sound();
     init_music();
     return true;                                   /* -> lab_0319 */
+
+    /* --- Level 4 (T43) --- */
+lab_0349:
+    level_number = 0x4;
+    level_transition();
+    draw_level_background();
+    setup_level();
+    init_thrown_objects();
+    init_sound();
+    init_level4_objects();                         /* aqui va DESPUES de init_sound */
+    init_music();
+    return true;                                   /* -> lab_0364 */
+
+    /* --- Level 3 (T43) --- */
+lab_0394:
+    level_number = 0x3;
+    level_transition();
+    draw_level_background();
+    setup_level();
+    init_thrown_objects();
+    init_sound();
+    init_level3_doors();
+    init_level3_enemy();
+    init_music();
+    return true;                                   /* -> lab_03b2 */
+
+    /* --- Level 0/1 (T43): level_number = 1 tambien para el nivel 0 --- */
+lab_03e2:
+    level_number = 0x1;
+    level_transition();
+    draw_level_background();
+    setup_level();
+    init_thrown_objects();
+    init_sound();
+    init_music();
+    return true;                                   /* -> lab_03fa */
+
+    /* --- Level 2 --- */
+lab_0459:
+    level2_init();
+    return true;                                   /* -> lab_0478 */
 }
 
 gl_next_t game_level_frame(void) {
@@ -341,8 +401,61 @@ gl_next_t game_level_frame(void) {
         /* object_hit | cat_caught | cat_died | show_attract | restart_game */
         if ((object_hit | cat_caught | cat_died | (uint8_t)show_attract | (uint8_t)restart_game) == 0) return GL_STAY;
         return GL_EXIT;
+    case 4:
+        /* lab_0364 */
+        input_process_keys();
+        /* poll_joystick: TODO(T60) */
+        play_sound();
+        update_alley_movement();
+        update_level4_state();
+        update_level4_anim();
+        tick_thrown_objects();
+        update_enemies();
+        if ((object_hit | cat_caught | cat_died | (uint8_t)show_attract | (uint8_t)restart_game) == 0) return GL_STAY;
+        return GL_EXIT;
+    case 3:
+        /* lab_03b2 */
+        input_process_keys();
+        /* poll_joystick: TODO(T60) */
+        play_sound();
+        update_alley_movement();
+        update_level3_enemy();
+        update_level3_doors();
+        tick_thrown_objects();
+        update_enemies();
+        if ((object_hit | cat_caught | cat_died | (uint8_t)show_attract | (uint8_t)restart_game) == 0) return GL_STAY;
+        return GL_EXIT;
+    case 1:
+    case 0:
+        /* lab_03fa (el bloque de nivel 0/1 fija level_number=1; el 0 solo es posible si alguien lo
+         * deja a mano) */
+        input_process_keys();
+        /* poll_joystick: TODO(T60) */
+        play_sound();
+        update_alley_movement();
+        tick_thrown_objects();
+        update_enemies();
+        update_entrance_anim();
+        if ((uint8_t)level_complete != 0x0) {      /* cmp BYTE [level_complete],0 / jnz lab_0459 */
+            level2_init();                         /* nivel completo -> nivel 2 (siguiente pasada: lab_0478) */
+            return GL_STAY;
+        }
+        /* object_hit | cat_died | restart_game | show_attract (SIN cat_caught) */
+        if ((object_hit | cat_died | (uint8_t)restart_game | (uint8_t)show_attract) == 0) return GL_STAY;
+        return GL_EXIT;
+    case 2:
+        /* lab_0478 */
+        input_process_keys();
+        /* poll_joystick: TODO(T60) */
+        play_sound();
+        update_alley_movement();
+        update_level2_objects();
+        animate_level2_blocks();
+        /* object_hit | cat_caught | show_attract | restart_game (SIN cat_died) */
+        if ((object_hit | cat_caught | (uint8_t)show_attract | (uint8_t)restart_game) == 0) return GL_STAY;
+        return GL_EXIT;
     default:
-        return GL_EXIT;                            /* niveles 0-4: TODO(T43) */
+        return GL_EXIT;
     }
 }
 

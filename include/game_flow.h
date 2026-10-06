@@ -45,14 +45,15 @@ uint16_t select_next_level(void);
 
 /* entry.asm L237-330 (T42, PROGRESS.md §6am): despacho de nivel (lab_0238) y los niveles 7, 6 y 5.
  * Igual que el callejon: game_level_enter() hace el despacho + la init del nivel (todo lo anterior al
- * primer `call process_keyboard`), game_level_frame() es UNA pasada del loop del nivel. Niveles 0-4:
- * pendientes de T43. */
+ * primer `call process_keyboard`), game_level_frame() es UNA pasada del loop del nivel. T42: niveles
+ * 7, 6, 5; T43 (entry.asm L343-467): 4, 3, 0/1 y 2 -> la tabla de saltos entera esta portada. */
 typedef enum { GL_STAY = 0, GL_EXIT } gl_next_t;   /* GL_EXIT = salto a lab_0427 */
 
-/* lab_0238: level_state=0, clamp de level_number a 0 si > 7, salto por tabla. Devuelve true si el nivel
- * ya esta portado (7, 6, 5) y su init se ejecuto; false si es de T43 (no toca nada mas). */
+/* lab_0238: level_state=0, clamp de level_number a 0 si > 7, salto por tabla. Devuelve true (desde T43
+ * todos los niveles estan portados; el bool se conserva por compatibilidad). */
 bool game_level_enter(void);
-/* Una pasada del loop del nivel actual (level_number). Solo 7, 6 y 5; otro nivel => GL_EXIT. */
+/* Una pasada del loop del nivel actual (level_number 0..7; otro valor => GL_EXIT). El nivel 0/1 puede
+ * saltar a la init del nivel 2 (level_complete != 0): devuelve GL_STAY con level_number == 2. */
 gl_next_t game_level_frame(void);
 /* lab_0427 (manejador de salida; el ASM esta en el rango de T43, se porta aqui porque sin el los niveles
  * de T42 no pueden terminar): restart -> GF_TO_00AE, attract -> GF_TO_00A3; si no, aplica
