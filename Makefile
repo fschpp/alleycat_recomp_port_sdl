@@ -164,7 +164,7 @@ test-game-flow-loop: build/test_game_flow_loop
 
 build/test_game_level: tests/test_game_level.c $(TEST_SRC) include/*.h
 	@mkdir -p build
-	$(CC) $(CFLAGS) -Wl,--wrap=level_transition,--wrap=draw_level_background,--wrap=setup_level,--wrap=init_sound,--wrap=init_thrown_objects,--wrap=reset_cupid,--wrap=init_level7_objects,--wrap=init_music,--wrap=init_level5_objects,--wrap=play_sound,--wrap=update_alley_movement,--wrap=update_cupid,--wrap=tick_level_thrown_objects,--wrap=spawn_thrown_object,--wrap=update_level7_objects,--wrap=update_level6_movement,--wrap=update_level6_timing,--wrap=update_enemies,--wrap=tick_thrown_objects,--wrap=update_level5_objects,--wrap=update_level5_anim tests/test_game_level.c $(TEST_SRC) -o $@
+	$(CC) $(CFLAGS) -Wl,--wrap=level_transition,--wrap=draw_level_background,--wrap=setup_level,--wrap=init_sound,--wrap=init_thrown_objects,--wrap=reset_cupid,--wrap=init_level7_objects,--wrap=init_music,--wrap=init_level5_objects,--wrap=play_sound,--wrap=update_alley_movement,--wrap=update_cupid,--wrap=tick_level_thrown_objects,--wrap=spawn_thrown_object,--wrap=update_level7_objects,--wrap=update_level6_movement,--wrap=update_level6_timing,--wrap=update_enemies,--wrap=tick_thrown_objects,--wrap=update_level5_objects,--wrap=update_level5_anim,--wrap=init_level4_objects,--wrap=update_level4_state,--wrap=update_level4_anim,--wrap=init_level3_doors,--wrap=init_level3_enemy,--wrap=update_level3_enemy,--wrap=update_level3_doors,--wrap=update_entrance_anim,--wrap=init_level2_objects,--wrap=update_level2_objects,--wrap=animate_level2_blocks tests/test_game_level.c $(TEST_SRC) -o $@
 
 test-game-level: build/test_game_level
 	./build/test_game_level

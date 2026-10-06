@@ -75,15 +75,9 @@ int main(int argc, char **argv) {
         case GF_TO_00AE: in_level = false; game_flow_run(GF_LAB_00AE); break;   /* restart */
         case GF_TO_00F3: in_level = false; game_flow_run(GF_LAB_00F3); break;   /* level exit -> alley (lab_0427) */
         case GF_TO_0238:
-            /* The cat died: game_death_handler() already picked level_number. lab_0238 dispatches:
-             * levels 7/6/5 run their real loop (T42); levels 0-4 are T43 -> until then behave as if
-             * the level ended at once (entry.asm L435: start_in_level = 0 -> respawn in the alley). */
-            if (game_level_enter()) {
-                in_level = true;
-            } else {
-                start_in_level = 0;
-                game_flow_run(GF_LAB_00F3);
-            }
+            /* The cat died: game_death_handler() already picked level_number; lab_0238 dispatches to
+             * the init of that level (T42/T43: every level is ported) and its loop runs from now on. */
+            in_level = game_level_enter();
             break;
         }
     }

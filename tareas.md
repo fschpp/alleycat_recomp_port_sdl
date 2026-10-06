@@ -301,7 +301,7 @@ Estado compartido de los niveles 4 y 5: **los dos usan las variables `l5_obj_*`*
 - **Notas:** los 7 bloques son casi iguales (init, `process_keyboard`, `poll_joystick`, `play_sound`, `update_animation`, update específico, flag de salida). Escribir un `run_level(n)` genérico con la tabla de funciones por nivel (init/update/exit) en lugar de 7 copias, **solo si** se documenta cada diferencia entre bloques.
 - **Verificar:** la tabla por nivel coincide con la lectura del ASM (anotar las llamadas por nivel en un comentario).
 
-### T43 — `entry.asm` parte 4: niveles restantes y cierre [M · 137]
+### T43 — `entry.asm` parte 4: niveles restantes y cierre [M · 137] ✅ HECHO (PROGRESS.md §6an; niveles 4, 3, 0/1 y 2 dentro de `game_level_enter`/`game_level_frame`; `switch` literal, no `run_level`; salto 0/1 -> 2 por el byte bajo de `level_complete`; `main.c` sin stand-in)
 - **ASM:** `entry.asm` L331–467.
 - **Destino:** `src/game_flow.c`.
 - **Notas:** incluye `init_level3_enemy` (lab_0394) y `init_level7_objects`; completar la tabla de T42.
