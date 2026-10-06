@@ -14,7 +14,7 @@ graphics assets, so it is not meant to be published or redistributed.
 
 ## 0. Current focus / todo / blockers
 
-**Current focus:** `tareas.md` execution: T00, T10-T45 (§6g-§6ap) and **T46** (`show_level_result` + `draw_result_frame` in `src/result.c`, §6aq) **T47** (`handle_level_complete` in `src/score.c`, §6ar) **T48** (bonus text/flash/mask + BIOS text model and font, §6as) and **T49** (`animate_score_bar`, `binary_to_bcd` in `src/score_bar.c`, §6at) are done: the bonus bar is fully real now. **T50** (`src/ui.c`: `print_string`, `set_cursor`, `wait_for_input`, `display_text_line`, `clear_cga`, §6au) is done too. **T51** (`src/hardware.c`: `check_special_keys`, `init_bios_data`, `detect_video`, `print_startup_msg`, §6av) too. **T52 + T53** (`show_title_screen`, `move_title_cat`, `animate_title_icon` in `src/ui.c`, §6aw) too. **T54** (`show_attract_mode`, `detect_joystick`, `test_joystick_axis` in `src/ui.c`, §6ax) too. **T55** (`show_pause_menu` in `src/ui.c`, `set_bios_tick` in `score.c`, §6ay) too. Next up: T56 (Cupid A). Still stubbed: `love_scene_outro` (T58, called by `show_level_result` for level 7). `main.c` runs the real flow for every level.
+**Current focus:** `tareas.md` execution: T00, T10-T45 (§6g-§6ap) and **T46** (`show_level_result` + `draw_result_frame` in `src/result.c`, §6aq) **T47** (`handle_level_complete` in `src/score.c`, §6ar) **T48** (bonus text/flash/mask + BIOS text model and font, §6as) and **T49** (`animate_score_bar`, `binary_to_bcd` in `src/score_bar.c`, §6at) are done: the bonus bar is fully real now. **T50** (`src/ui.c`: `print_string`, `set_cursor`, `wait_for_input`, `display_text_line`, `clear_cga`, §6au) is done too. **T51** (`src/hardware.c`: `check_special_keys`, `init_bios_data`, `detect_video`, `print_startup_msg`, §6av) too. **T52 + T53** (`show_title_screen`, `move_title_cat`, `animate_title_icon` in `src/ui.c`, §6aw) too. **T54** (`show_attract_mode`, `detect_joystick`, `test_joystick_axis` in `src/ui.c`, §6ax) too. **T55** (`show_pause_menu` in `src/ui.c`, `set_bios_tick` in `score.c`, §6ay) too. **T56** (`reset_cupid`, `update_cupid` in `src/cupid.c`, §6az) too. Next up: T57 (Cupid B: `draw_cupid`, `erase_cupid`, `cupid_toggle_window`, `check_cupid_collision`). Still stubbed: `love_scene_outro` (T58, called by `show_level_result` for level 7). `main.c` runs the real flow for every level.
 T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-level4`, `test-level4-state`, `test-level5`, `test-level5-anim`, `test-level5-objects`, `test-level6`, `test-level6b`, `test-level6c`, `test-level6d`, `test-level2`, `test-level2b`, `test-level2c`, `test-level2d`, `test-level7`, `test-level7b`, `test-level7c`, `test-game-flow`, `test-game-flow-loop`).
 
 - [x] `sound.asm` — full port, wired into every previously-stubbed call site (§6e)
@@ -65,6 +65,7 @@ T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-lev
 - [x] T53 — `move_title_cat`, `animate_title_icon` (`ui.c`), ported together with T52 because its loop calls them; `test-title` (§6aw)
 - [x] T54 — `show_attract_mode`, `detect_joystick`, `test_joystick_axis` (`ui.c`); Y/N + K/H/T/A via key matrix, `int9_set_scancode` (`hardware.c`); stub removed; `test-attract` (§6ax)
 - [x] T55 — `show_pause_menu` (`ui.c`), `set_bios_tick` (`score.c`); `test-pause`; not wired to `process_keyboard` until T61 (§6ay)
+- [x] T56 — `reset_cupid`, `update_cupid` (`cupid.c`, `cupid.h`); T57 helpers stubbed in `flow_stubs.c`; `test-cupid` (§6az)
 - [ ] T01 — full headless harness (`tests/harness.h`, `make test`); only `tests/test_alley_loop.c` exists so far
 - [x] T41 — alley loop pass, death handler, weighted level selector (`game_flow.c`); `main.c` wired to `game_start()`/`game_alley_frame()` (§6al)
 - [ ] `ui.asm` — `window_open_state` toggling, the other half of item (h)
@@ -4313,6 +4314,22 @@ Suggested commit: `T54: show_attract_mode, detect_joystick, test_joystick_axis (
 **Verification:** `make test-pause` (no SDL): the three strings; for keyboard and joystick modes, the poster drawn during the pause equals an independent rendering of the same texts on a copy of the screen; after resuming `cga_mem` is byte-identical to before (pattern-filled screen); `pause_counter == keyboard_counter`; the tick returns to its value at entry and keeps advancing. Full `make test` passes; `-Wall -Wextra` clean.
 
 Suggested commit: `T55: show_pause_menu (ui.asm L245-299) en ui.c; set_bios_tick en score.c; test-pause`
+
+
+## 6az. T56 — Cupid A: estado y movimiento (`src/cupid.c`, `include/cupid.h`; ui.asm L571-675)
+
+**Ported literally (goto):** `reset_cupid` (`cupid_active = 0`) and `update_cupid` (once per BIOS tick: collision check, random spawn, movement, window toggle). The DS state block 0x70ec..0x70fb now lives in `cupid.c` with the original types (`cupid_x` word, `cupid_y` byte, `cupid_dir` byte 0x01/0xff, ...). The stubs of `reset_cupid`/`update_cupid` are gone from `flow_stubs.c`; `level7_epilogue.c` no longer has its own `cupid_active/x/y` (it uses `cupid.h`; `check_l7_cupid` casts `cupid_x` to `int16_t` for `check_rect_collision`).
+
+**Behaviour read from the ASM:**
+- Spawn: `bx = random & 0x1f`. `bl < 0x10`: enters from the left (x=0xc, dir +1) or, if bit 3 is set, from the right (x=0x120, dir -1), at row `dat_70b0[bl & 7] + 8` (rows 0x00,0x18,...,0xa8). `bl >= 0x10`: `b = bl - 0x10`; `b > 9` draws another random number; otherwise it enters from the top at y=6, column `dat_70b8[b] + 4` (words 0,0x20,...,0x120), dir +1 for `b < 5` and -1 otherwise.
+- The same call that spawns also moves: `arrow_x += 4` (up to 0xa0), `y += 2`, `x += dir*5`. So a left-edge cupid lasts 58 ticks (leaves at `x >= 0x12c`), a right-edge one also 58 (leaves at `x < 5`), the lowest row (y=0xb0) 8 ticks (`y > 0xbf`).
+- `cupid_y` is a byte (the `add`/`cmp ja` wrap and are unsigned); `db 0xd0,0xe3` = `shl bl,1`.
+
+**Pending / stubs (T57, ui.asm L676-791), declared in `cupid.h`, stubbed in `flow_stubs.c`:** `draw_cupid`, `erase_cupid`, `cupid_toggle_window`, `check_cupid_collision` (returns CF; the stub returns 0 = no hit). `level7_epilogue.c` still has its own `erase_cupid_stub`/`draw_cupid_stub` to replace in T57.
+
+**Verification:** `make test-cupid` (no SDL; `cga_random`, the T57 helpers, `restore_alley_buffer` and `draw_alley_foreground` are `--wrap`ped and logged): the two DS tables; one update per tick (same tick = no calls); all 26 valid spawn values (direction, x, y, `arrow_x`, `drawn`, `prev_x`, `draw_addr`, call order `? r ? W E D`); retries for `b > 9`; full trajectories (58, 58 and 8 ticks, `arrow_x` capped at 0xa0, `erase_cupid` on exit); collision at tick start (`? R E F`, no movement) and after the move (`? ? E`); an active cupid draws no random numbers. Full `make test` passes; `-Wall -Wextra` clean.
+
+Suggested commit: `T56: reset_cupid, update_cupid (ui.asm L571-675) en cupid.c/cupid.h; stubs de T57; test-cupid`
 
 
 ## 7. General lesson for this whole project

@@ -8,6 +8,7 @@
 #include "level_collision.h"
 #include "level3_enemy.h"
 #include "input.h"
+#include "cupid.h"
 #include "gen/ds_pool.h"
 #include <stdint.h>
 #include <stdbool.h>
@@ -196,9 +197,7 @@ void init_level7_objects(void) {
  * and faithfully always reports "no hit" until that subsystem exists —
  * no special-casing needed, the literal port just degrades gracefully.
  * draw_cupid/erase_cupid stubbed the same way, for the same reason. */
-static uint8_t cupid_active;
-static int16_t cupid_x;
-static uint8_t cupid_y;
+/* T56: cupid_active/cupid_x/cupid_y son ahora los de cupid.h (src/cupid.c). */
 static void erase_cupid_stub(void) { /* TODO: ui.asm */ }
 static void draw_cupid_stub(void) { /* TODO: ui.asm */ }
 
@@ -245,7 +244,7 @@ static void l7_draw_alley_foreground(void) { draw_alley_foreground(); }
 /* check_l7_cupid — literal port. */
 static bool check_l7_cupid(void) {
     if (!cupid_active) return false;
-    return check_rect_collision(cupid_x, cupid_y, 0x10, 0x0c,
+    return check_rect_collision((int16_t)cupid_x, cupid_y, 0x10, 0x0c,
                                  l7_cat_x, l7_cat_y, 0x18, 0x08);
 }
 

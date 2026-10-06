@@ -7,8 +7,12 @@
 
 void love_scene_outro(void)     { /* TODO(T58): ui.asm L489-570 */ }
 
-void reset_cupid(void)       { /* TODO(T56): ui.asm reset_cupid */ }
-void update_cupid(void)      { /* TODO(T56): ui.asm update_cupid */ }
+/* T57 (ui.asm L676-791): draw_cupid, erase_cupid, cupid_toggle_window, check_cupid_collision (devuelve CF). */
+#include "cupid.h"
+void draw_cupid(void)          { /* TODO(T57) */ }
+void erase_cupid(void)         { /* TODO(T57) */ }
+void cupid_toggle_window(void) { /* TODO(T57) */ }
+int  check_cupid_collision(void) { /* TODO(T57) */ return 0; }
 
 /* Respaldo debil de input_process_keys (input.c usa SDL y no esta en TEST_SRC): con input.c
  * enlazado gana su definicion fuerte; los tests sin SDL usan este no-op o definen la suya. */

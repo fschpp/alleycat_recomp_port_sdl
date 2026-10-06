@@ -387,7 +387,7 @@ Estado compartido de los niveles 4 y 5: **los dos usan las variables `l5_obj_*`*
 - **Notas:** guarda y restaura una región con `save_from_cga`/`blit_to_cga`.
 - **Verificar:** pausa → reanudar deja la pantalla idéntica a la anterior (diff de `cga_mem`).
 
-### T56 — Cupid A: estado y movimiento [M · 105]
+### T56 — Cupid A: estado y movimiento [M · 105] ✅ HECHO (PROGRESS.md §6az; `src/cupid.c`, `include/cupid.h`; `level7_epilogue.c` usa ya las variables de `cupid.h`; los helpers de T57 son stubs en `flow_stubs.c`; `cupid_x` word, `cupid_y` byte)
 - **ASM:** `ui.asm` L571–675 (`reset_cupid`, `update_cupid`).
 - **Destino:** nuevo `src/cupid.c` + `include/cupid.h`.
 - **Datos:** `cupid_prev_x=0x70ec`, `cupid_anim_tick=0x70ee`, `cupid_arrow_x=0x70f0`, `cupid_active=0x70f2`, `cupid_x=0x70f3`, `cupid_y=0x70f5`, `cupid_dir=0x70f6`, `cupid_drawn=0x70f7`, `cupid_erase_addr=0x70f8`, `cupid_draw_addr=0x70fa`.

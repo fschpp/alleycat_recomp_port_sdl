@@ -80,8 +80,8 @@ void animate_screen_wipe(void);
 void show_level_result(void);
 void draw_result_frame(void);
 extern void (*wipe_step_hook)(void);   /* llamado tras cada paso del barrido (NULL = nada) */
-void reset_cupid(void);          /* TODO(T56): ui.asm L571-: init del estado del cupido (nivel 7) */
-void update_cupid(void);         /* TODO(T56): ui.asm update_cupid */
+void reset_cupid(void);          /* T56 (cupid.c): ui.asm L571-: init del estado del cupido (nivel 7) */
+void update_cupid(void);         /* T56 (cupid.c): ui.asm update_cupid */
 void show_attract_mode(void);    /* T54 (ui.c): ui.asm L300-382, fija use_joystick y difficulty_counter */
 
 #endif
