@@ -61,6 +61,25 @@ extern uint16_t (*l2_tick_fn)(void);         /* solo tests: sustituye a int 0x1a
 extern bool     (*l2_vsync_fn)(void);        /* solo tests: sustituye al bit de retrace (NULL = reloj real) */
 bool check_level_objects(void);
 
+/* ---- T36: animaciones (level_objects.asm L1017-1099), PROGRESS.md §6ag ---- */
+#define L2_BLOCK_COUNT 0x28
+extern uint8_t  l2_block_types[L2_BLOCK_COUNT]; /* DS 0x2656 (byte[0x28]): lo llena draw_level2_background (score.asm L180) */
+extern uint16_t l2_dat_350d;                 /* DS 0x350d (word): bloque en curso de la ola; init 0 */
+extern uint16_t l2_dat_350f;                 /* DS 0x350f (word): tick de arranque de la ola; init 0 */
+extern uint16_t l2_dat_35d8;                 /* DS 0x35d8 (word): fase de la entrada (+2 por frame, & 6); init 0 */
+extern uint16_t l2_dat_35da;                 /* DS 0x35da (word): ultimo tick de la entrada; init 0 */
+
+/* animate_level2_blocks (L1017-1059): cada vez que pasan >= 8 ticks desde dat_350f avanza UN bloque (dat_350d = 1..0x27; al llegar a 0x28
+ * vuelve a 0 y fija dat_350f = tick, asi que la ola es continua y dat_350f solo se refresca al cerrar la vuelta). Si cat_y <= 7 y el gato
+ * esta a menos de 4 columnas del bloque (|cat_x/4 + 1 - 2*bloque|, con `not` si hay borrow) no lo anima. Si no: tipo += 8 y dibuja el frame
+ * (tipo & 0x18) de level2_bar_sprites (1x4) en 0xa0 + 2*bloque (`shl di,0x0` del listado es `shl di,1`). */
+void animate_level2_blocks(void);
+
+/* update_entrance_anim (L1063-1093): cada >= 6 ticks (desde dat_35da) avanza dat_35d8 += 2 y dibuja el frame dat_35d0[dat_35d8 & 6] (2x10)
+ * en el offset CGA 0x15c9 (el valor del label enemy_sprite_table_hi usado como direccion). Si el gato toca el rect (0xe4, 0x8a, 0x10 x 0xa)
+ * pone el BYTE bajo de level_complete a 1. */
+void update_entrance_anim(void);
+
 /* update_level2_objects (level_objects.asm L872-998) — T35, PROGRESS.md §6af. Mueve UN slot por llamada (dat_3415 = 1..23, 0 al
  * envolver) y solo cuando el tick BIOS != dat_3509. Al envolver: dat_3415 = 0, l2_anim_toggle ^= 0xc, dat_3413 += 8 y dat_3509 = tick.
  * En el slot 12 solo marca el tick (dat_3509 = tick) si rom_id != 0xfd o cat_y >= 0x30 (si no, el slot 12 se mueve de todos modos

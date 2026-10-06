@@ -113,6 +113,20 @@ build/test_level2c: tests/test_level2c.c $(TEST_SRC) include/*.h
 test-level2c: build/test_level2c
 	./build/test_level2c
 
+build/test_level2d: tests/test_level2d.c $(TEST_SRC) include/*.h
+	@mkdir -p build
+	$(CC) $(CFLAGS) tests/test_level2d.c $(TEST_SRC) -o $@
+
+test-level2d: build/test_level2d
+	./build/test_level2d
+
+build/test_level7: tests/test_level7.c $(TEST_SRC) include/*.h
+	@mkdir -p build
+	$(CC) $(CFLAGS) -Wl,--wrap=restore_alley_buffer,--wrap=draw_alley_foreground,--wrap=start_tone tests/test_level7.c $(TEST_SRC) -o $@
+
+test-level7: build/test_level7
+	./build/test_level7
+
 build/test_level6d: tests/test_level6d.c $(TEST_SRC) include/*.h
 	@mkdir -p build
 	$(CC) $(CFLAGS) -Wl,--wrap=erase_l1_thrown,--wrap=draw_l1_thrown,--wrap=save_alley_buffer,--wrap=restore_alley_buffer,--wrap=draw_alley_foreground,--wrap=start_tone,--wrap=check_thrown_near_cat tests/test_level6d.c $(TEST_SRC) -o $@
@@ -120,6 +134,6 @@ build/test_level6d: tests/test_level6d.c $(TEST_SRC) include/*.h
 test-level6d: build/test_level6d
 	./build/test_level6d
 
-test: test-alley test-l3doors test-level4 test-level4-state test-level5 test-level5-anim test-level5-objects test-level6 test-level6b test-level6c test-level6d test-level2 test-level2b test-level2c
+test: test-alley test-l3doors test-level4 test-level4-state test-level5 test-level5-anim test-level5-objects test-level6 test-level6b test-level6c test-level6d test-level2 test-level2b test-level2c test-level2d test-level7
 
-.PHONY: all run clean test test-alley test-l3doors test-level4 test-level4-state test-level5 test-level5-anim test-level5-objects test-level6 test-level6b test-level6c test-level6d test-level2 test-level2b test-level2c
+.PHONY: all run clean test test-alley test-l3doors test-level4 test-level4-state test-level5 test-level5-anim test-level5-objects test-level6 test-level6b test-level6c test-level6d test-level2 test-level2b test-level2c test-level2d test-level7

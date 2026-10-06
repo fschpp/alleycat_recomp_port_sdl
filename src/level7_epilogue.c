@@ -206,9 +206,18 @@ static void draw_cupid_stub(void) { /* TODO: ui.asm */ }
  * thrown-object rain in level_objects.c/§5z). Until that's ported these
  * arrays stay all-zero/inactive, so check_l7_object_overlap below is a
  * real, complete port that simply never finds anything active yet. */
-static int16_t l7_obj_x[8];
-static uint8_t l7_obj_y[8];
-static uint8_t l7_obj_active[8];
+int16_t l7_obj_x[8];                  /* 0x2b5a (publicos: los lee tests/test_level7.c) */
+uint8_t l7_obj_y[8];                  /* 0x2b6a */
+uint8_t l7_obj_active[8];             /* 0x2b72 */
+/* Estado de spawn_thrown_object (T37). Offsets DS resueltos con tools/resolve_data_segment.py (grep -w). El DS inicial los trae a 0. */
+uint16_t l7_obj_spawn_slot = 0;       /* 0x2e8d (word) slot a spawnear; >= 8 = ninguno (lo deja en 0xffff al terminar) */
+uint8_t  l7_obj_closest_dist = 0;     /* 0x2e91 */
+uint16_t l7_obj_closest_row = 0;      /* 0x2e92 (word) */
+uint16_t l7_obj_last_picked = 0;      /* 0x2e94 (word) */
+uint16_t l7_obj_cur_x = 0;            /* 0x2e96 (word) */
+uint8_t  l7_obj_cur_y = 0;            /* 0x2e98 */
+/* l7_obj_sprite (0x2af0..0x2b4a = 0x5a bytes = 3 palabras x 15 filas, verificado contra l7_obj_init_x_table=0x2b4a). */
+#define L7_OBJ_SPRITE 0x2af0
 /* l7_obj_erase_sprite (0x2b7a, 90 bytes = 3 words x 15 rows): the plain
  * background patch blitted over a caught heart-drop object to erase it. */
 #define L7_OBJ_ERASE_SPRITE 0x2b7a
@@ -272,6 +281,94 @@ static void check_l7_object_overlap(void) {
         l7_cat_last_tick = dx;
         return;
     }
+}
+
+/* spawn_thrown_object (level_objects.asm L41-138, T37) — literal, etiqueta por etiqueta.
+ * Notas de traduccion:
+ *  - `db 0xd0,0xe3` (comentado como "shl bl,0x0" en el desensamblado) es D0 /4 = SHL BL,1: duplica el indice para direccionar
+ *    las tablas de WORDS (l7_obj_x). Los accesos de BYTE (l7_obj_y/active) usan el indice ANTES de duplicar.
+ *  - `not al` (no `neg`): para una fila por encima del gato la "distancia" guardada es ~(a-b) = |a-b|-1. Con las filas a 24 px la
+ *    FILA elegida es la misma con not o neg; lo que cambia es l7_obj_closest_dist (estado DS) y eso lo verifica el test.
+ *    Empates (`ja` solo salta si es estrictamente mayor): gana el ultimo evaluado = indice mas bajo (el bucle baja de 6 a 0).
+ *  - `cmp word [0x2e92],0xffff` es codigo muerto (el bucle siempre deja una fila), pero se porta igual.
+ *  - `mov ah,0xb / int 10h` (BX=0: color de fondo/borde = 0) no tiene efecto visible en el port (como l2_border_color).
+ *  - check_rect_collision: A = (ax=x, dl=y, si=0x18, cl=0xf), B = (bx=x, dh=y, di=0x18, ch=0xf) con cx=0xf0f. */
+void spawn_thrown_object(void) {
+    uint16_t cx, bx, si, ax;
+    uint8_t al, dl;
+
+    if (l7_obj_spawn_slot < 0x8) goto lab_2e68;           /* cmp word [spawn_slot],8 / jb */
+lab_2e67:
+    return;
+lab_2e68:
+    if (joy_button != 0x0) goto lab_2e67;                 /* cmp byte [0x69a],0 */
+    l7_obj_closest_row = 0xffff;
+    l7_obj_closest_dist = 0xff;
+    cx = 0x7;
+lab_2e7d:
+    bx = (uint16_t)(cx - 1);                              /* mov bx,cx / dec bx */
+    al = cat_y;
+    {
+        uint8_t row_y = ds_pool[WINDOW_ROW_Y_TABLE + bx];
+        bool borrow = al < row_y;                         /* sub al,[bx+window_row_y_table] -> CF */
+        al = (uint8_t)(al - row_y);
+        if (!borrow) goto lab_2e8b;                       /* jnb */
+    }
+    al = (uint8_t)~al;                                    /* not al */
+lab_2e8b:
+    if (al > l7_obj_closest_dist) goto lab_2e98;          /* ja (sin signo) */
+    l7_obj_closest_dist = al;
+    l7_obj_closest_row = bx;
+lab_2e98:
+    cx = (uint16_t)(cx - 1);                              /* loop */
+    if (cx != 0) goto lab_2e7d;
+    if (l7_obj_closest_row != 0xffff) goto lab_2ea8;      /* cmp word [0x2e92],0xffff / jnz */
+    l7_obj_closest_row = 0x0;
+lab_2ea8:
+    bx = l7_obj_spawn_slot;
+    si = l7_obj_closest_row;
+    al = ds_pool[WINDOW_ROW_Y_TABLE + si];
+    l7_obj_y[bx] = al;
+    l7_obj_cur_y = al;
+    ax = (uint16_t)cat_x;
+    /* shl bl,1: bx pasa a indice de word; abajo se usa l7_obj_x[bx] (= [bx*2+l7_obj_x]) */
+    if (ax < 0x108) goto lab_2ec8;                        /* jb */
+    ax = 0x107;
+lab_2ec8:
+    ax &= 0xffc;
+    l7_obj_x[bx] = (int16_t)ax;
+    l7_obj_cur_x = ax;
+    cx = 0x8;
+lab_2ed5:
+    bx = (uint16_t)(cx - 1);                              /* mov bx,cx / dec bx */
+    if (bx == l7_obj_spawn_slot) goto lab_2f07;
+    if (l7_obj_active[bx] == 0x0) goto lab_2f07;
+    dl = l7_obj_y[bx];
+    if (check_rect_collision(l7_obj_x[bx], dl, 0x18, 0xf, l7_obj_cur_x, l7_obj_cur_y, 0x18, 0xf)) {
+        return;                                           /* pop cx / jnb no tomado -> ret (solapa otro objeto activo) */
+    }
+lab_2f07:
+    cx = (uint16_t)(cx - 1);                              /* loop */
+    if (cx != 0) goto lab_2ed5;
+    l7_restore_alley_buffer();
+    if (cupid_active == 0x0) goto lab_2f16;
+    erase_cupid_stub();
+lab_2f16:
+    bx = l7_obj_spawn_slot;
+    l7_obj_last_picked = bx;
+    l7_obj_active[bx] = 0x1;
+    dl = l7_obj_y[bx];
+    cx = (uint16_t)l7_obj_x[bx];                          /* shl bl,1 / mov cx,[bx+l7_obj_x] */
+    ax = (uint16_t)calc_cga_addr(dl, cx, NULL);
+    blit_to_cga(&ds_pool[L7_OBJ_SPRITE], ax, 3, 15);      /* di=ax, si=l7_obj_sprite, es=0xb800, cx=0xf03 */
+    l7_obj_spawn_slot = 0xffff;
+    /* sub bx,bx / mov ah,0xb / int 0x10: sin efecto visible */
+    check_l7_all_objects();
+    if (cupid_active == 0x0) goto lab_2f59;
+    draw_cupid_stub();
+lab_2f59:
+    l7_draw_alley_foreground();
+    start_tone(0x3e8, 0x4a5);
 }
 
 /* check_l7_all_objects — literal port. Sweeps every heart-cat slot that
