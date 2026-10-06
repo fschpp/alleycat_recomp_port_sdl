@@ -299,7 +299,7 @@ extern uint16_t last_level;      /* 0xffff = ninguno */
 extern uint16_t prev_level;      /* 0xffff = ninguno */
 extern uint16_t wipe_fill_pattern;   /* DS 0x1839: patron del barrido (transition.c; lo lee animate_screen_wipe, T45) */
 extern uint16_t level_state;     /* DS 0x006 (word): lab_0238 lo pone a 0; lab_0447 guarda ahi el ultimo nivel jugado */
-extern uint8_t  video_mode;      /* 4 = CGA 320x200, 6 = CGA 640x200 (rom_id != 0xfd) */
+extern uint8_t  video_mode;      /* DS 0x690: NO es un modo de video sino el desplazamiento horizontal del CRTC (0..7; CRTC[2] = valor+0x27): 6 = 0x2d estandar CGA (rom_id != 0xfd), 4 = PCjr; lo ajusta check_special_keys (T51) */
 extern uint8_t  use_joystick;
 extern uint16_t game_timer;
 extern uint16_t game_tick;       /* DS 0x410: tick BIOS guardado por el manejador de muerte (entry.asm lab_01b7, T41); el ASM solo lo escribe */

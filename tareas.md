@@ -356,7 +356,7 @@ Estado compartido de los niveles 4 y 5: **los dos usan las variables `l5_obj_*`*
 - **Notas:** el original imprime con BIOS (`int 0x10`) usando la fuente ROM de 8×8 del PC, que **no** está en el ASM. Incluir una fuente 8×8 de dominio público embebida en `src/font8x8.c` y dibujar con `blit_to_cga`.
 - **Verificar:** imprimir "ALLEY CAT" y volcar a PPM; comprobar legibilidad.
 
-### T51 — Hardware y arranque [S · ~75]
+### T51 — Hardware y arranque [S · ~75] ✅ HECHO (PROGRESS.md §6av; `src/hardware.c`; `check_special_keys` NO es pausa/sonido: Ctrl+Alt+Del reinicia y Ctrl+Alt+Izq/Der desplazan la imagen (CRTC[2]); `video_mode` DS 0x690 es ese desplazamiento, no un modo; `input.c`/`main.c` sin compilar por falta de SDL)
 - **ASM:** `ui.asm` L7–54 (`detect_video`, `print_startup_msg`) y `hardware.asm` L227–264 (`check_special_keys`).
 - **Destino:** `src/ui.c`, `src/input.c`.
 - **Notas:** `detect_video`, `install_handlers`/`restore_handlers` y la lectura de ROM id no necesitan portarse (SDL los reemplaza); documentar qué hace cada rama y qué valor fijo se usa (`rom_id=0xFF`). `check_special_keys` sí se porta (pausa, sonido, etc.).

@@ -14,7 +14,7 @@ graphics assets, so it is not meant to be published or redistributed.
 
 ## 0. Current focus / todo / blockers
 
-**Current focus:** `tareas.md` execution: T00, T10-T45 (§6g-§6ap) and **T46** (`show_level_result` + `draw_result_frame` in `src/result.c`, §6aq) **T47** (`handle_level_complete` in `src/score.c`, §6ar) **T48** (bonus text/flash/mask + BIOS text model and font, §6as) and **T49** (`animate_score_bar`, `binary_to_bcd` in `src/score_bar.c`, §6at) are done: the bonus bar is fully real now. **T50** (`src/ui.c`: `print_string`, `set_cursor`, `wait_for_input`, `display_text_line`, `clear_cga`, §6au) is done too. Next up: T51 (hardware/startup, `check_special_keys`). Still stubbed: `love_scene_outro` (T58, called by `show_level_result` for level 7). `main.c` runs the real flow for every level.
+**Current focus:** `tareas.md` execution: T00, T10-T45 (§6g-§6ap) and **T46** (`show_level_result` + `draw_result_frame` in `src/result.c`, §6aq) **T47** (`handle_level_complete` in `src/score.c`, §6ar) **T48** (bonus text/flash/mask + BIOS text model and font, §6as) and **T49** (`animate_score_bar`, `binary_to_bcd` in `src/score_bar.c`, §6at) are done: the bonus bar is fully real now. **T50** (`src/ui.c`: `print_string`, `set_cursor`, `wait_for_input`, `display_text_line`, `clear_cga`, §6au) is done too. **T51** (`src/hardware.c`: `check_special_keys`, `init_bios_data`, `detect_video`, `print_startup_msg`, §6av) too. Next up: T52 (`show_title_screen`). Still stubbed: `love_scene_outro` (T58, called by `show_level_result` for level 7). `main.c` runs the real flow for every level.
 T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-level4`, `test-level4-state`, `test-level5`, `test-level5-anim`, `test-level5-objects`, `test-level6`, `test-level6b`, `test-level6c`, `test-level6d`, `test-level2`, `test-level2b`, `test-level2c`, `test-level2d`, `test-level7`, `test-level7b`, `test-level7c`, `test-game-flow`, `test-game-flow-loop`).
 
 - [x] `sound.asm` — full port, wired into every previously-stubbed call site (§6e)
@@ -60,6 +60,7 @@ T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-lev
 - [x] T48 — `mask_score_tiles`, `print_bonus_score`, `print_level7_bonus`, `flash_score_color` (`score_bar.c`); `bios_text.c` + `font8x8.c` (§6as)
 - [x] T49 — `animate_score_bar`, `binary_to_bcd` (`score_bar.c`); stubs removed from `flow_stubs.c`; `test-score-bar-b` (§6at)
 - [x] T50 — `print_string`, `set_cursor`, `wait_for_input`, `display_text_line`, `clear_cga` (`ui.c`, `ui.h`); `ui_wait_hook` wired in `main.c`; `test-ui-text` (§6au)
+- [x] T51 — `check_special_keys`, `init_bios_data`, `detect_video`, `print_startup_msg` (`hardware.c`, `hardware.h`); wired in `input.c`/`main.c`/`game_hw_init`; `test-hardware` (§6av)
 - [ ] T01 — full headless harness (`tests/harness.h`, `make test`); only `tests/test_alley_loop.c` exists so far
 - [x] T41 — alley loop pass, death handler, weighted level selector (`game_flow.c`); `main.c` wired to `game_start()`/`game_alley_frame()` (§6al)
 - [ ] `ui.asm` — `window_open_state` toggling, the other half of item (h)
@@ -4246,6 +4247,19 @@ Suggested commit: `T49: animate_score_bar, binary_to_bcd (level_objects.asm L131
 **Verification:** `make test-ui-text` (no SDL): `print_string` against the font cell by cell (colour 2, neighbours untouched, return pointer, final cursor, empty string); `set_cursor`; `wait_for_input` by keyboard (counter wrapping 0xffff -> 0, returns on the 5th spin) and by joystick (returns when the button bit goes low, 4 reads); `display_text_line` for all 22 real table entries (row, text, offset += 2, cursor incl. the 40-column wrap); `clear_cga` zeroes both banks and leaves bytes 8000.. untouched. `make test` all green. **`main.c` (ui_wait_pump) was not compiled or run: no `libsdl2-dev` in the sandbox**; it uses only `SDL_PollEvent`, `SDL_Delay`, `video_present` and `exit`, like the existing loop.
 
 Suggested commit: `T50: print_string, set_cursor, wait_for_input, display_text_line, clear_cga (ui.asm) en ui.c; ui_wait_hook en main.c; test-ui-text`
+
+
+## 6av. T51 — hardware and startup (`src/hardware.c`, `include/hardware.h`; hardware.asm L49-73, L227-261; ui.asm L7-46)
+
+**Ported literally (goto):** `check_special_keys`, `init_bios_data` (the DS part), `detect_video`, `print_startup_msg`.
+
+**Finding (corrects `tareas.md`, which said "pause, sound, etc."):** `check_special_keys` is not about pause or sound. It acts only while Ctrl (DS 0x6c9, scancode 0x1d, mislabelled `key_pause`) and Alt (0x6b7) are both held, and then: **Ctrl+Alt+Del** (0x6ca, scancode 0x53) = warm reboot (`0x1234` into 0040:0072, `jmp F000:E05B`); **Ctrl+Alt+Right** decrements and **Ctrl+Alt+Left** increments DS 0x690 (limits 0 and 7; Right is tested first), and writes CRTC register 2 = `[0x690]+0x27` (horizontal sync position: it shifts the picture left/right on the monitor). So **`video_mode` (DS 0x690) is not a video mode**: it is that shift, initial 6 (CRTC 0x2d, the standard CGA value) or 4 on PCjr (0x2b). `cat_state.h`/`game_flow.c` comments corrected; the code that sets it (`game_hw_init`) was already right. The key bytes are the INT 9 handler's matrix: one byte per entry of the 22-scancode table at DS 0x6a1, 0x80 = released, 0 = pressed; `init_bios_data` fills it with 0x80 (important: an all-zero matrix would read as "everything pressed" and reboot).
+
+**Port decisions:** `game_hw_init` now calls the real `init_bios_data` (was documented as a no-op). `input_process_keys` (SDL, `input.c`) fills the 5 relevant matrix entries (Alt, Right, Left, Ctrl, Del) from the keyboard state and calls `check_special_keys` once per change (the original calls it on every scancode; no typematic repeat here). Ctrl+Alt+Del sets `reboot_requested`, which `main.c` turns into quitting. `crtc_hsync_pos` is stored but not drawn (`video.c` does not shift the image). `detect_video` is modelled with `bios_equipment`/`cga_ram_ok` (defaults: colour adapter, RAM ok): with bits 4-5 != 0x30 it does nothing (the original returns at once); with 0x30 it tests the RAM, prints "Please turn on the color display." (or the adapter-required error and returns 1 instead of the original's infinite loop) and sets the equipment bits to 01. It is not called from `game_hw_init` (the port always has a colour adapter). `install_handlers`/`restore_handlers`, `read_rom_id` and the PCjr INT 9 handler are not ported: SDL replaces them (`rom_id = 0xff`).
+
+**Verification:** `make test-hardware` (no SDL): matrix init and `keyboard_prev`; no action without Ctrl+Alt for all 3 non-both combos x 4 arrow states; Ctrl+Alt+Del reboot with priority over the arrows and no CRTC write; Right 6 -> 0 with CRTC = value+0x27 at each step and no write at the limit; Left 0 -> 7 likewise; Right wins when both arrows are down; no arrows = no change; `detect_video` colour/mono/RAM-fail paths, messages against the font (including the 40-column wrap of the 47-character error), equipment bits (0xf3 -> 0xd3). `make test` all green (29 OK). `input.c` and `main.c` changes were not compiled or run: no `libsdl2-dev` in the sandbox.
+
+Suggested commit: `T51: check_special_keys, init_bios_data, detect_video, print_startup_msg en hardware.c; cableado en input.c/main.c; test-hardware`
 
 
 ## 7. General lesson for this whole project

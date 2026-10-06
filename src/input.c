@@ -1,5 +1,6 @@
 #include "input.h"
 #include "sound.h"
+#include "hardware.h"
 #include <SDL2/SDL.h>
 
 int8_t input_horizontal = 0;
@@ -69,4 +70,25 @@ void input_process_keys(void) {
     prev_m = m;
 
     pause_requested = ks[SDL_SCANCODE_ESCAPE] || ks[SDL_SCANCODE_P];
+
+    /* T51: el manejador de INT 9 del original llama a check_special_keys con cada scancode (pulsar o soltar). Aqui se
+     * rellenan las 5 entradas de la matriz que lee y se llama en cada cambio (sin repeticion de teclado):
+     * Ctrl+Alt+Del = reinicio (reboot_requested), Ctrl+Alt+Izq/Der = desplazar la imagen (crtc_hsync_pos). */
+    {
+        static uint8_t prev[5] = { 0x80, 0x80, 0x80, 0x80, 0x80 };
+        uint8_t cur[5];
+        cur[0] = (ks[SDL_SCANCODE_LALT] || ks[SDL_SCANCODE_RALT]) ? 0x00 : 0x80;     /* KEY_IDX_FIRE */
+        cur[1] = ks[SDL_SCANCODE_RIGHT] ? 0x00 : 0x80;                              /* KEY_IDX_RIGHT */
+        cur[2] = ks[SDL_SCANCODE_LEFT] ? 0x00 : 0x80;                               /* KEY_IDX_LEFT */
+        cur[3] = (ks[SDL_SCANCODE_LCTRL] || ks[SDL_SCANCODE_RCTRL]) ? 0x00 : 0x80;  /* KEY_IDX_PAUSE */
+        cur[4] = ks[SDL_SCANCODE_DELETE] ? 0x00 : 0x80;                             /* KEY_IDX_DEL */
+        bool changed = false;
+        for (int i = 0; i < 5; i++) changed = changed || cur[i] != prev[i];
+        if (changed) {
+            key_matrix[KEY_IDX_FIRE] = cur[0]; key_matrix[KEY_IDX_RIGHT] = cur[1]; key_matrix[KEY_IDX_LEFT] = cur[2];
+            key_matrix[KEY_IDX_PAUSE] = cur[3]; key_matrix[KEY_IDX_DEL] = cur[4];
+            for (int i = 0; i < 5; i++) prev[i] = cur[i];
+            check_special_keys();
+        }
+    }
 }
