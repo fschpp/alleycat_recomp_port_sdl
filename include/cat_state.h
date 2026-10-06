@@ -282,6 +282,25 @@ extern const uint8_t gravity_height_table[4]; /* DS 0x17d9, verified: 97,100,94,
 extern const cat_walk_frame_t *gravity_cur_sprite; /* real typed pointer, same
                                                       * pattern as vert_sprite (§5f) */
 
+/* --- estado de entry.asm (T40, PROGRESS.md §6ak). Offsets DS verificados con
+ * /tmp/data_segment_labels.txt: start_tick=0x412, elapsed_ticks=0x414 (= l7_completion_counter, ver abajo),
+ * round_counter=0x416, force_level7=0x418, start_in_level=0x419,
+ * attract_shown=0x41a, last_level=0x41d, prev_level=0x41f, video_mode=0x690,
+ * use_joystick=0x69b, game_timer=0x1c30. (restart_game/show_attract son los
+ * bytes 0x41b/0x41c y viven en input.c.) difficulty_counter (0x6df8) es
+ * diff_icon_idx. elapsed_ticks NO tiene variable propia: [0x414] es
+ * l7_completion_counter (level7_epilogue.c); game_start() lo pone a 0. */
+extern uint16_t start_tick;
+extern uint16_t round_counter;
+extern uint8_t  force_level7;
+extern uint8_t  start_in_level;
+extern uint8_t  attract_shown;
+extern uint16_t last_level;      /* 0xffff = ninguno */
+extern uint16_t prev_level;      /* 0xffff = ninguno */
+extern uint8_t  video_mode;      /* 4 = CGA 320x200, 6 = CGA 640x200 (rom_id != 0xfd) */
+extern uint8_t  use_joystick;
+extern uint16_t game_timer;
+
 #include "input.h" /* reuses input_horizontal/input_vertical from there */
 
 #endif

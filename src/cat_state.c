@@ -161,3 +161,15 @@ const uint8_t  jump_spawn_y_table[4] = { 24, 56, 88, 24 };
 const uint16_t jump_pause_by_diff[8] = { 45, 36, 27, 18, 9, 18, 1, 18 };
 const uint8_t gravity_height_table[4] = { 97, 100, 94, 94 };
 const cat_walk_frame_t *gravity_cur_sprite = NULL;
+
+/* estado de entry.asm (T40) */
+uint16_t start_tick = 0;
+uint16_t round_counter = 0;
+uint8_t  force_level7 = 0;
+uint8_t  start_in_level = 0;
+uint8_t  attract_shown = 0;
+uint16_t last_level = 0xffff;
+uint16_t prev_level = 0xffff;
+uint8_t  video_mode = 0;
+uint8_t  use_joystick = 0;
+uint16_t game_timer = 0;

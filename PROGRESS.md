@@ -14,8 +14,8 @@ graphics assets, so it is not meant to be published or redistributed.
 
 ## 0. Current focus / todo / blockers
 
-**Current focus:** `tareas.md` execution: T00, T10-T38 (§6g-§6ai) and **T39** (level-7 background `draw_love_scene_bg`/`draw_bg_tile`, §6aj) are done. Next up: T40 (`entry.asm` part 1). `draw_love_scene_bg` now leaves `l7_obj_spawn_slot=0xffff`, so the level-7 spawn/tick state is initialised by the background draw itself.
-T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-level4`, `test-level4-state`, `test-level5`, `test-level5-anim`, `test-level5-objects`, `test-level6`, `test-level6b`, `test-level6c`, `test-level6d`, `test-level2`, `test-level2b`, `test-level2c`, `test-level2d`, `test-level7`, `test-level7b`, `test-level7c`). The death
+**Current focus:** `tareas.md` execution: T00, T10-T39 (§6g-§6aj) and **T40** (`entry.asm` part 1: `game_start()`/`game_flow_run()` in `src/game_flow.c`, §6ak) are done. Next up: T41 (`entry.asm` alley loop + weighted level selector, L144-236). `game_flow_run(GF_LAB_0081/00A3/00AE/00F3)` already exposes the four labels the T41 loop jumps back to. `main.c` still runs its own approximate flow (it does not call `game_start()` yet; that swap is T41/T74).
+T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-level4`, `test-level4-state`, `test-level5`, `test-level5-anim`, `test-level5-objects`, `test-level6`, `test-level6b`, `test-level6c`, `test-level6d`, `test-level2`, `test-level2b`, `test-level2c`, `test-level2d`, `test-level7`, `test-level7b`, `test-level7c`, `test-game-flow`). The death
 handler (`entry.asm` lab_01b7+, T41) is still replaced in `main.c` by "re-enter the alley".
 
 - [x] `sound.asm` — full port, wired into every previously-stubbed call site (§6e)
@@ -51,6 +51,7 @@ handler (`entry.asm` lab_01b7+, T41) is still replaced in `main.c` by "re-enter 
 - [x] T37 — `spawn_thrown_object` (`level7_epilogue.c`): level-7 heart drop from the window row nearest to `cat_y`; `l7_obj_*` state now public (§6ah)
 - [x] T38 — `tick_level_thrown_objects` (`level7_epilogue.c`): once per BIOS tick, the cat picks up the level-7 hearts it touches; frees the slot for `spawn_thrown_object` (§6ai)
 - [x] T39 — `draw_love_scene_bg`, `draw_bg_tile` (`level_background.c`); hooked into `draw_level_background` for level 7 (§6aj)
+- [x] T40 — `game_start()` / `game_flow_run()` (`game_flow.c`): hardware init, title, new game, alley setup up to lab_0155; stubs for T44/T52/T54 in `flow_stubs.c`; `read_pit_counter`; entry state vars in `cat_state` (§6ak)
 - [ ] T01 — full headless harness (`tests/harness.h`, `make test`); only `tests/test_alley_loop.c` exists so far
 - [ ] T41 — death handler / level selector (`entry.asm` lab_01b7+); `main.c` just re-enters the alley meanwhile
 - [ ] `ui.asm` — `window_open_state` toggling, the other half of item (h)
@@ -4049,6 +4050,30 @@ Literal port (`lab_3022`…`lab_30b8`, with `goto`); the level-7 branch of `draw
 **Verification:** `make test-level7c` (`tests/test_level7c.c`): independent model (own LFSR, banked CGA model, block list read from the DS, grid, heart placement) over 12 seeds x 10 counters (0,1,2,3,5,7,8,9,20,0xffff) + the dispatch via `draw_level_background` with `level_number==7` + `draw_bg_tile` alone: whole CGA memory, `window_open_state`, `rng_seed`, `l7_obj_*` and the counter. Mutations (`y > 0x2f`, random also on row 0) both fail. Rendered to PNG (CGA palette 1): cupid border, 7 window rows, 5 hearts on the bottom row, 30758 non-black pixels (counter=5, seed 0xFA59). `make test` all green.
 
 Suggested commit: `T39: draw_love_scene_bg + draw_bg_tile (level 7 background), hook into draw_level_background, test-level7c`
+
+
+## 6ak. T40 — `entry.asm` part 1: `game_start()` (`src/game_flow.c`, `include/game_flow.h`, `src/flow_stubs.c`; entry.asm L27-143)
+
+The whole block `entry` .. `lab_0140` is one function with `goto`s (`lab_0081`, `lab_00a3`, `lab_00ae`, `lab_00f3`, `lab_0137`, `lab_0140`). It returns where `lab_0155` (the alley loop, T41) begins. Because that loop jumps back to four of those labels, the entry points are public: `game_flow_run(gf_entry_t from)` with `GF_ENTRY / GF_LAB_0081 / GF_LAB_00A3 / GF_LAB_00AE / GF_LAB_00F3`; `game_start()` is `game_flow_run(GF_ENTRY)`. `main.c` is **not** touched (it keeps its own approximate loop until T41/T74).
+
+**Call map (already existing vs missing):** `clear_screen`/`render_sprites` (alley_drawing.c), `setup_alley`/`setup_level` (game_setup.c), `init_sound` (enemy.c), `init_player`/`reset_jump` (fall_object.c), `init_objects`=`init_cycle_objects`, `draw_score`=`draw_high_score_display` and `draw_high_score`=`draw_current_score` (crossed names, tareas.md 0.5), `init_music`/`silence_speaker` (sound.c), `clear_score`/`clear_high_score`/`update_high_score` (score.c). **Missing, stubbed in `src/flow_stubs.c`** (each is deleted by its task): `set_palette` (T44), `show_title_screen` (T52), `show_attract_mode` (T54). `read_pit_counter` (cga.asm L167) is ported in `game_flow.c` (seed = PIT counter, 0 -> 0xfa59; hook `pit_counter_fn`).
+
+**Hardware calls with no C body (SDL replaces them), and the fixed value used:** `detect_video` no-op; `read_rom_id` -> `rom_id` stays `0xff`; `install_handlers`/`init_bios_data` no-op; `pause_screen_addr = keyboard_counter + 0x240` not modeled (only the pause screen, T55, reads it); `int 0x10` mode 4 then `video_mode = (rom_id==0xfd) ? 4 : 6` -> **6** with `rom_id=0xff` (informational; nothing else reads it); palette 1 call and `out 0x3d9,0x20` no-ops (`video_init` already sets the CGA palette).
+
+**State added to `cat_state` (DS offsets from `data_segment_labels.txt`):** `start_tick` 0x412, `round_counter` 0x416, `force_level7` 0x418, `start_in_level` 0x419, `attract_shown` 0x41a, `last_level` 0x41d (word), `prev_level` 0x41f (word), `video_mode` 0x690, `use_joystick` 0x69b, `game_timer` 0x1c30. `restart_game`/`show_attract` (0x41b/0x41c) stay in `input.c`. `difficulty_counter` (0x6df8) is the existing `diff_icon_idx`.
+
+**Traps found:**
+- `elapsed_ticks` is DS **0x414**, the same word the level-7 code calls `l7_completion_counter` (§6aj reads `[0x414]` for the number of hearts). So `mov word [elapsed_ticks],0` in the new-game block is what **resets the heart counter**; there is no separate variable, `game_start()` writes `l7_completion_counter = 0`.
+- `lab_00ae` copies `difficulty_counter` into `difficulty_level` *after* `show_attract_mode` ran; `show_attract_mode` is what sets `difficulty_counter` (ui.asm L306, T54). `entry` itself zeroes `difficulty_counter` once, and `lab_0081` zeroes `difficulty_level`.
+- The first-time order is title -> attract (`attract_shown==0`) -> new game; afterwards the title falls straight into new game.
+- `lab_00f3` priority: `lives_count==0` (-> `lab_0081`) beats `restart_game` (-> `lab_00ae`) beats `show_attract` (-> `lab_00a3`). Neither flag is cleared at `lab_00f3`; only `lab_00ae` clears them.
+- `start_in_level != 0` takes `setup_level` (+ `game_mode=2`, `anim_counter=1`, `anim_step=0x20`) and does **not** set `cat_x=0` nor call `setup_alley`.
+- `clear_high_score` runs once in `entry`; the new-game block (`lab_00ae`) only does `clear_score`. This resolves the T19 note: `main.c`'s `clear_high_score()` at startup is correct *because it only runs once*; T41/T74 must not call it again on restart.
+- `init_music` is called only at `lab_0140` (not in the one-time init); `main.c` also calls it at start, which is harmless.
+
+**Verification (`make test-game-flow`, `tests/test_game_flow.c`):** cross-unit calls are wrapped with `--wrap` and logged; the expected call sequences are hand-written from the ASM. Covers: full `entry` (title -> attract -> new game -> alley) with the attract hook setting difficulty 5; `GF_LAB_0081` with `attract_shown=1`; `lab_00f3` with and without `start_in_level`; game over, restart and attract-timeout branches plus their priority; PCjr ROM (`video_mode` 4); `read_pit_counter` (0 -> 0xfa59). Final values after `game_start()` (real `setup_alley` and score code run): `lives_count=3`, `difficulty_level=difficulty_counter`, `level_number=0`, `game_timer=0`, `l7_completion_counter=0`, `force_level7=start_in_level=0`, `restart_game=show_attract=false`, `attract_shown=1`, `last_level=prev_level=0xffff`, `sound_enabled=0xff`, `round_counter=0`, `video_mode=6`, `use_joystick=0`, `lives_display=0xff`, `cat_x=0 cat_y=0xb4`. Four mutations (inverted `attract_shown` test, missing `elapsed_ticks=0`, missing restart jump, `difficulty_level` not copied) all fail. `make test` all green (`game_flow.c`/`flow_stubs.c` are in `TEST_SRC`; the stubs are separate precisely so tests can wrap them).
+
+Suggested commit: `T40: game_start/game_flow_run (entry.asm L27-143), read_pit_counter, entry state vars, flow stubs for T44/T52/T54, test-game-flow`
 
 
 ## 7. General lesson for this whole project
