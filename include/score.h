@@ -57,6 +57,8 @@ extern uint8_t  score_save_b[320];
 
 /* int 0x1a (dx): ticks BIOS a 18.2 Hz; usa game_tick_fn si esta puesto (hook de tests), si no el reloj monotono. */
 uint16_t score_tick(void);
+/* int 0x1a ah=1: fija el contador de ticks (palabra baja); score_tick devuelve t a partir de ese momento y sigue avanzando. */
+void set_bios_tick(uint16_t t);
 
 /* handle_level_complete (T47, level_objects.asm L1100-1227): declarada en game_flow.h. */
 
