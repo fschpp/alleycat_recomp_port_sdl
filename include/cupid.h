@@ -19,7 +19,7 @@ extern uint16_t cupid_draw_addr;    /* DS 0x70fa: calc_cga_addr(cupid_y, cupid_x
 void reset_cupid(void);             /* cupid_active = 0 */
 void update_cupid(void);            /* una vez por tick: colision, aparicion aleatoria, movimiento, ventanas */
 
-/* --- Pendientes de T57 (ui.asm L676-791); por ahora stubs en flow_stubs.c. check_cupid_collision devuelve CF. --- */
+/* --- T57 (ui.asm L676-791). check_cupid_collision devuelve el flag CF del original (1 = choque con el gato). --- */
 void draw_cupid(void);
 void erase_cupid(void);
 void cupid_toggle_window(void);
