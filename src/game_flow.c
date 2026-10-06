@@ -38,6 +38,7 @@
 #include "level4.h"
 #include "level3_enemy.h"
 #include "level2.h"
+#include "palette.h"
 
 uint16_t (*game_tick_fn)(void) = NULL;
 uint16_t (*pit_counter_fn)(void) = NULL;
@@ -71,16 +72,18 @@ void read_pit_counter(void) {
  *   init_bios_data    -> no-op (limpia el buffer de teclas 0x6b7 y keyboard_prev).
  *   pause_screen_addr = keyboard_counter+0x240 -> no modelado: solo lo usa la pausa (T55).
  *   int 0x10 modo 4, luego video_mode = 4 si rom_id==0xfd, si no 6 -> con rom_id=0xff: 6.
- *   int 0x10 ah=0xb bx=0x101 (paleta 1) y out 0x3d9,0x20 (solo no-PCjr) -> no-ops:
- *     video_init() ya deja la paleta CGA 1; set_palette() (T44) es un stub. */
+ *   int 0x10 ah=0xb bx=0x101 (paleta 1) y out 0x3d9,0x20 (solo no-PCjr) -> modelados (T44) en el registro
+ *     cga_color_select (palette.c); la paleta de video.c sale de palette_rgb(). */
 static void game_hw_init(void) {
     video_mode = 0x4;
     diff_icon_idx = 0x0;                 /* difficulty_counter */
     use_joystick = 0x0;
     video_mode = (rom_id == 0xfd) ? 0x4 : 0x6;
     round_counter = 0x0;
+    bios_color_select(0x1, 0x1);         /* mov ah,0xb / mov bx,0x101: paleta 1 */
     level_number = 0x0;
     set_palette();
+    if (rom_id != 0xfd) cga_color_select = 0x20;   /* mov dx,0x3d9 / mov al,0x20 / out dx,al (solo no-PCjr) */
     read_pit_counter();
     clear_high_score();
     clear_score();

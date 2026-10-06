@@ -307,7 +307,7 @@ Estado compartido de los niveles 4 y 5: **los dos usan las variables `l5_obj_*`*
 - **Notas:** incluye `init_level3_enemy` (lab_0394) y `init_level7_objects`; completar la tabla de T42.
 - **Verificar:** `run_level` para cada n=1..7 arranca y termina por flag de salida en un test con entrada simulada.
 
-### T44 — `level_transition` y paleta [M · 78]
+### T44 — `level_transition` y paleta [M · 78] ✅ HECHO (PROGRESS.md §6ao; `src/transition.c` + `src/palette.c`, no `game_flow.c`/`video.c`; la paleta cambia por nivel (0 en niveles 4/5/7) y la intensidad es BAJA: `video.c` ya no fija paleta 1 alta; `level_transition` llama stubs de T45/T46/T47)
 - **ASM:** `enemy.asm` L114–158 (`level_transition`) y L242–274 (`set_palette`, `set_ega_palette`).
 - **Destino:** `src/game_flow.c`, `src/video.c`.
 - **Notas:** la paleta CGA/EGA se traduce a una tabla de colores SDL (selección de paleta/intensidad); `int 0x10` no existe.
