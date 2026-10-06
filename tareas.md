@@ -273,7 +273,7 @@ Estado compartido de los niveles 4 y 5: **los dos usan las variables `l5_obj_*`*
 - **Destino:** `src/level7_epilogue.c`.
 - **Verificar:** 100 ticks; los objetos de `l7_obj_*` caen y se desactivan al salir de pantalla.
 
-### T39 — `draw_love_scene_bg` y `draw_bg_tile` [M · 93]
+### T39 — `draw_love_scene_bg` y `draw_bg_tile` [M · 93] ✅ HECHO (PROGRESS.md §6aj; enganchado en `draw_level_background` nivel 7; deja `l7_obj_spawn_slot=0xffff` y coloca los corazones iniciales)
 - **ASM:** `level_objects.asm` L209–301.
 - **Destino:** `src/level_background.c` (reemplaza el no-op del nivel 7 en `draw_level_background`).
 - **Datos:** `l7_bg_tile_ptrs=0x2e20`, `window_open_state=0x2be2` (L246 escribe esa tabla).
