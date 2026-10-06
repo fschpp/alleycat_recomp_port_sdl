@@ -349,7 +349,7 @@ Estado compartido de los niveles 4 y 5: **los dos usan las variables `l5_obj_*`*
 
 ## FASE 4: UI y entrada
 
-### T50 — Texto: helpers y fuente [M · ~75]
+### T50 — Texto: helpers y fuente [M · ~75] ✅ HECHO (PROGRESS.md §6au; `src/ui.c`; reutiliza `bios_text.c`/`font8x8.c` de T48; `keyboard_counter` lo incrementa `main.c`; esperas con `ui_wait_hook`/`joy_port_fn`; `main.c` sin compilar por falta de SDL)
 - **Nota (T48):** la fuente 8×8 (`src/font8x8.c`) y el modelo de INT 10h AH=02h/0Eh (`src/bios_text.c`, `include/bios_text.h`) ya existen; reutilizarlos.
 - **ASM:** `ui.asm` L203–220 (`print_string`), L237–250 (`set_cursor`), L383–435 (`wait_for_input`, `display_text_line`, `clear_cga`).
 - **Destino:** nuevo `src/ui.c` + `include/ui.h`.

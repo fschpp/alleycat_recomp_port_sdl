@@ -1,5 +1,6 @@
 #include <SDL2/SDL.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
 #include "cga.h"
@@ -21,12 +22,30 @@
 #include "alley_drawing.h"
 #include "throw.h"
 #include "game_flow.h"
+#include "ui.h"
 
 /* T45: el barrido de level_transition bloquea (como el original); presentar cada paso para que se vea. */
 static void wipe_present_step(void) {
     SDL_PumpEvents();
     video_present();
     SDL_Delay(25);
+}
+
+/* T50: las esperas bloqueantes de ui.asm (wait_for_input) necesitan bombear SDL, contar pulsaciones (lo que hacia la
+ * ISR de INT 9 con keyboard_counter) y presentar. */
+static void ui_wait_pump(void) {
+    SDL_Event ev;
+    while (SDL_PollEvent(&ev)) {
+        if (ev.type == SDL_QUIT) {
+            silence_speaker();
+            audio_shutdown();
+            video_shutdown();
+            exit(0);
+        }
+        if (ev.type == SDL_KEYDOWN && !ev.key.repeat) keyboard_counter++;
+    }
+    video_present();
+    SDL_Delay(10);
 }
 
 int main(int argc, char **argv) {
@@ -44,6 +63,7 @@ int main(int argc, char **argv) {
      * can be opened the game just runs silent. */
     bool have_audio = audio_init();
     wipe_step_hook = wipe_present_step;
+    ui_wait_hook = ui_wait_pump;
 
     printf("Alley Cat C/SDL port - entry.asm flow (T40/T41).\n");
     printf("Arrow keys walk the cat; S toggles sound; R restarts; ESC quits.\n");
