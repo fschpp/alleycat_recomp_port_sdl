@@ -14,7 +14,7 @@ graphics assets, so it is not meant to be published or redistributed.
 
 ## 0. Current focus / todo / blockers
 
-**Current focus:** `tareas.md` execution: T00, T10-T45 (§6g-§6ap) and **T46** (`show_level_result` + `draw_result_frame` in `src/result.c`, §6aq) are done. Next up: T47 (`handle_level_complete`, `level_objects.asm` L1100-1227; replaces the stub in `flow_stubs.c`; `run_victory_sequence` already writes `l7_completion_counter`/`l7_completion_tick` for it). Still stubbed: `handle_level_complete` (T47), `love_scene_outro` (T58, called by `show_level_result` for level 7). `main.c` runs the real flow for every level.
+**Current focus:** `tareas.md` execution: T00, T10-T45 (§6g-§6ap) and **T46** (`show_level_result` + `draw_result_frame` in `src/result.c`, §6aq) and **T47** (`handle_level_complete` in `src/score.c`, §6ar) are done. Next up: T48 (`mask_score_tiles`, `print_bonus_score`, `print_level7_bonus`, `flash_score_color`; `save_score_regions` is already real) and T49 (`animate_score_bar`, `binary_to_bcd`); their stubs live in `flow_stubs.c`. Still stubbed: `love_scene_outro` (T58, called by `show_level_result` for level 7). `main.c` runs the real flow for every level.
 T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-level4`, `test-level4-state`, `test-level5`, `test-level5-anim`, `test-level5-objects`, `test-level6`, `test-level6b`, `test-level6c`, `test-level6d`, `test-level2`, `test-level2b`, `test-level2c`, `test-level2d`, `test-level7`, `test-level7b`, `test-level7c`, `test-game-flow`, `test-game-flow-loop`).
 
 - [x] `sound.asm` — full port, wired into every previously-stubbed call site (§6e)
@@ -56,6 +56,7 @@ T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-lev
 - [x] T44 — `level_transition` (`transition.c`), `set_palette`/`set_ega_palette`/`bios_color_select`/`palette_rgb` (`palette.c`); `video.c` now takes its colours from `palette_rgb()`; `game_hw_init` models the BIOS palette call and `out 0x3d9,0x20` (§6ao)
 - [x] T45 — `animate_screen_wipe` (`wipe.c`): blocking centred-rectangle wipe, `wipe_step_hook` for presenting; `test-wipe` (§6ap)
 - [x] T46 — `show_level_result`, `draw_result_frame` (`result.c`); `love_scene_outro` stub until T58; `test-result` (§6aq)
+- [x] T47 — `handle_level_complete` (`score.c`): bonus from the BIOS tick, BCD add, blink loop; `save_score_regions` real; `[0x412]` is one variable (`start_tick`); `test-level-complete` (§6ar)
 - [ ] T01 — full headless harness (`tests/harness.h`, `make test`); only `tests/test_alley_loop.c` exists so far
 - [x] T41 — alley loop pass, death handler, weighted level selector (`game_flow.c`); `main.c` wired to `game_start()`/`game_alley_frame()` (§6al)
 - [ ] `ui.asm` — `window_open_state` toggling, the other half of item (h)
@@ -4181,6 +4182,25 @@ Suggested commit: `T45: animate_screen_wipe (enemy.asm L159-233) in wipe.c, wipe
 **Verification:** `make test-result` (wraps `init_result_melody`, `play_result_note`, `show_extra_life`, `silence_speaker`, `love_scene_outro`; fake tick that advances each call): 28 masks compared with an independent Python model; sprite pointer per frame; first frame on screen = sprite & 0x80 per byte, last = sprite & 0xaa; all 4 `game_timer&6` entries, `game_timer+=2`, lives 3->2 and 0 stays 0; `0xdd` branch for lives 3/2 (extra life) and 1 (-> 0, frames), difficulty 0, `0xdc`; level 7 only calls `love_scene_outro`. Mutations detected: `bx&=4`, `|0x40`, `lives<2`. One equivalent mutant (`counter>0x15`: at counter 21 shift and table both give 0xffff). `make test` all green. No emulator or SDL run.
 
 Suggested commit: `T46: show_level_result/draw_result_frame (enemy.asm L275-353) in result.c, love_scene_outro stub, test-result`
+
+
+## 6ar. T47 — `handle_level_complete` (`src/score.c`; level_objects.asm L1100-1227)
+
+**Ported literally (goto):** (1) `level_state != 7` (the `jnz lab_38ba` / `jmp lab_38d3` pair): `[0x414]++` (`l7_completion_counter`), `[0x418] = 1` (`force_level7`), `mask_score_tiles(0xaaaa)`, `animate_score_bar(0)` with `dat_369f = 0`. Level 7 skips this block. (2) Bonus from the BIOS tick: level 7 `ax = (0x2a30 - (tick - [0x412])) >> 1`; levels != 7 `ax = 0x546 (x2 if level 6) - (tick - [0x410])`, saturated to 0 on borrow (`sub ax,dx / jnb / sub ax,ax`), and doubled again when level != 6. `dat_3697 = ax`, `binary_to_bcd(ax)` (takes the value in AX, it does not read `dat_3697`), then `dat_368d += dat_36cc[2*level_state]` (pointer table to 7-byte BCD constants). (3) Level 7: repeat count `dat_36dc[2*difficulty]` (x2 and `dat_370c += 0x10` when `l7_obj_spawn_slot < 8`, unsigned `jnb`), `current_score += bonus` that many times (`loop`), `save_score_regions`, `dat_369e=0x38 dat_3699=1 dat_3722=0x44`, `print_bonus_score`, `print_level7_bonus`. Other levels: `current_score += bonus`, `dat_3699=2 dat_3722=0x1e`, `mask_score_tiles(0xffff)`, `dat_369e = ((0xa8c - bonus) >> 4) & 0xf0`, `animate_score_bar(dat_369e * 0x28)` with `dat_369f = 1`, `print_bonus_score`. (4) Blink loop until `dat_3722` ticks: `play_victory_note` (level 7) / `play_level_note`, `flash_score_color`; then border colour 0 (`bios_color_select(0,0)`); level 7 restores the two saved CGA regions, the rest `silence_speaker`.
+
+**Findings:**
+- `[0x412]` had two C variables for one DS word (`start_tick` in `cat_state`, `l7_completion_tick` in `level7_epilogue.c`). Now one storage: `l7_completion_tick` is a macro over `start_tick`. Level 7 reads it here; `game_start` and `run_victory_sequence` both write it.
+- `[0x410]` (`game_tick`, written only by the death handler, T41) gets its first reader here.
+- `flash_score_color` returns the tick it read (`push dx ... pop dx`); the blink loop uses that DX without re-reading the clock. Its stub keeps that contract (`score_tick()`).
+- Two callers: `level_transition` (enemy.asm L142, `transition.c`, already wired) and the level-7 epilogue (level_objects.asm L3618). The epilogue still called a local no-op stub; it now calls the real function.
+
+**DS verified in `/tmp/data_segment.bin`:** `dat_36cc=0x36cc` -> `{36a2,36a2,36a2,36a9,36b0,36b7,36be,36c5}` = BCD 3000, 3000, 3000, 2000, 1500, 3500, 2500, 4000; `dat_36dc=0x36dc` = `{1,3,5,7,9,11,13,15}`; `dat_368d` bonus BCD (8 bytes, `binary_to_bcd` clears 4 words), `dat_3697` binary bonus, `dat_3695` blink start tick, `dat_3699` colour, `dat_369e` row, `dat_369f` bar flag, `dat_370c` text index, `dat_3722` duration, `dat_1f82` = `current_score`. Saved regions: DS:0xe = 4 words x 8 rows (CGA 0x8e4), DS:0x4e = 20 words x 8 rows (CGA 0xc94).
+
+**Deviations:** `save_score_regions` (T48 in `tareas.md`, 8 lines) is ported here for real because the level-7 tail restores what it saves; buffers `score_save_a/b` are C arrays. T48/T49 helpers (`mask_score_tiles`, `print_bonus_score`, `print_level7_bonus`, `animate_score_bar`, `binary_to_bcd`, `flash_score_color`) are stubs in `flow_stubs.c` with the register contracts in `score.h`; until they are ported the bonus screen shows no bar or text and the bonus is added to the score but not displayed. `score_tick()` is the same 18.2 Hz clock / `game_tick_fn` hook as `result.c`.
+
+**Verification:** `make test-level-complete` (wraps the six helpers + notes + `silence_speaker`; `binary_to_bcd` replaced by a reference BCD writer): levels 3 (dt=700 and saturated), 5, 6 and 7 (spawn slot 0xffff and 3, difficulty 1 and 2) against an independent Python model, with no `ds_pool` reads in the expectations: bonus binary/BCD, final score, `[0x414]`/`[0x418]` only for levels != 7, mask/bar call sequence and arguments, 30 / 68 blink iterations, `silence_speaker` only for levels != 7, regions restored to their original content after the "text" scribbled over them. `make test` all green (25 OK, 83 s). Not verified against an emulator; no SDL run (no `libsdl2-dev` in the sandbox).
+
+Suggested commit: `T47: handle_level_complete (level_objects.asm L1100-1227) in score.c, save_score_regions, [0x412] unificado, test-level-complete`
 
 
 ## 7. General lesson for this whole project

@@ -58,6 +58,9 @@ void run_victory_sequence(void);
 void play_victory_march(void);
 
 extern uint16_t l7_completion_counter; /* [0x414] */
-extern uint16_t l7_completion_tick;    /* [0x412] */
+/* [0x412] es el MISMO word que start_tick (cat_state.h): game_start lo escribe al arrancar y run_victory_sequence lo
+ * reescribe; handle_level_complete (T47) lo lee en el nivel 7. Un solo almacenamiento, dos nombres. */
+#include "cat_state.h"
+#define l7_completion_tick start_tick
 
 #endif

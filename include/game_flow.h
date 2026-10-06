@@ -71,7 +71,7 @@ void read_pit_counter(void);
  * borra de ahi cuando su tarea lo porte de verdad. --- */
 void show_title_screen(void);    /* TODO(T52): ui.asm L55-163 */
 void love_scene_outro(void);     /* TODO(T58): ui.asm L489-570 (stub; show_level_result la llama con level_state==7) */
-void handle_level_complete(void);/* TODO(T47): level_objects.asm L1100-1227 */
+void handle_level_complete(void);/* T47 (src/score.c): level_objects.asm L1100-1227; usa helpers de score.h (stubs de T48/T49 en flow_stubs.c) */
 /* level_transition (T44, src/transition.c): enemy.asm L110-158; set_palette esta en palette.h. */
 void level_transition(void);
 /* animate_screen_wipe (T45, src/wipe.c): enemy.asm L159-233; bloqueante, lee wipe_fill_pattern. */

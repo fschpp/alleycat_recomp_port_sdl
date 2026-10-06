@@ -2,7 +2,13 @@
 #include "cga.h"
 #include "score.h"
 #include "gen/digit_sprites.h"
+#include "gen/ds_pool.h"
+#include "game_flow.h"
+#include "level7_epilogue.h"
+#include "palette.h"
+#include "sound.h"
 #include <string.h>
+#include <time.h>
 
 /* CGA screen positions — these are immediate constants in the original
  * (mov di,label with no brackets loads the label's OWN address as a
@@ -125,4 +131,143 @@ void update_high_score(void) {
     if (i < 7 && current_score[i] > high_score[i]) {
         memcpy(high_score, current_score, 7);
     }
+}
+
+/* ===================================================================================================
+ * handle_level_complete (level_objects.asm L1100-1227, T47; PROGRESS.md §6ar)
+ * Pantalla de bonus de fin de nivel: calcula el bonus segun el tiempo jugado, lo suma al puntaje, anima la barra,
+ * parpadea el borde con la melodia y limpia. La llaman level_transition (enemy.asm L142, via transition.c) y el
+ * epilogo del nivel 7 (level_objects.asm L3618, via level7_epilogue.c).
+ * =================================================================================================== */
+
+#define DS_BONUS_PTR_TABLE   0x36cc   /* dat_36cc: 8 punteros DS (por level_state*2) a constantes BCD de 7 bytes */
+#define DS_L7_REPEAT_TABLE   0x36dc   /* dat_36dc: 8 words (1,3,5,...,15): veces que se suma el bonus del nivel 7 */
+
+uint16_t bonus_binary;      /* DS 0x3697 */
+uint8_t  bonus_bcd[8];      /* DS 0x368d */
+uint16_t bonus_tick_start;  /* DS 0x3695 */
+uint8_t  bonus_color;       /* DS 0x3699 */
+uint8_t  bonus_row;         /* DS 0x369e */
+uint8_t  bonus_bar_flag;    /* DS 0x369f */
+uint16_t bonus_l7_index;    /* DS 0x370c */
+uint16_t bonus_duration;    /* DS 0x3722 */
+uint8_t  score_save_a[64];  /* DS 0x000e */
+uint8_t  score_save_b[320]; /* DS 0x004e */
+
+/* Mismo reloj que result.c / game_flow.c: int 0x1a -> dx a 18.2 Hz, con hook de tests. */
+uint16_t score_tick(void) {
+    if (game_tick_fn) return game_tick_fn();
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    uint64_t ms = (uint64_t)ts.tv_sec * 1000 + (uint64_t)(ts.tv_nsec / 1000000);
+    return (uint16_t)(ms * 182 / 10000);
+}
+
+static uint16_t score_ds_word(uint16_t ofs) {
+    return (uint16_t)(ds_pool[ofs] | (ds_pool[ofs + 1] << 8));
+}
+
+/* save_score_regions (L1228-1243): guarda en DS:0xe y DS:0x4e las dos regiones de CGA que la pantalla de bonus del
+ * nivel 7 tapa con texto. (Es de T48 en tareas.md, pero el final del nivel 7 de esta funcion las restaura.) */
+void save_score_regions(void) {
+    save_from_cga(score_save_a, 0x8e4, 0x4, 0x8);      /* cx=0x804 */
+    save_from_cga(score_save_b, 0xc94, 0x14, 0x8);     /* cx=0x814 */
+}
+
+/* Traduccion literal, etiqueta por etiqueta. Notas de lectura del ASM:
+ *  - `sub ax,dx` + `jnb`: CF = ax < dx (sin signo); con CF el bonus se satura a 0.
+ *  - `db 0xd1,0xe8` = shr ax,1; `db 0xd1,0xe0` = shl ax,1 (el desensamblador los muestra con ",0x0").
+ *  - `db 0xd0,0xe3` = shl bl,1 (solo el byte bajo; level_state/difficulty_level <= 7, no hay acarreo a bh).
+ *  - [0x412] y [0x410] son DOS variables distintas: el nivel 7 mide desde [0x412] (start_tick == l7_completion_tick,
+ *    el mismo word que escribe run_victory_sequence); los demas desde [0x410] (game_tick, lo escribe el manejador de
+ *    muerte). */
+void handle_level_complete(void) {
+    uint16_t ax, bx, cx, dx;
+    uint8_t al;
+
+    if (level_state != 0x7) goto lab_38ba;
+    goto lab_38d3;
+lab_38ba:
+    l7_completion_counter++;                               /* inc word [0x414] */
+    force_level7 = 0x1;                                    /* mov byte [0x418],1 */
+    mask_score_tiles(0xaaaa);
+    ax = 0;                                                /* sub ax,ax */
+    bonus_bar_flag = 0x0;                                  /* mov byte [dat_369f],0 */
+    animate_score_bar(ax);
+lab_38d3:
+    dx = score_tick();                                     /* sub ah,ah / int 0x1a */
+    if (level_state != 0x7) goto lab_38ef;
+    dx = (uint16_t)(dx - l7_completion_tick);              /* sub dx,[0x412] */
+    ax = 0x2a30;
+    ax = (ax < dx) ? 0 : (uint16_t)(ax - dx);              /* sub ax,dx / jnb / sub ax,ax */
+    ax >>= 1;                                              /* lab_38eb: shr ax,1 */
+    goto lab_390e;
+lab_38ef:
+    dx = (uint16_t)(dx - game_tick);                       /* sub dx,[0x410] */
+    ax = 0x546;
+    if (level_state != 0x6) goto lab_38ff;
+    ax = (uint16_t)(ax << 1);                              /* shl ax,1 */
+lab_38ff:
+    ax = (ax < dx) ? 0 : (uint16_t)(ax - dx);              /* sub ax,dx / jnb / sub ax,ax */
+    if (level_state == 0x6) goto lab_390e;                 /* lab_3905 */
+    ax = (uint16_t)(ax << 1);                              /* shl ax,1 */
+lab_390e:
+    bonus_binary = ax;
+    binary_to_bcd(ax);                                     /* recibe el valor en ax (no lee dat_3697) */
+    bx = level_state;
+    bx = (uint16_t)((bx & 0xff00) | (uint8_t)((bx & 0xff) << 1));   /* shl bl,1 */
+    add_bcd_scores(bonus_bcd, &ds_pool[score_ds_word((uint16_t)(DS_BONUS_PTR_TABLE + bx))]);   /* si=[bx+dat_36cc] di=dat_368d */
+    if (level_state != 0x7) goto lab_396e;
+    bx = difficulty_level;                                 /* mov bx,[0x8] */
+    bx = (uint16_t)((bx & 0xff00) | (uint8_t)((bx & 0xff) << 1));   /* shl bl,1 */
+    ax = bx;
+    cx = score_ds_word((uint16_t)(DS_L7_REPEAT_TABLE + bx));
+    if (l7_obj_spawn_slot >= 0x8) goto lab_3943;           /* jnb (sin signo); 0xffff tras draw_love_scene_bg */
+    cx = (uint16_t)(cx << 1);
+    ax = (uint16_t)(ax + 0x10);
+lab_3943:
+    bonus_l7_index = ax;
+lab_3946:
+    add_bcd_scores(current_score, bonus_bcd);              /* di=dat_1f82 (current_score), si=dat_368d */
+    cx = (uint16_t)(cx - 1);                               /* loop: cx-- ; jnz */
+    if (cx != 0) goto lab_3946;
+    save_score_regions();
+    bonus_row = 0x38;
+    bonus_color = 0x1;
+    bonus_duration = 0x44;
+    print_bonus_score();
+    print_level7_bonus();
+    goto lab_39a7;
+lab_396e:
+    add_bcd_scores(current_score, bonus_bcd);
+    bonus_color = 0x2;
+    bonus_duration = 0x1e;
+    mask_score_tiles(0xffff);
+    ax = (uint16_t)(0xa8c - bonus_binary);
+    ax >>= 4;                                              /* mov cl,4 / shr ax,cl */
+    al = (uint8_t)(ax & 0xf0);                             /* and al,0xf0 (ah no se usa: se pisa abajo) */
+    bonus_row = al;
+    ax = (uint16_t)(al * 0x28);                            /* mov ah,0x28 / mul ah */
+    bonus_bar_flag = 0x1;
+    animate_score_bar(ax);
+    print_bonus_score();
+lab_39a7:
+    bonus_tick_start = score_tick();                       /* sub ah,ah / int 0x1a / mov [dat_3695],dx */
+lab_39af:
+    if (level_state != 0x7) goto lab_39bb;
+    play_victory_note();
+    goto lab_39be;
+lab_39bb:
+    play_level_note();
+lab_39be:
+    dx = flash_score_color();                              /* devuelve dx = tick (push dx ... pop dx) */
+    dx = (uint16_t)(dx - bonus_tick_start);
+    if (dx < bonus_duration) goto lab_39af;                /* jb (sin signo) */
+    bios_color_select(0x0, 0x0);                           /* sub bx,bx / mov ah,0xb / int 0x10 */
+    if (level_state == 0x7) goto lab_39dc;
+    silence_speaker();
+    return;
+lab_39dc:
+    blit_to_cga(score_save_a, 0x8e4, 0x4, 0x8);            /* si=0xe  di=0x8e4 cx=0x804 */
+    blit_to_cga(score_save_b, 0xc94, 0x14, 0x8);           /* si=0x4e di=0xc94 cx=0x814 */
 }
