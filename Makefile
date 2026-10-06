@@ -155,6 +155,13 @@ build/test_game_flow: tests/test_game_flow.c $(TEST_SRC) include/*.h
 test-game-flow: build/test_game_flow
 	./build/test_game_flow
 
-test: test-alley test-l3doors test-level4 test-level4-state test-level5 test-level5-anim test-level5-objects test-level6 test-level6b test-level6c test-level6d test-level2 test-level2b test-level2c test-level2d test-level7 test-level7b test-level7c test-game-flow
+build/test_game_flow_loop: tests/test_game_flow_loop.c $(TEST_SRC) include/*.h
+	@mkdir -p build
+	$(CC) $(CFLAGS) -Wl,--wrap=update_alley_movement,--wrap=update_enemies,--wrap=play_sound,--wrap=update_thrown_objects,--wrap=update_cat_jump,--wrap=apply_cat_gravity,--wrap=animate_falling,--wrap=update_cycle_objects,--wrap=draw_lives tests/test_game_flow_loop.c $(TEST_SRC) -o $@
 
-.PHONY: all run clean test test-alley test-l3doors test-level4 test-level4-state test-level5 test-level5-anim test-level5-objects test-level6 test-level6b test-level6c test-level6d test-level2 test-level2b test-level2c test-level2d test-level7 test-level7b test-level7c test-game-flow
+test-game-flow-loop: build/test_game_flow_loop
+	./build/test_game_flow_loop
+
+test: test-alley test-l3doors test-level4 test-level4-state test-level5 test-level5-anim test-level5-objects test-level6 test-level6b test-level6c test-level6d test-level2 test-level2b test-level2c test-level2d test-level7 test-level7b test-level7c test-game-flow test-game-flow-loop
+
+.PHONY: all run clean test test-alley test-l3doors test-level4 test-level4-state test-level5 test-level5-anim test-level5-objects test-level6 test-level6b test-level6c test-level6d test-level2 test-level2b test-level2c test-level2d test-level7 test-level7b test-level7c test-game-flow test-game-flow-loop

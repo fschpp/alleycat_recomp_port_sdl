@@ -300,6 +300,7 @@ extern uint16_t prev_level;      /* 0xffff = ninguno */
 extern uint8_t  video_mode;      /* 4 = CGA 320x200, 6 = CGA 640x200 (rom_id != 0xfd) */
 extern uint8_t  use_joystick;
 extern uint16_t game_timer;
+extern uint16_t game_tick;       /* DS 0x410: tick BIOS guardado por el manejador de muerte (entry.asm lab_01b7, T41); el ASM solo lo escribe */
 
 #include "input.h" /* reuses input_horizontal/input_vertical from there */
 

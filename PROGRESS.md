@@ -14,9 +14,8 @@ graphics assets, so it is not meant to be published or redistributed.
 
 ## 0. Current focus / todo / blockers
 
-**Current focus:** `tareas.md` execution: T00, T10-T39 (§6g-§6aj) and **T40** (`entry.asm` part 1: `game_start()`/`game_flow_run()` in `src/game_flow.c`, §6ak) are done. Next up: T41 (`entry.asm` alley loop + weighted level selector, L144-236). `game_flow_run(GF_LAB_0081/00A3/00AE/00F3)` already exposes the four labels the T41 loop jumps back to. `main.c` still runs its own approximate flow (it does not call `game_start()` yet; that swap is T41/T74).
-T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-level4`, `test-level4-state`, `test-level5`, `test-level5-anim`, `test-level5-objects`, `test-level6`, `test-level6b`, `test-level6c`, `test-level6d`, `test-level2`, `test-level2b`, `test-level2c`, `test-level2d`, `test-level7`, `test-level7b`, `test-level7c`, `test-game-flow`). The death
-handler (`entry.asm` lab_01b7+, T41) is still replaced in `main.c` by "re-enter the alley".
+**Current focus:** `tareas.md` execution: T00, T10-T40 (§6g-§6ak) and **T41** (`entry.asm` L144-236: alley loop pass `game_alley_frame()`, death handler `game_death_handler()`, level selector `select_next_level()`, §6al) are done. Next up: T42 (`entry.asm` L237-330: level dispatch jump table `lab_0238` and the first level blocks). `main.c` now runs the real flow: `game_start()` then `game_alley_frame()` per SDL frame, jumping with `game_flow_run(GF_LAB_xxxx)`; the only stand-in left is `GF_TO_0238` (the cat died, `level_number` already chosen), which behaves as "level ended at once" (`start_in_level=0`, back to `lab_00f3`) until T42/T43/T75.
+T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-level4`, `test-level4-state`, `test-level5`, `test-level5-anim`, `test-level5-objects`, `test-level6`, `test-level6b`, `test-level6c`, `test-level6d`, `test-level2`, `test-level2b`, `test-level2c`, `test-level2d`, `test-level7`, `test-level7b`, `test-level7c`, `test-game-flow`, `test-game-flow-loop`).
 
 - [x] `sound.asm` — full port, wired into every previously-stubbed call site (§6e)
 - [x] PC speaker / PIT channel 2 emulation + SDL2 audio backend (§6e)
@@ -53,7 +52,7 @@ handler (`entry.asm` lab_01b7+, T41) is still replaced in `main.c` by "re-enter 
 - [x] T39 — `draw_love_scene_bg`, `draw_bg_tile` (`level_background.c`); hooked into `draw_level_background` for level 7 (§6aj)
 - [x] T40 — `game_start()` / `game_flow_run()` (`game_flow.c`): hardware init, title, new game, alley setup up to lab_0155; stubs for T44/T52/T54 in `flow_stubs.c`; `read_pit_counter`; entry state vars in `cat_state` (§6ak)
 - [ ] T01 — full headless harness (`tests/harness.h`, `make test`); only `tests/test_alley_loop.c` exists so far
-- [ ] T41 — death handler / level selector (`entry.asm` lab_01b7+); `main.c` just re-enters the alley meanwhile
+- [x] T41 — alley loop pass, death handler, weighted level selector (`game_flow.c`); `main.c` wired to `game_start()`/`game_alley_frame()` (§6al)
 - [ ] `ui.asm` — `window_open_state` toggling, the other half of item (h)
 - [ ] §17 item (f): level-2 collectibles + bg tiles (unblocked since §6e)
 
@@ -4074,6 +4073,29 @@ The whole block `entry` .. `lab_0140` is one function with `goto`s (`lab_0081`, 
 **Verification (`make test-game-flow`, `tests/test_game_flow.c`):** cross-unit calls are wrapped with `--wrap` and logged; the expected call sequences are hand-written from the ASM. Covers: full `entry` (title -> attract -> new game -> alley) with the attract hook setting difficulty 5; `GF_LAB_0081` with `attract_shown=1`; `lab_00f3` with and without `start_in_level`; game over, restart and attract-timeout branches plus their priority; PCjr ROM (`video_mode` 4); `read_pit_counter` (0 -> 0xfa59). Final values after `game_start()` (real `setup_alley` and score code run): `lives_count=3`, `difficulty_level=difficulty_counter`, `level_number=0`, `game_timer=0`, `l7_completion_counter=0`, `force_level7=start_in_level=0`, `restart_game=show_attract=false`, `attract_shown=1`, `last_level=prev_level=0xffff`, `sound_enabled=0xff`, `round_counter=0`, `video_mode=6`, `use_joystick=0`, `lives_display=0xff`, `cat_x=0 cat_y=0xb4`. Four mutations (inverted `attract_shown` test, missing `elapsed_ticks=0`, missing restart jump, `difficulty_level` not copied) all fail. `make test` all green (`game_flow.c`/`flow_stubs.c` are in `TEST_SRC`; the stubs are separate precisely so tests can wrap them).
 
 Suggested commit: `T40: game_start/game_flow_run (entry.asm L27-143), read_pit_counter, entry state vars, flow stubs for T44/T52/T54, test-game-flow`
+
+
+## 6al. T41 — `entry.asm` part 2: alley loop, death handler, level selector (`src/game_flow.c`; entry.asm L144-236)
+
+**API (`include/game_flow.h`):** `game_alley_frame()` = ONE pass of `lab_0155`, returns `gf_next_t`: `GF_STAY` (jump to lab_0155), `GF_TO_0081` (game over), `GF_TO_00A3` (attract), `GF_TO_00AE` (restart), `GF_TO_0238` (cat died, level already chosen). The caller (`main.c`) does the platform part (SDL events, `input_poll`, `video_present`, delay) and jumps with `game_flow_run(GF_LAB_xxxx)` (T40). `game_death_handler()` = `lab_01b7`..; `select_next_level()` = `lab_01e5`..`lab_022a`. `main.c` no longer carries its own copy of the loop.
+
+**Level selector, verified data (`/tmp/data_segment.bin`, cat.asm L158-161):** `level_pool` DS 0x421 = `{4,4,1,1, 3,3,5,5, 6,6,4,1}` (3 rows of 4, indexed `(difficulty&3)*4 + (rand&3)`), `level_pool_hard` DS 0x42d = `{1,3,4,5,6}` (the rest of that `db` is zeros that are never indexed). Flow: `random`; if `dl & 0xa0 == 0` or `difficulty&3 == 3` -> hard pool (a second `random`, `&7`, reject >=5); else the pool row. If the result equals BOTH `last_level` and `prev_level` the whole thing is re-rolled; then `prev=last, last=new`.
+
+**Traps handled:**
+- Levels **2 and 7 are in no table**: 7 only through `force_level7`; level 0 never. Difficulty 4..7 collapse with `&3` (4->0, 5->1, ...); difficulty 3 uses only the hard pool.
+- The two `random` calls share `dx`: on the pool path the `and dx,3` reuses the value of the FIRST call (no second call).
+- `force_level7` path (`lab_01b7` -> `lab_0238`): sets `level_number=7`, clears the flag, and does **not** touch `last_level`/`prev_level`/`rng_seed`.
+- The `lives_count==0` test is made twice: at the top of `lab_0155` and again after the physics block when `cat_died` (the physics, e.g. `draw_lives`/gravity, can take the last life). Only a still-positive count enters the death handler.
+- `show_attract` has priority over `restart_game`; both are checked right after `process_keyboard`. `poll_joystick` is skipped (TODO(T60)). `immune_flag = 0` is kept from the T19 loop in `main.c` (not in entry.asm; it comes from the port's own earlier loop).
+- Physics throttle: with no enemy, `frame_counter++` and only every 4th frame runs `play_sound`..`draw_lives`; with an enemy it runs every frame and `frame_counter` is untouched.
+- **LFSR is correlated:** `random` shifts 1 bit per call, so consecutive draws are not independent. The histogram over 100000 draws does NOT match the "uniform dl" weights (e.g. difficulty 0 gives 4=0.477, 1=0.373, 5=0.098 vs 0.425/0.425/0.05); this is the original's real behaviour (the ASM comment itself says ~62%, not 75%). The test compares against an independent model instead of those weights.
+- **Degenerate seed:** `rng_seed==0` is a fixed point of the LFSR (and seed 1 goes to 0 in one step). There `select_next_level` re-rolls forever when `last==prev`, same as the original. `read_pit_counter` never seeds 0, so it is unreachable in play; the tests avoid seed 1.
+- `game_tick` (DS 0x410) is only ever written by the original; added to `cat_state` for fidelity.
+- `input_process_keys` lives in `input.c` (SDL, not in `TEST_SRC`): `flow_stubs.c` has a **weak** no-op fallback so every existing test still links; with `input.c` linked its strong definition wins.
+
+**Verification:** `make test-game-flow-loop` (`tests/test_game_flow_loop.c`): (A) `select_next_level` == an independent model (own LFSR, tables from cat.asm) over 8 difficulties x 6 seeds x 4000 draws = 192000 comparisons of level, `rng_seed`, `last_level`, `prev_level`, `level_number`; (B) never 3 equal in a row, and forced re-roll with `last=prev=4` never returns 4; (C) 100000-draw histograms per difficulty identical to the model (printed next to the uniform reference), levels only in {1,3,4,5,6}; (D) death handler: tick, saved position, `start_in_level`, selection, and the `force_level7` path; (E) hand-written call traces of `game_alley_frame` via `--wrap`: lives==0, attract>restart priority, 8 frames without enemy (physics on frames 4 and 8), with enemy, death with/without lives, lives reaching 0 during the physics. Seven mutations (difficulty-3 rule, `>=5` reject, no re-roll, mask 0xa0, throttle 8, no restart jump, history not shifted) all fail. `main.c` was syntax-checked and every non-SDL symbol links (only `video.c`/`audio.c`/`input.c`/`SDL_*` stay unresolved here: no libsdl2-dev in this environment, so the SDL build itself was not run). `make test` all green.
+
+Suggested commit: `T41: game_alley_frame, game_death_handler, select_next_level (entry.asm L144-236), main.c wired to game_start/game_alley_frame, test-game-flow-loop`
 
 
 ## 7. General lesson for this whole project

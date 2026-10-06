@@ -289,7 +289,7 @@ Estado compartido de los niveles 4 y 5: **los dos usan las variables `l5_obj_*`*
 - **Qué hacer:** leer todo el rango, listar qué llamadas ya existen en C y cuáles faltan (T50–T55), y escribir `game_start()` con ellas como llamadas a funciones declaradas (las que faltan, stubs con `/* TODO(Txx) */`). Respetar `sound_enabled=0xFF` y `init_music`.
 - **Verificar:** compila; `game_start()` deja `lives_count`, `difficulty_level`, `level_number` en los valores del ASM (anotarlos).
 
-### T41 — `entry.asm` parte 2: loop del callejón y selector de nivel [M · 93]
+### T41 — `entry.asm` parte 2: loop del callejón y selector de nivel [M · 93] ✅ HECHO (PROGRESS.md §6al; `game_alley_frame`/`game_death_handler`/`select_next_level`; `main.c` cableado a `game_start()`; el LFSR está correlacionado, el histograma no es uniforme; niveles 2 y 7 no salen de ninguna tabla)
 - **ASM:** `entry.asm` L144–236 (lab_0155 a lab_022a).
 - **Destino:** `src/game_flow.c`.
 - **Notas:** incluye el selector de nivel ponderado aleatorio tras la muerte; extraer los pesos como tabla verificada (`grep` del label correspondiente en `data_segment_labels.txt`).

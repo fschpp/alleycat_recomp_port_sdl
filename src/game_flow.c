@@ -28,6 +28,9 @@
 #include "sound.h"
 #include "enemy.h"
 #include "level7_epilogue.h"
+#include "alley_movement.h"
+#include "jump_gravity.h"
+#include "throw.h"
 
 uint16_t (*game_tick_fn)(void) = NULL;
 uint16_t (*pit_counter_fn)(void) = NULL;
@@ -158,4 +161,82 @@ lab_0140:
 
 void game_start(void) {
     game_flow_run(GF_ENTRY);
+}
+
+/* ===================== T41: entry.asm L144-236 ===================== */
+
+/* level_pool (DS 0x421, 12 bytes) y level_pool_hard (DS 0x42d, 5 bytes utiles; el resto del
+ * `db` son ceros que el ASM nunca indexa: dx se rechaza si >= 5). Verificados contra
+ * /tmp/data_segment.bin y cat.asm L158-161. Los niveles 2 y 7 no salen de ninguna tabla
+ * (el 7 solo por force_level7). */
+static const uint8_t level_pool[12]      = { 4, 4, 1, 1, 3, 3, 5, 5, 6, 6, 4, 1 };
+static const uint8_t level_pool_hard[5]  = { 1, 3, 4, 5, 6 };
+
+uint16_t select_next_level(void) {
+    uint16_t ax, dx, bx;
+lab_01e5:
+    dx = cga_random();                              /* call random -> dx = rng_seed */
+    if ((dx & 0xa0) == 0) goto lab_020a;            /* test dl,0xa0 / jz: usar la tabla "hard" */
+    bx = (uint16_t)(difficulty_level & 0x3);
+    if (bx == 0x3) goto lab_020a;                   /* dificultad 3 no tiene tabla */
+    bx = (uint16_t)(bx << 2);                       /* mov cl,2 / shl bx,cl */
+    dx &= 0x3;
+    bx = (uint16_t)(bx + dx);
+    ax = level_pool[bx];                            /* maximo 2*4+3 = 11 */
+    goto lab_021c;
+lab_020a:
+    dx = cga_random();
+    dx &= 0x7;
+    if (dx >= 0x5) goto lab_020a;                   /* cmp dx,5 / jnc: rechaza 5,6,7 */
+    ax = level_pool_hard[dx];
+lab_021c:
+    if (ax != last_level) goto lab_022a;            /* cmp ax,[last_level] / jnz (ax,last_level son words) */
+    if (ax == prev_level) goto lab_01e5;            /* igual a los dos anteriores -> re-sortear */
+lab_022a:
+    level_number = (int16_t)ax;
+    prev_level = last_level;                        /* shift: prev = last */
+    last_level = ax;                                /*        last = new  */
+    return ax;
+}
+
+void game_death_handler(void) {
+    /* lab_01b7 */
+    game_tick = game_read_tick();                   /* sub ah,ah / int 0x1a -> dx */
+    saved_cat_x = cat_x;                            /* guardar posicion para el respawn */
+    saved_cat_y = cat_y;
+    start_in_level = 0x1;
+    if (force_level7 == 0x0) goto lab_01e5;         /* escena de amor forzada? */
+    force_level7 = 0x0;
+    level_number = 0x7;
+    return;                                         /* jmp lab_0238 (no toca last/prev_level) */
+lab_01e5:
+    select_next_level();
+}
+
+gf_next_t game_alley_frame(void) {
+    /* lab_0155 */
+    if (lives_count == 0x0) return GF_TO_0081;      /* game over */
+    input_process_keys();                           /* lab_015f: process_keyboard */
+    if (show_attract) return GF_TO_00A3;            /* timeout -> attract */
+    if (restart_game) return GF_TO_00AE;            /* restart */
+    /* lab_0176: poll_joystick -> TODO(T60), el joystick no esta portado */
+    immune_flag = 0;                                /* heredado del loop de main.c (T19) */
+    update_alley_movement();                        /* update_animation (auditoria T70-T73) */
+    update_enemies();
+    if (enemy_active == 0x0) {
+        frame_counter++;                            /* sin enemigo: throttle, fisica solo cada 4.o frame */
+        if ((frame_counter & 0x3) != 0) return GF_STAY;
+    }
+    /* lab_0191 */
+    play_sound();
+    update_thrown_objects();
+    update_cat_jump();
+    apply_cat_gravity();
+    animate_falling();
+    update_cycle_objects();                         /* cycle_animations */
+    draw_lives();
+    if (cat_died == 0x0) return GF_STAY;            /* sigue vivo -> lab_0155 */
+    if (lives_count == 0x0) return GF_TO_0081;      /* game over */
+    game_death_handler();                           /* lab_01b7 */
+    return GF_TO_0238;
 }

@@ -20,6 +20,7 @@
 #include "sound.h"
 #include "alley_drawing.h"
 #include "throw.h"
+#include "game_flow.h"
 
 int main(int argc, char **argv) {
     (void)argc; (void)argv;
@@ -35,87 +36,44 @@ int main(int argc, char **argv) {
      * device is this port's stand-in for "the speaker exists". If no device
      * can be opened the game just runs silent. */
     bool have_audio = audio_init();
-    init_music();
-    init_sound();
 
-    printf("Alley Cat C/SDL port - alley loop (entry.asm L131-180, T19).\n");
+    printf("Alley Cat C/SDL port - entry.asm flow (T40/T41).\n");
     printf("Arrow keys walk the cat; S toggles sound; R restarts; ESC quits.\n");
     printf("%s\n", have_audio ? "Audio device opened OK." : "NO audio device - running silent.");
 
-    /* entry.asm L95-100: nueva partida. */
-    lives_count = 3;
-    clear_score();
-    clear_high_score();
-    level_number = 0;
+    /* entry.asm L27-143: init, title (T52 stub), attract (T54 stub), new game, alley setup.
+     * Returns where lab_0155 (the alley loop) begins. */
+    game_start();
 
     bool running = true;
     while (running) {
-        /* ---- lab_00f3: preparación del callejón (entry.asm L110-134) ---- */
-        clear_screen();            /* fondo + detalles + edificios + ventanas + init_alley_objects */
-        render_sprites();
-        lives_display = 0xff;      /* force lives redraw */
-        silence_speaker();
-        level_number = 0;
-        /* start_in_level == 0 → lab_0137 (la rama setup_level se usa al volver de un nivel: T41/T42) */
-        cat_x = 0;                 /* start at left edge */
-        setup_alley();
-        /* lab_0140 */
-        init_sound();
-        init_player();
-        reset_jump();
-        init_cycle_objects();      /* init_objects */
-        draw_high_score_display(); /* draw_score (nombres cruzados, ver tareas.md 0.5) */
-        draw_current_score();      /* draw_high_score */
-        init_music();
-        restart_game = false;
-        show_attract = false;
+        SDL_Event ev;
+        while (SDL_PollEvent(&ev)) {
+            if (ev.type == SDL_QUIT) running = false;
+            if (ev.type == SDL_KEYDOWN && ev.key.keysym.scancode == SDL_SCANCODE_ESCAPE)
+                running = false;
+        }
+        if (!running) break;
 
-        /* ---- lab_0155: loop del callejón ---- */
-        bool in_alley = true;
-        while (running && in_alley) {
-            SDL_Event ev;
-            while (SDL_PollEvent(&ev)) {
-                if (ev.type == SDL_QUIT) running = false;
-                if (ev.type == SDL_KEYDOWN && ev.key.keysym.scancode == SDL_SCANCODE_ESCAPE)
-                    running = false;
-            }
-            if (!running) break;
+        input_poll();                              /* read_keyboard_dirs (port: SDL) */
+        gf_next_t next = game_alley_frame();       /* one pass of lab_0155 (entry.asm L144-212) */
 
-            if (lives_count == 0) { running = false; break; }  /* lab_0081: game over (T41 lo reemplaza) */
+        video_present();
+        SDL_Delay(33); /* ~30Hz: the original has a closed loop with no delay */
 
-            input_poll();
-            input_process_keys();                /* process_keyboard */
-            if (show_attract) { show_attract = false; continue; }  /* lab_00a3: attract (T54) */
-            if (restart_game) break;             /* lab_00ae: reinicia el callejón */
-            /* poll_joystick: opcional (T60) */
-            immune_flag = 0;
-
-            update_alley_movement();             /* update_animation (auditoría en T70-T73) */
-            update_enemies();
-
-            bool run_physics = true;
-            if (enemy_active == 0) {             /* sin enemigo: física solo cada 4.º frame */
-                frame_counter++;
-                if (frame_counter & 0x3) run_physics = false;
-            }
-
-            if (run_physics) {
-                play_sound();
-                update_thrown_objects();
-                update_cat_jump();
-                apply_cat_gravity();
-                animate_falling();
-                update_cycle_objects();          /* cycle_animations */
-                draw_lives();
-                if (cat_died) {                  /* lab_01b7: selector de nivel / muerte → T41 */
-                    if (lives_count == 0) { running = false; break; }
-                    in_alley = false;            /* por ahora: reentra al callejón (TODO(T41)) */
-                    cat_died = 0;
-                }
-            }
-
-            video_present();
-            SDL_Delay(33); /* ~30Hz */
+        switch (next) {
+        case GF_STAY:   break;
+        case GF_TO_0081: game_flow_run(GF_LAB_0081); break;   /* game over -> title */
+        case GF_TO_00A3: game_flow_run(GF_LAB_00A3); break;   /* attract timeout */
+        case GF_TO_00AE: game_flow_run(GF_LAB_00AE); break;   /* restart */
+        case GF_TO_0238:
+            /* The cat died: game_death_handler() already saved the position and picked
+             * level_number. TODO(T42/T43/T75): lab_0238 dispatches the level loop here.
+             * Until then behave as if the level ended at once (entry.asm L435:
+             * start_in_level = 0 -> respawn in the alley). */
+            start_in_level = 0;
+            game_flow_run(GF_LAB_00F3);
+            break;
         }
     }
 
