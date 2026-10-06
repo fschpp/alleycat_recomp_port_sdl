@@ -111,6 +111,12 @@ void set_speaker_freq(uint16_t ax) {
     port61_out((uint8_t)(port61_in() | 0x03));
 }
 
+/* show_title_screen (ui.asm L68-76, lab_5d54) fija title_music_tick y pone title_music_pos a 0 al (re)empezar. */
+void title_music_restart(uint16_t tick) {
+    title_music_tick = tick;
+    title_music_pos = 0;
+}
+
 /* --- play_music_note --- title-screen music, driven off the BIOS tick. */
 void play_music_note(void) {
     if (!sound_enabled) return;

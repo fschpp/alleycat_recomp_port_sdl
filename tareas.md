@@ -362,13 +362,13 @@ Estado compartido de los niveles 4 y 5: **los dos usan las variables `l5_obj_*`*
 - **Notas:** `detect_video`, `install_handlers`/`restore_handlers` y la lectura de ROM id no necesitan portarse (SDL los reemplaza); documentar qué hace cada rama y qué valor fijo se usa (`rom_id=0xFF`). `check_special_keys` sí se porta (pausa, sonido, etc.).
 - **Verificar:** test de `check_special_keys` con cada tecla especial simulada.
 
-### T52 — `show_title_screen` [M · 109]
+### T52 — `show_title_screen` [M · 109] ✅ HECHO (PROGRESS.md §6aw; `src/ui.c`; bucle bloqueante con `ui_wait_hook`; `check_vsync` = en retrace; `title_music_restart` en `sound.c`; render a `title_screen.png`)
 - **ASM:** `ui.asm` L55–163.
 - **Destino:** `src/ui.c`.
 - **Datos:** `title_music_pos=0x5320`, `title_music_tick=0x5322`, `title_music_freqs=0x5324`, `title_music_seq=0x538c`, `attract_*` (ver `data_segment_labels.txt`), sprites de `title_sprites` (verificados en §5k).
 - **Verificar:** renderizar la pantalla de título a PPM; la música avanza con `play_music_note`.
 
-### T53 — Gato y ícono del título [S · 55]
+### T53 — Gato y ícono del título [S · 55] ✅ HECHO junto con T52 (PROGRESS.md §6aw)
 - **ASM:** `ui.asm` L164–202 (`move_title_cat`) y L221–236 (`animate_title_icon`).
 - **Destino:** `src/ui.c`.
 - **Datos:** `attract_anim_idx=0x6a8d`, `attract_icon_ptrs=0x6a8f`, `attract_icon_sprite_a=0x6d37`, `attract_icon_sprite_b=0x6d63`.

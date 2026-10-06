@@ -5,7 +5,6 @@
 #include "input.h"
 #include "score.h"
 
-void show_title_screen(void) { /* TODO(T52): ui.asm show_title_screen */ }
 void love_scene_outro(void)     { /* TODO(T58): ui.asm L489-570 */ }
 
 void reset_cupid(void)       { /* TODO(T56): ui.asm reset_cupid */ }

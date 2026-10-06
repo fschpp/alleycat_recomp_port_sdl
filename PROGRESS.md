@@ -14,7 +14,7 @@ graphics assets, so it is not meant to be published or redistributed.
 
 ## 0. Current focus / todo / blockers
 
-**Current focus:** `tareas.md` execution: T00, T10-T45 (§6g-§6ap) and **T46** (`show_level_result` + `draw_result_frame` in `src/result.c`, §6aq) **T47** (`handle_level_complete` in `src/score.c`, §6ar) **T48** (bonus text/flash/mask + BIOS text model and font, §6as) and **T49** (`animate_score_bar`, `binary_to_bcd` in `src/score_bar.c`, §6at) are done: the bonus bar is fully real now. **T50** (`src/ui.c`: `print_string`, `set_cursor`, `wait_for_input`, `display_text_line`, `clear_cga`, §6au) is done too. **T51** (`src/hardware.c`: `check_special_keys`, `init_bios_data`, `detect_video`, `print_startup_msg`, §6av) too. Next up: T52 (`show_title_screen`). Still stubbed: `love_scene_outro` (T58, called by `show_level_result` for level 7). `main.c` runs the real flow for every level.
+**Current focus:** `tareas.md` execution: T00, T10-T45 (§6g-§6ap) and **T46** (`show_level_result` + `draw_result_frame` in `src/result.c`, §6aq) **T47** (`handle_level_complete` in `src/score.c`, §6ar) **T48** (bonus text/flash/mask + BIOS text model and font, §6as) and **T49** (`animate_score_bar`, `binary_to_bcd` in `src/score_bar.c`, §6at) are done: the bonus bar is fully real now. **T50** (`src/ui.c`: `print_string`, `set_cursor`, `wait_for_input`, `display_text_line`, `clear_cga`, §6au) is done too. **T51** (`src/hardware.c`: `check_special_keys`, `init_bios_data`, `detect_video`, `print_startup_msg`, §6av) too. **T52 + T53** (`show_title_screen`, `move_title_cat`, `animate_title_icon` in `src/ui.c`, §6aw) too. Next up: T54 (`show_attract_mode`). Still stubbed: `love_scene_outro` (T58, called by `show_level_result` for level 7). `main.c` runs the real flow for every level.
 T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-level4`, `test-level4-state`, `test-level5`, `test-level5-anim`, `test-level5-objects`, `test-level6`, `test-level6b`, `test-level6c`, `test-level6d`, `test-level2`, `test-level2b`, `test-level2c`, `test-level2d`, `test-level7`, `test-level7b`, `test-level7c`, `test-game-flow`, `test-game-flow-loop`).
 
 - [x] `sound.asm` — full port, wired into every previously-stubbed call site (§6e)
@@ -61,6 +61,8 @@ T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-lev
 - [x] T49 — `animate_score_bar`, `binary_to_bcd` (`score_bar.c`); stubs removed from `flow_stubs.c`; `test-score-bar-b` (§6at)
 - [x] T50 — `print_string`, `set_cursor`, `wait_for_input`, `display_text_line`, `clear_cga` (`ui.c`, `ui.h`); `ui_wait_hook` wired in `main.c`; `test-ui-text` (§6au)
 - [x] T51 — `check_special_keys`, `init_bios_data`, `detect_video`, `print_startup_msg` (`hardware.c`, `hardware.h`); wired in `input.c`/`main.c`/`game_hw_init`; `test-hardware` (§6av)
+- [x] T52 — `show_title_screen` (`ui.c`), real title screen; stub removed from `flow_stubs.c`; `title_music_restart` in `sound.c` (§6aw)
+- [x] T53 — `move_title_cat`, `animate_title_icon` (`ui.c`), ported together with T52 because its loop calls them; `test-title` (§6aw)
 - [ ] T01 — full headless harness (`tests/harness.h`, `make test`); only `tests/test_alley_loop.c` exists so far
 - [x] T41 — alley loop pass, death handler, weighted level selector (`game_flow.c`); `main.c` wired to `game_start()`/`game_alley_frame()` (§6al)
 - [ ] `ui.asm` — `window_open_state` toggling, the other half of item (h)
@@ -4260,6 +4262,22 @@ Suggested commit: `T50: print_string, set_cursor, wait_for_input, display_text_l
 **Verification:** `make test-hardware` (no SDL): matrix init and `keyboard_prev`; no action without Ctrl+Alt for all 3 non-both combos x 4 arrow states; Ctrl+Alt+Del reboot with priority over the arrows and no CRTC write; Right 6 -> 0 with CRTC = value+0x27 at each step and no write at the limit; Left 0 -> 7 likewise; Right wins when both arrows are down; no arrows = no change; `detect_video` colour/mono/RAM-fail paths, messages against the font (including the 40-column wrap of the 47-character error), equipment bits (0xf3 -> 0xd3). `make test` all green (29 OK). `input.c` and `main.c` changes were not compiled or run: no `libsdl2-dev` in the sandbox.
 
 Suggested commit: `T51: check_special_keys, init_bios_data, detect_video, print_startup_msg en hardware.c; cableado en input.c/main.c; test-hardware`
+
+
+## 6aw. T52 + T53 — title screen (`src/ui.c`; ui.asm L55-163 and L164-236)
+
+**Ported literally (goto):** `show_title_screen` (draws the alley scene, 6 bitmaps with `blit_to_cga`, the icon, places the cat at x=0, y=0x60/0x92, draws both scores and 9 lives, `init_sound`, then loops), `move_title_cat` (bounce between x=0x20 and 0x120, random direction change every >= 0x12 ticks: `dl > 0xa0` stands still, else bit 0 picks right/left) and `animate_title_icon` (idx += 2, frame = `attract_icon_ptrs[idx & 2]`). T53 was done here because the T52 loop cannot run without them.
+
+**Port decisions:**
+- The loop is blocking like the original, but each pass calls `ui_wait_hook` (T50) so `main.c` pumps SDL, counts keys into `keyboard_counter` and presents. `use_joystick` reads the button through `joy_port_fn` (T50).
+- `check_vsync` in `move_title_cat` (`jz` skips the animation): the port treats it as "in retrace", so `update_animation` (stand-in `update_alley_movement`, as in `game_flow.c`) runs once per loop pass (~100 Hz with the 10 ms delay of `ui_wait_pump`). This is a different pacing from the original (many calls per retrace on a 4.77 MHz CPU); the walking speed of the title cat has not been compared with the original.
+- `draw_score`/`draw_high_score` in the ASM are the crossed names (§5v): the port calls `draw_high_score_display` then `draw_current_score`. `attract_timing` (DS 0x56da, word 0x34e = 846 ticks) is read from `ds_pool`; the `attract_timing[]` array in `include/gen/foreground_sprites.h` is a mislabelled sprite region and is not used.
+- The title loop timings: with `attract_shown == 0` it returns (to the attract mode) when more than 846+6 ticks passed; with `attract_shown != 0` it never times out and restarts its cycle (`lab_5d54`: tick bases, music restart) at 846+0x48 ticks. New `title_music_restart(tick)` in `sound.c` sets `title_music_tick`/`title_music_pos`, which were `static` there.
+- The joystick button only exits after it was seen released once (`attract_key_pressed`), so a button held from the previous screen does not skip the title.
+
+**Verification:** `make test-title` (no SDL; the big callees and `play_music_note`/`title_music_restart` are `--wrap`ped and recorded): icon alternation; `move_title_cat` at x=0x20/0/0x120/0x150, 399 LFSR seeds against `cga_random()` for the 3 outcomes (still/right/left), no change when dt < 0x12; `show_title_screen`: call order (`POASHCLI`), initial state (level 0, cat x/y, lives 9/0xff, inputs), tick base passed to the music restart (with 16-bit tick wrap), the 6 bitmaps at their CGA offsets row by row, exit by key on pass 7, timeout at pass 86 (852 ticks), no timeout and 2 cycle restarts with `attract_shown != 0`, joystick held / released-then-pressed, and key exit with the joystick held. Rendered with the real alley scene to `title_screen.png` (cat on the fence, IBM logo, "Alley Cat", "By Bill Williams", copyright, scores and lives): looks like the original layout but was not compared pixel by pixel with an emulator. `make test` all green (30 OK). `main.c`'s `ui_wait_pump` still not compiled (no SDL in the sandbox).
+
+Suggested commit: `T52/T53: show_title_screen, move_title_cat, animate_title_icon (ui.asm L55-236) en ui.c; title_music_restart; test-title`
 
 
 ## 7. General lesson for this whole project
