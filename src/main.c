@@ -22,6 +22,13 @@
 #include "throw.h"
 #include "game_flow.h"
 
+/* T45: el barrido de level_transition bloquea (como el original); presentar cada paso para que se vea. */
+static void wipe_present_step(void) {
+    SDL_PumpEvents();
+    video_present();
+    SDL_Delay(25);
+}
+
 int main(int argc, char **argv) {
     (void)argc; (void)argv;
 
@@ -36,6 +43,7 @@ int main(int argc, char **argv) {
      * device is this port's stand-in for "the speaker exists". If no device
      * can be opened the game just runs silent. */
     bool have_audio = audio_init();
+    wipe_step_hook = wipe_present_step;
 
     printf("Alley Cat C/SDL port - entry.asm flow (T40/T41).\n");
     printf("Arrow keys walk the cat; S toggles sound; R restarts; ESC quits.\n");
