@@ -332,13 +332,14 @@ Estado compartido de los niveles 4 y 5: **los dos usan las variables `l5_obj_*`*
 - **Notas:** `run_victory_sequence` ya escribe `l7_completion_counter`/`l7_completion_tick` esperando esta función; conectarlos.
 - **Verificar:** simular fin de nivel con `difficulty_level` y puntaje conocidos; comprobar los incrementos esperados.
 
-### T48 — Barra de bonus A [M · 77]
+### T48 — Barra de bonus A [M · 77] ✅ HECHO (PROGRESS.md §6as; `src/score_bar.c`; texto BIOS modelado en `src/bios_text.c` con fuente `src/font8x8.c` (parte de T50 ya hecha); verificado contra la fuente, no contra `digit_sprites`)
 - **Nota (T47):** `save_score_regions` ya está portada (§6ar); los stubs a reemplazar están en `src/flow_stubs.c` con sus contratos de registros en `include/score.h` (`mask_score_tiles(dx)`, `flash_score_color()` devuelve el tick).
 - **ASM:** `level_objects.asm` L1228–1304 (`save_score_regions`, `flash_score_color`, `print_bonus_score`, `print_level7_bonus`, `mask_score_tiles`).
 - **Destino:** `src/score.c`.
 - **Verificar:** `print_bonus_score` con un valor BCD conocido, comparando el volcado de píxeles con el patrón de `digit_sprites`.
 
 ### T49 — Barra de bonus B [M · 71]
+- **Nota (T48):** escribir `animate_score_bar`/`binary_to_bcd` en `src/score_bar.c` (no en `score.c`, para que `--wrap` funcione) y borrar sus stubs de `flow_stubs.c`.
 - **Nota (T47):** `binary_to_bcd` recibe el valor en `ax` (no lee `dat_3697`) y `animate_score_bar(ax)` recibe el límite; stubs en `src/flow_stubs.c`, estado compartido en `include/score.h`.
 - **ASM:** `level_objects.asm` L1305–1375 (`reloc_8` y datos, `animate_score_bar`, `binary_to_bcd`).
 - **Destino:** `src/score.c`.
@@ -349,6 +350,7 @@ Estado compartido de los niveles 4 y 5: **los dos usan las variables `l5_obj_*`*
 ## FASE 4: UI y entrada
 
 ### T50 — Texto: helpers y fuente [M · ~75]
+- **Nota (T48):** la fuente 8×8 (`src/font8x8.c`) y el modelo de INT 10h AH=02h/0Eh (`src/bios_text.c`, `include/bios_text.h`) ya existen; reutilizarlos.
 - **ASM:** `ui.asm` L203–220 (`print_string`), L237–250 (`set_cursor`), L383–435 (`wait_for_input`, `display_text_line`, `clear_cga`).
 - **Destino:** nuevo `src/ui.c` + `include/ui.h`.
 - **Notas:** el original imprime con BIOS (`int 0x10`) usando la fuente ROM de 8×8 del PC, que **no** está en el ASM. Incluir una fuente 8×8 de dominio público embebida en `src/font8x8.c` y dibujar con `blit_to_cga`.
