@@ -297,6 +297,7 @@ extern uint8_t  start_in_level;
 extern uint8_t  attract_shown;
 extern uint16_t last_level;      /* 0xffff = ninguno */
 extern uint16_t prev_level;      /* 0xffff = ninguno */
+extern uint16_t wipe_fill_pattern;   /* DS 0x1839: patron del barrido (transition.c; lo lee animate_screen_wipe, T45) */
 extern uint16_t level_state;     /* DS 0x006 (word): lab_0238 lo pone a 0; lab_0447 guarda ahi el ultimo nivel jugado */
 extern uint8_t  video_mode;      /* 4 = CGA 320x200, 6 = CGA 640x200 (rom_id != 0xfd) */
 extern uint8_t  use_joystick;

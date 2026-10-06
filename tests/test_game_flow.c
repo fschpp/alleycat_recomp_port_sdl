@@ -9,6 +9,7 @@
 #include "cat_state.h"
 #include "game_flow.h"
 #include "level7_epilogue.h"
+#include "palette.h"
 
 int8_t input_horizontal, input_vertical; bool input_fire;
 uint8_t sound_enabled = 0; bool restart_game, show_attract, pause_requested;
@@ -76,7 +77,7 @@ int main(void) {
 
     /* --- A: entry completo, con el attract fijando dificultad 5 --- */
     dirty_state(); start_in_level = 0; restart_game = false; show_attract = false; rom_id = 0xff;
-    attract_sets_diff = 5; rng_seed = 1; reset_trace();
+    attract_sets_diff = 5; rng_seed = 1; reset_trace(); cga_color_select = 0x1f;
     game_start();
     { const int e[] = { E_SETPAL, E_CLRHS, E_CLRSC,                      /* entry */
                         E_UPDHS, E_SETPAL, E_SIL, E_TITLE, E_SIL,         /* lab_0081 */
@@ -100,8 +101,11 @@ int main(void) {
     CHECK(cat_x == 0 && cat_y == 0xb4 && cat_y_bottom == 0xe6, "A cat pos %d,%d,%d", cat_x, cat_y, cat_y_bottom);
     CHECK(scroll_direction == 1 && game_mode == 0 && anim_counter == 1, "A setup_alley real (scroll_dir=%d mode=%d anim=%d)", scroll_direction, game_mode, anim_counter);
 
+    CHECK(cga_color_select == 0x20, "A puerto 0x3D9=0x%02x: `out 0x3d9,0x20` (no-PCjr) tras set_palette", cga_color_select);
+
     /* video_mode con ROM PCjr */
-    rom_id = 0xfd; attract_shown = 0; game_start();
+    cga_color_select = 0x1f; rom_id = 0xfd; attract_shown = 0; game_start();
+    CHECK(cga_color_select == 0x3f, "A2 PCjr: solo BH=1,BL=1 (0x%02x), sin `out 0x3d9`", cga_color_select);
     CHECK(video_mode == 4, "A2 video_mode PCjr=%d", video_mode);
     rom_id = 0xff;
 

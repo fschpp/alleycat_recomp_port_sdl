@@ -1,5 +1,6 @@
 #include "video.h"
 #include "cga.h"
+#include "palette.h"
 #include <SDL2/SDL.h>
 #include <stdio.h>
 
@@ -7,14 +8,6 @@ static SDL_Window *g_window = NULL;
 static SDL_Renderer *g_renderer = NULL;
 static SDL_Texture *g_texture = NULL;
 static uint32_t g_pixels[CGA_WIDTH * CGA_HEIGHT];
-
-/* CGA palette 1, high intensity (background black is index 0) */
-static const uint32_t palette[4] = {
-    0xFF000000u, /* 0: black   */
-    0xFF55FFFFu, /* 1: cyan    */
-    0xFFFF55FFu, /* 2: magenta */
-    0xFFFFFFFFu, /* 3: white   */
-};
 
 bool video_init(int window_scale) {
     if (SDL_Init(SDL_INIT_VIDEO) != 0) {
@@ -49,6 +42,9 @@ bool video_init(int window_scale) {
 
 /* Unpack cga_mem (2bpp, bank-interleaved) into g_pixels (32bpp, linear) */
 static void unpack_cga(void) {
+    /* Colores segun el estado de paleta del juego (palette.c: puerto 0x3D9 / registros PCjr), una vez por frame. */
+    uint32_t palette[4];
+    for (unsigned i = 0; i < 4; i++) palette[i] = palette_rgb(i);
     for (int row = 0; row < CGA_HEIGHT; row++) {
         size_t row_base = (size_t)(row >> 1) * CGA_BYTES_PER_ROW;
         if (row & 1) row_base += CGA_BANK_SIZE;

@@ -4,9 +4,10 @@
 #include "game_flow.h"
 #include "input.h"
 
-void set_palette(void)       { /* TODO(T44): enemy.asm set_palette / set_ega_palette */ }
 void show_title_screen(void) { /* TODO(T52): ui.asm show_title_screen */ }
-void level_transition(void)  { /* TODO(T44): enemy.asm level_transition */ }
+void animate_screen_wipe(void)   { /* TODO(T45): enemy.asm L159-241 */ }
+void show_level_result(void)     { /* TODO(T46): enemy.asm L275-358 */ }
+void handle_level_complete(void) { /* TODO(T47): level_objects.asm L1100-1227 */ }
 void reset_cupid(void)       { /* TODO(T56): ui.asm reset_cupid */ }
 void update_cupid(void)      { /* TODO(T56): ui.asm update_cupid */ }
 void show_attract_mode(void) { /* TODO(T54): ui.asm show_attract_mode */ }
