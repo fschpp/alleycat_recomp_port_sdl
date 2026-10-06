@@ -50,4 +50,12 @@ int detect_joystick(void);
 /* show_attract_mode: pantalla Y/N de joystick, dificultad (K/H/T/A -> diff_icon_idx 0..3) e instrucciones; fija
  * use_joystick y diff_icon_idx. Bloquea como el original; las teclas se leen de key_matrix (hardware.h). */
 void show_attract_mode(void);
+
+/* --- T55: show_pause_menu (ui.asm L245-299) --- */
+extern uint16_t title_saved_cx;     /* DS 0x6dfc */
+extern uint16_t title_saved_dx;     /* DS 0x6dfe */
+extern uint16_t pause_counter;      /* DS 0x6e00: keyboard_counter de la ultima pausa */
+/* show_pause_menu: guarda la region de CGA bajo el cartel, muestra "Paws Game" + indicacion, espera tecla/boton y
+ * restaura pantalla y tick BIOS. */
+void show_pause_menu(void);
 #endif

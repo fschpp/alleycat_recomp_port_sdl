@@ -14,7 +14,7 @@ graphics assets, so it is not meant to be published or redistributed.
 
 ## 0. Current focus / todo / blockers
 
-**Current focus:** `tareas.md` execution: T00, T10-T45 (§6g-§6ap) and **T46** (`show_level_result` + `draw_result_frame` in `src/result.c`, §6aq) **T47** (`handle_level_complete` in `src/score.c`, §6ar) **T48** (bonus text/flash/mask + BIOS text model and font, §6as) and **T49** (`animate_score_bar`, `binary_to_bcd` in `src/score_bar.c`, §6at) are done: the bonus bar is fully real now. **T50** (`src/ui.c`: `print_string`, `set_cursor`, `wait_for_input`, `display_text_line`, `clear_cga`, §6au) is done too. **T51** (`src/hardware.c`: `check_special_keys`, `init_bios_data`, `detect_video`, `print_startup_msg`, §6av) too. **T52 + T53** (`show_title_screen`, `move_title_cat`, `animate_title_icon` in `src/ui.c`, §6aw) too. **T54** (`show_attract_mode`, `detect_joystick`, `test_joystick_axis` in `src/ui.c`, §6ax) too. Next up: T55 (`show_pause_menu`). Still stubbed: `love_scene_outro` (T58, called by `show_level_result` for level 7). `main.c` runs the real flow for every level.
+**Current focus:** `tareas.md` execution: T00, T10-T45 (§6g-§6ap) and **T46** (`show_level_result` + `draw_result_frame` in `src/result.c`, §6aq) **T47** (`handle_level_complete` in `src/score.c`, §6ar) **T48** (bonus text/flash/mask + BIOS text model and font, §6as) and **T49** (`animate_score_bar`, `binary_to_bcd` in `src/score_bar.c`, §6at) are done: the bonus bar is fully real now. **T50** (`src/ui.c`: `print_string`, `set_cursor`, `wait_for_input`, `display_text_line`, `clear_cga`, §6au) is done too. **T51** (`src/hardware.c`: `check_special_keys`, `init_bios_data`, `detect_video`, `print_startup_msg`, §6av) too. **T52 + T53** (`show_title_screen`, `move_title_cat`, `animate_title_icon` in `src/ui.c`, §6aw) too. **T54** (`show_attract_mode`, `detect_joystick`, `test_joystick_axis` in `src/ui.c`, §6ax) too. **T55** (`show_pause_menu` in `src/ui.c`, `set_bios_tick` in `score.c`, §6ay) too. Next up: T56 (Cupid A). Still stubbed: `love_scene_outro` (T58, called by `show_level_result` for level 7). `main.c` runs the real flow for every level.
 T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-level4`, `test-level4-state`, `test-level5`, `test-level5-anim`, `test-level5-objects`, `test-level6`, `test-level6b`, `test-level6c`, `test-level6d`, `test-level2`, `test-level2b`, `test-level2c`, `test-level2d`, `test-level7`, `test-level7b`, `test-level7c`, `test-game-flow`, `test-game-flow-loop`).
 
 - [x] `sound.asm` — full port, wired into every previously-stubbed call site (§6e)
@@ -64,6 +64,7 @@ T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-lev
 - [x] T52 — `show_title_screen` (`ui.c`), real title screen; stub removed from `flow_stubs.c`; `title_music_restart` in `sound.c` (§6aw)
 - [x] T53 — `move_title_cat`, `animate_title_icon` (`ui.c`), ported together with T52 because its loop calls them; `test-title` (§6aw)
 - [x] T54 — `show_attract_mode`, `detect_joystick`, `test_joystick_axis` (`ui.c`); Y/N + K/H/T/A via key matrix, `int9_set_scancode` (`hardware.c`); stub removed; `test-attract` (§6ax)
+- [x] T55 — `show_pause_menu` (`ui.c`), `set_bios_tick` (`score.c`); `test-pause`; not wired to `process_keyboard` until T61 (§6ay)
 - [ ] T01 — full headless harness (`tests/harness.h`, `make test`); only `tests/test_alley_loop.c` exists so far
 - [x] T41 — alley loop pass, death handler, weighted level selector (`game_flow.c`); `main.c` wired to `game_start()`/`game_alley_frame()` (§6al)
 - [ ] `ui.asm` — `window_open_state` toggling, the other half of item (h)
@@ -4298,6 +4299,20 @@ Suggested commit: `T52/T53: show_title_screen, move_title_cat, animate_title_ico
 **Verification:** `make test-attract` (no SDL; keys scripted per hook iteration): scancode table to matrix indices; `test_joystick_axis` (responds, times out, tick counter wrap); `detect_joystick` (no game port, responds, first test times out and second responds, both time out); keyboard flow N then H with a stray key in between; all difficulty combinations and the K>H>T>A priority; Y without game port restarts and clears the notice; Y with a responsive joystick (joystick instruction lines 0x20 x2 and 0x18 x2, `use_joystick = 1`). The final screen is compared byte-for-byte with an independent replay of the ASM line sequence. Full `make test` passes, all files `-Wall -Wextra` clean. `main.c` could not be compiled here (no SDL).
 
 Suggested commit: `T54: show_attract_mode, detect_joystick, test_joystick_axis (ui.asm L300-382, L431-469) en ui.c; int9_set_scancode; test-attract`
+
+
+## 6ay. T55 — `show_pause_menu` (`src/ui.c`; ui.asm L245-299)
+
+**Ported literally:** `show_pause_menu`: silences the speaker, saves the tick, saves a CGA block (0x20 words x 0x10 rows from 0xdca), prints "Paws Game" at row 0xb / col 5 and the prompt at row 0xc / col 5 ("Press the button..." when `use_joystick`, else "Press any key..."), waits (`wait_for_input`), restores the block and the tick, and sets `pause_counter = keyboard_counter`. New DS variables: `title_saved_cx` (0x6dfc), `title_saved_dx` (0x6dfe), `pause_counter` (0x6e00). Strings at DS 0x6d91 / 0x6db2 / 0x6dd3. Note `set_cursor` (T50) forces column 0, so the menu calls `bios_set_cursor(row, 5)` directly (`dl = 5` in the ASM).
+
+**Port decisions / deviations:**
+- The original saves the block into DS:0xe..0x40e, which overlaps `score_save_a`/`score_save_b` (DS 0xe / 0x4e, used by the level-7 bonus screen). The port uses a private buffer, so a pause cannot corrupt those. If fidelity to that overlap is ever wanted, it only matters if a pause happens during the level-7 bonus.
+- `int 0x1a ah=1` (set tick): new `set_bios_tick()` in `score.c`, modelled as an offset applied by `score_tick()` (default 0, so nothing else changes). Only the low word is kept (`title_saved_dx`, the high word, is stored as 0). Limitation: about 20 modules (`alley.c`, `enemy.c`, `level*.c`, ...) have their own private copy of the monotonic clock, so the time spent paused is hidden only from code that uses `score_tick()`. Unifying them is a candidate for T75.
+- Not wired yet: `process_keyboard` is what calls `show_pause_menu` (input.asm L142-154, verified in T61); `input.c` currently only sets `pause_requested`, which nothing consumes.
+
+**Verification:** `make test-pause` (no SDL): the three strings; for keyboard and joystick modes, the poster drawn during the pause equals an independent rendering of the same texts on a copy of the screen; after resuming `cga_mem` is byte-identical to before (pattern-filled screen); `pause_counter == keyboard_counter`; the tick returns to its value at entry and keeps advancing. Full `make test` passes; `-Wall -Wextra` clean.
+
+Suggested commit: `T55: show_pause_menu (ui.asm L245-299) en ui.c; set_bios_tick en score.c; test-pause`
 
 
 ## 7. General lesson for this whole project

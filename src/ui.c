@@ -22,6 +22,9 @@
 uint16_t keyboard_counter;                 /* DS 0x0693 */
 uint16_t title_joy_offset;                 /* DS 0x6d8f */
 uint16_t title_input_tick;                 /* DS 0x6dfa */
+uint16_t title_saved_cx;                   /* DS 0x6dfc: tick (dx) guardado al pausar */
+uint16_t title_saved_dx;                   /* DS 0x6dfe: palabra alta del tick (cx) */
+uint16_t pause_counter;                    /* DS 0x6e00 */
 void (*ui_wait_hook)(void);
 uint8_t (*joy_port_fn)(void);
 
@@ -307,4 +310,35 @@ lab_5f7e:
     display_text_line();
 lab_5f93:
     wait_for_input();
+}
+
+/* --- T55: show_pause_menu (ui.asm L245-299). PROGRESS.md §6ay. --- */
+#define DS_STR_PAWS_GAME       0x6d91
+#define DS_STR_KEY_CONTINUE    0x6db2
+#define DS_STR_BUTTON_CONTINUE 0x6dd3
+
+/* show_pause_menu: silencia el altavoz, guarda el tick, guarda 0x20 words x 0x10 filas de CGA desde 0xdca (el original
+ * las deja en DS:0xe; el port usa un buffer propio, ver PROGRESS.md), escribe "Paws Game" (fila 0xb, col 5) y la
+ * indicacion (fila 0xc, col 5; "button" con joystick), espera una tecla/boton, restaura la region y el tick, y fija
+ * pause_counter = keyboard_counter (process_keyboard no vuelve a pausar con esa misma pulsacion). */
+void show_pause_menu(void) {
+    static uint8_t pause_save[0x20 * 2 * 0x10];            /* DS:0xe..0x40e en el original */
+    const uint8_t *si;
+    silence_speaker();
+    title_saved_cx = score_tick();                         /* sub ah,ah / int 0x1a / mov [title_saved_cx],dx */
+    title_saved_dx = 0x0;                                  /* mov [title_saved_dx],cx: palabra alta, no modelada */
+    save_from_cga(pause_save, 0xdca, 0x20, 0x10);          /* si=0xdca, di=0xe, cx=0x1020 */
+    bios_set_cursor(0xb, 0x5);                             /* mov dx,0xb05 / int 0x10 ah=2 */
+    si = &ds_pool[DS_STR_PAWS_GAME];
+    print_string(si);
+    bios_set_cursor(0xc, 0x5);                             /* mov dx,0xc05 */
+    si = &ds_pool[DS_STR_KEY_CONTINUE];
+    if (use_joystick == 0x0) goto lab_5eba;
+    si = &ds_pool[DS_STR_BUTTON_CONTINUE];
+lab_5eba:
+    print_string(si);
+    wait_for_input();
+    blit_to_cga(pause_save, 0xdca, 0x20, 0x10);            /* si=0xe, di=0xdca */
+    set_bios_tick(title_saved_cx);                         /* mov ah,1 / int 0x1a con cx=saved_dx, dx=saved_cx */
+    pause_counter = keyboard_counter;
 }

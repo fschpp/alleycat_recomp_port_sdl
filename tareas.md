@@ -380,7 +380,7 @@ Estado compartido de los niveles 4 y 5: **los dos usan las variables `l5_obj_*`*
 - **Datos:** `attract_timing=0x56da`, `title_joy_offset=0x6d8f`.
 - **Verificar:** la rutina termina al simular una tecla; el texto mostrado coincide con el del ASM.
 
-### T55 — `show_pause_menu` [S · 56]
+### T55 — `show_pause_menu` [S · 56] ✅ HECHO (PROGRESS.md §6ay; `src/ui.c`; buffer propio en vez de DS:0xe; `set_bios_tick` en `score.c` como desplazamiento de `score_tick`; sin cablear a `process_keyboard` hasta T61)
 - **ASM:** `ui.asm` L251–306.
 - **Destino:** `src/ui.c`.
 - **Datos:** `pause_counter=0x6e00`, `title_saved_cx=0x6dfc`, `title_saved_dx=0x6dfe`.

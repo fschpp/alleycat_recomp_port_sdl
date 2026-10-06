@@ -155,13 +155,19 @@ uint8_t  score_save_a[64];  /* DS 0x000e */
 uint8_t  score_save_b[320]; /* DS 0x004e */
 
 /* Mismo reloj que result.c / game_flow.c: int 0x1a -> dx a 18.2 Hz, con hook de tests. */
-uint16_t score_tick(void) {
+static uint16_t bios_tick_offset;   /* T55: ajuste que aplica set_bios_tick (int 0x1a ah=1); 0 por defecto */
+static uint16_t score_tick_raw(void) {
     if (game_tick_fn) return game_tick_fn();
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     uint64_t ms = (uint64_t)ts.tv_sec * 1000 + (uint64_t)(ts.tv_nsec / 1000000);
     return (uint16_t)(ms * 182 / 10000);
 }
+uint16_t score_tick(void) { return (uint16_t)(score_tick_raw() + bios_tick_offset); }
+
+/* int 0x1a ah=1 (fijar el contador de ticks, solo la palabra baja). Modelado como un desplazamiento sobre el reloj de
+ * score_tick: el resto de modulos del port conservan su propio reloj (ver PROGRESS.md §6ay). */
+void set_bios_tick(uint16_t t) { bios_tick_offset = (uint16_t)(t - score_tick_raw()); }
 
 static uint16_t score_ds_word(uint16_t ofs) {
     return (uint16_t)(ds_pool[ofs] | (ds_pool[ofs + 1] << 8));
