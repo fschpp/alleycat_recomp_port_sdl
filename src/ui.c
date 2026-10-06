@@ -17,9 +17,11 @@
 #include "fall_object.h"
 #include "game_setup.h"
 #include "enemy.h"
+#include "hardware.h"
 
 uint16_t keyboard_counter;                 /* DS 0x0693 */
 uint16_t title_joy_offset;                 /* DS 0x6d8f */
+uint16_t title_input_tick;                 /* DS 0x6dfa */
 void (*ui_wait_hook)(void);
 uint8_t (*joy_port_fn)(void);
 
@@ -203,4 +205,106 @@ lab_5dca:
     if (attract_save_int == keyboard_counter) goto lab_5d71;   /* sin tecla nueva: otra vuelta */
 lab_5dd3:
     return;
+}
+
+/* --- T54: show_attract_mode (ui.asm L300-382) y la deteccion de joystick que usa (L431-L469). PROGRESS.md §6ax. --- */
+
+/* test_joystick_axis (L452-469): `out 0x201` dispara el monoestable (no-op en el port); lee 0x201 hasta que los bits 0-1
+ * (ejes X/Y del joystick A) bajen (CF=0 -> responde) o pasen 0x12 ticks (CF=1). Devuelve CF. */
+int test_joystick_axis(void) {
+    uint8_t al;
+    uint16_t dx;
+    title_input_tick = score_tick();                       /* sub ah,ah / int 0x1a / mov [title_input_tick],dx */
+lab_601b:
+    if (ui_wait_hook) ui_wait_hook();                      /* port: presentar y bombear SDL */
+    al = joy_port_fn ? joy_port_fn() : 0xff;               /* mov dx,0x201 / in al,dx (sin joystick: bits a 1) */
+    if ((al & 0x3) != 0) goto lab_6025;                    /* test al,3 / jnz */
+    return 0;                                              /* clc / ret */
+lab_6025:
+    dx = (uint16_t)(score_tick() - title_input_tick);      /* int 0x1a / sub dx,[title_input_tick] */
+    if (dx < 0x12) goto lab_601b;                          /* cmp dx,0x12 / jc */
+    return 1;                                              /* stc / ret */
+}
+
+/* detect_joystick (L436-450). int 0x11 -> bios_equipment (bit 12 = adaptador de juegos). Sin adaptador, o si ninguno de
+ * los 2 intentos de test_joystick_axis responde, muestra el aviso (4 lineas desde title_joy_offset=0x24), espera una
+ * tecla y devuelve CF=1. Con el equipo por defecto del port (0x0020, sin bit 12) siempre falla: igual que un PC sin
+ * game port. Devuelve CF (0 = joystick detectado). */
+int detect_joystick(void) {
+    uint16_t ax;
+    int cx;
+    if ((bios_equipment & 0x1000) == 0) goto lab_5ff6;     /* int 0x11 / test ax,0x1000 / jz */
+    if (test_joystick_axis() == 0) goto lab_600e;          /* call / jnc */
+    if (test_joystick_axis() == 0) goto lab_600e;
+lab_5ff6:
+    title_joy_offset = 0x24;
+    for (cx = 0x4; cx != 0; cx--) display_text_line();     /* mov cx,4 / call / loop */
+    ax = keyboard_counter;
+lab_6007:
+    if (ui_wait_hook) ui_wait_hook();
+    if (ax == keyboard_counter) goto lab_6007;             /* cmp ax,[keyboard_counter] / jz */
+    return 1;                                              /* stc */
+lab_600e:
+    return 0;                                              /* CF=0 */
+}
+
+/* show_attract_mode (L300-382). Pantalla de seleccion previa a la partida: (1) pregunta Y/N de joystick (matriz 0x6c1 =
+ * Y, 0x6c2 = N; Y sin joystick vuelve a empezar), (2) dificultad con K/H/T/A (0x6c3..0x6c6 -> difficulty_counter 0..3),
+ * (3) instrucciones del teclado o del joystick y espera final. Bit 7 de la matriz a 0 = tecla pulsada (ver hardware.h).
+ * Cada espera de tecla toma keyboard_counter y gira hasta que cambia; si la tecla nueva no es de las esperadas, vuelve
+ * a esperar. Las vueltas llaman a ui_wait_hook (el original gira sin pausa). */
+void show_attract_mode(void) {
+    uint16_t ax;
+    int cx;
+    silence_speaker();
+lab_5ee8:
+    clear_cga();
+    title_joy_offset = 0x0;
+    display_text_line();
+lab_5ef4:
+    ax = keyboard_counter;                                 /* mov ax,[keyboard_counter] */
+lab_5ef7:
+    if (ui_wait_hook) ui_wait_hook();
+    if (ax == keyboard_counter) goto lab_5ef7;             /* cmp ax,[keyboard_counter] / jz */
+    if ((key_matrix[KEY_IDX_JOY_YES] & 0x80) == 0) goto lab_5f12;   /* test [0x6c1],0x80 / jz: Y pulsada */
+    if ((key_matrix[KEY_IDX_JOY_NO] & 0x80) != 0) goto lab_5ef4;    /* test [0x6c2],0x80 / jnz: N no pulsada */
+    use_joystick = 0x0;
+    goto lab_5f1c;
+lab_5f12:
+    if (detect_joystick() != 0) goto lab_5ee8;             /* call / jc: sin joystick, se reinicia la pantalla */
+    use_joystick = 0x1;
+lab_5f1c:
+    for (cx = 0x5; cx != 0; cx--) display_text_line();     /* mov cx,5 / push / call / pop / loop */
+lab_5f26:
+    ax = keyboard_counter;
+lab_5f29:
+    if (ui_wait_hook) ui_wait_hook();
+    if (ax == keyboard_counter) goto lab_5f29;
+    ax = 0x0;                                              /* db 0x2b,0xc0 = sub ax,ax */
+    if ((key_matrix[KEY_IDX_DIFF0] & 0x80) == 0) goto lab_5f50;     /* K */
+    ax++;
+    if ((key_matrix[KEY_IDX_DIFF1] & 0x80) == 0) goto lab_5f50;     /* H */
+    ax++;
+    if ((key_matrix[KEY_IDX_DIFF2] & 0x80) == 0) goto lab_5f50;     /* T */
+    ax++;
+    if ((key_matrix[KEY_IDX_DIFF3] & 0x80) != 0) goto lab_5f26;     /* A: si no esta pulsada, otra espera */
+lab_5f50:
+    diff_icon_idx = ax;                                    /* mov [difficulty_counter],ax */
+    for (cx = 0x5; cx != 0; cx--) display_text_line();
+    if (use_joystick == 0x0) goto lab_5f7e;
+    title_joy_offset = 0x20;
+    display_text_line();
+    display_text_line();
+    title_joy_offset = 0x18;
+    display_text_line();
+    display_text_line();
+    goto lab_5f93;
+lab_5f7e:
+    title_joy_offset = 0x1c;
+    display_text_line();
+    display_text_line();
+    title_joy_offset = 0x16;
+    display_text_line();
+lab_5f93:
+    wait_for_input();
 }

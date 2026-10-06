@@ -9,7 +9,6 @@ void love_scene_outro(void)     { /* TODO(T58): ui.asm L489-570 */ }
 
 void reset_cupid(void)       { /* TODO(T56): ui.asm reset_cupid */ }
 void update_cupid(void)      { /* TODO(T56): ui.asm update_cupid */ }
-void show_attract_mode(void) { /* TODO(T54): ui.asm show_attract_mode */ }
 
 /* Respaldo debil de input_process_keys (input.c usa SDL y no esta en TEST_SRC): con input.c
  * enlazado gana su definicion fuerte; los tests sin SDL usan este no-op o definen la suya. */

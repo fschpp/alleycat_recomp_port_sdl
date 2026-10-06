@@ -14,6 +14,15 @@
 #define KEY_IDX_LEFT    4   /* DS 0x6bb, 0x4b */
 #define KEY_IDX_PAUSE   18  /* DS 0x6c9, 0x1d (Ctrl; el label key_pause es engañoso) */
 #define KEY_IDX_DEL     19  /* DS 0x6ca, 0x53 (Del) */
+/* T54 (show_attract_mode): teclas que lee la pantalla de seleccion. OJO: el comentario del ASM dice "keys 1-4", pero la
+ * tabla de DS 0x6a1 da letras: 0x6c1 = scancode 0x15 (Y), 0x6c2 = 0x31 (N), 0x6c3 = 0x25 (K), 0x6c4 = 0x23 (H),
+ * 0x6c5 = 0x14 (T), 0x6c6 = 0x1e (A). Y/N = joystick si/no; K,H,T,A = dificultad 0..3. */
+#define KEY_IDX_JOY_YES 10  /* DS 0x6c1, 0x15 (Y) */
+#define KEY_IDX_JOY_NO  11  /* DS 0x6c2, 0x31 (N) */
+#define KEY_IDX_DIFF0   12  /* DS 0x6c3, 0x25 (K) */
+#define KEY_IDX_DIFF1   13  /* DS 0x6c4, 0x23 (H) */
+#define KEY_IDX_DIFF2   14  /* DS 0x6c5, 0x14 (T) */
+#define KEY_IDX_DIFF3   15  /* DS 0x6c6, 0x1e (A) */
 extern uint8_t key_matrix[KEY_MATRIX_SIZE];
 extern uint16_t keyboard_prev;     /* DS 0x691 */
 
@@ -24,6 +33,7 @@ extern uint8_t crtc_hsync_pos;
  * a "salir" (main.c lee este flag). */
 extern bool reboot_requested;
 
+void int9_set_scancode(uint8_t scancode, bool pressed);   /* parte de la ISR de INT 9: busca el scancode en DS 0x6a1 y fija la matriz */
 void init_bios_data(void);         /* parte del ASM que toca el DS: matriz a 0x80 y keyboard_prev */
 void check_special_keys(void);
 
