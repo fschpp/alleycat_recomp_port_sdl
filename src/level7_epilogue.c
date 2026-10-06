@@ -198,8 +198,7 @@ void init_level7_objects(void) {
  * no special-casing needed, the literal port just degrades gracefully.
  * draw_cupid/erase_cupid stubbed the same way, for the same reason. */
 /* T56: cupid_active/cupid_x/cupid_y son ahora los de cupid.h (src/cupid.c). */
-static void erase_cupid_stub(void) { /* TODO: ui.asm */ }
-static void draw_cupid_stub(void) { /* TODO: ui.asm */ }
+/* T57: erase_cupid/draw_cupid son ahora los reales de cupid.c. */
 
 /* l7_obj_x/y/active (0x2b5a/0x2b6a/0x2b72, 8 entries each) — the level-7
  * "heart falls from a window" objects. Populated by spawn_thrown_object/
@@ -263,7 +262,7 @@ static void check_l7_object_overlap(void) {
 
         if (!l7_heart_caught) {
             l7_restore_alley_buffer();
-            if (cupid_active) erase_cupid_stub();
+            if (cupid_active) erase_cupid();
         }
         erase_l7_sprite();
 
@@ -272,7 +271,7 @@ static void check_l7_object_overlap(void) {
         blit_to_cga(&ds_pool[L7_OBJ_ERASE_SPRITE], addr, 3, 15);
 
         if (!l7_heart_caught) {
-            if (cupid_active) draw_cupid_stub();
+            if (cupid_active) draw_cupid();
             l7_draw_alley_foreground();
         }
 
@@ -355,7 +354,7 @@ lab_2f07:
     if (cx != 0) goto lab_2ed5;
     l7_restore_alley_buffer();
     if (cupid_active == 0x0) goto lab_2f16;
-    erase_cupid_stub();
+    erase_cupid();
 lab_2f16:
     bx = l7_obj_spawn_slot;
     l7_obj_last_picked = bx;
@@ -368,7 +367,7 @@ lab_2f16:
     /* sub bx,bx / mov ah,0xb / int 0x10: sin efecto visible */
     check_l7_all_objects();
     if (cupid_active == 0x0) goto lab_2f59;
-    draw_cupid_stub();
+    draw_cupid();
 lab_2f59:
     l7_draw_alley_foreground();
     start_tone(0x3e8, 0x4a5);
@@ -409,14 +408,14 @@ lab_2fb3:
     if (bx == l7_obj_last_picked) goto lab_2fb2;
     l7_restore_alley_buffer();
     if (cupid_active == 0x0) goto lab_2fca;
-    erase_cupid_stub();
+    erase_cupid();
 lab_2fca:
     l7_obj_active[bx] = 0x0;
     dl = l7_obj_y[bx];
     l7_obj_spawn_slot = bx;
     blit_to_cga(&ds_pool[L7_OBJ_ERASE_SPRITE], calc_cga_addr(dl, (uint16_t)l7_obj_x[bx], NULL), 3, 15);   /* cx=0xf03 */
     if (cupid_active == 0x0) goto lab_2ffb;
-    draw_cupid_stub();
+    draw_cupid();
 lab_2ffb:
     l7_draw_alley_foreground();
     start_tone(0x3e8, 0x349);

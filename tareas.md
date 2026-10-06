@@ -394,7 +394,7 @@ Estado compartido de los niveles 4 y 5: **los dos usan las variables `l5_obj_*`*
 - **Notas:** `level7_epilogue.c` tiene sus propios `cupid_active/x/y` locales (L196–199): sustituirlos por los de `cupid.h`.
 - **Verificar:** activar el cupid y avanzar 100 ticks; `cupid_x` recorre el rango esperado.
 
-### T57 — Cupid B: dibujo, ventanas y colisión [M · 116]
+### T57 — Cupid B: dibujo, ventanas y colisión [M · 116] ✅ HECHO (PROGRESS.md §6ba; `src/cupid_draw.c` (aparte de `cupid.c` para poder envolver con `--wrap`); `cupid_sprite_offset/end` son la x/y de los tiles de ventana; stubs de `flow_stubs.c` y `level7_epilogue.c` eliminados)
 - **ASM:** `ui.asm` L676–791 (`draw_cupid`, `erase_cupid`, `cupid_toggle_window`, `check_cupid_collision`).
 - **Destino:** `src/cupid.c`; quitar los stubs de `level7_epilogue.c` (`erase_cupid_stub`).
 - **Datos:** `window_open_state=0x2be2`, `window_row_y_table=0x2bd4`, `window_row_col_offset=0x2bdb`, `cupid_sprite_offset=0x70fc`, `cupid_sprite_end=0x7120`.
