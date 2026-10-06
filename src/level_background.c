@@ -2,6 +2,7 @@
 #include "cga.h"
 #include "level_background.h"
 #include "level4.h"
+#include "level2.h"
 #include "gen/ds_pool.h"
 #include <stdint.h>
 #include <string.h>
@@ -156,8 +157,8 @@ static void draw_ledge(uint16_t base) {
  * block-puzzle background: clears 2 CGA banks to a striped pattern, then
  * places 40 (0x28) randomly-chosen block tiles (from 4 possible types),
  * never repeating the immediately-previous type, recording each choice
- * into level2_block_types for later gameplay logic (not consumed by
- * anything ported yet). */
+ * into l2_block_types (level2_block_types, DS 0x2656), which T36's
+ * animate_level2_blocks keeps rotating. */
 static void draw_level2_background(void) {
     uint16_t di = 0;
     for (int i = 0; i < 0x50; i++) {
@@ -178,13 +179,13 @@ static void draw_level2_background(void) {
             if (dl != g_block_prev_dl) break;
         }
         g_block_prev_dl = dl;
-        /* level2_block_types recorded for completeness, matching the
-         * original — not yet consumed by any ported gameplay logic. */
-        (void)LEVEL2_BLOCK_TYPES;
+        l2_block_types[block_count] = dl;              /* mov [bx+level2_block_types],dl (T36: animate_level2_blocks la modifica) */
 
         uint16_t src_ofs = (uint16_t)(dl + 0x2020);
-        uint16_t dest = (uint16_t)((block_count << 0) + 0xa0);
-        blit_bytes_to_cga(&ds_pool[src_ofs], dest, 1, 4);
+        /* `db 0xd1,0xe7` = shl di,1 (el listado dice shl di,0x0): 2 bytes por bloque; cx = 0x401 = 1 PALABRA x 4 filas.
+         * Antes: dest = block_count y 1 byte de ancho (T36, PROGRESS.md §6ag). */
+        uint16_t dest = (uint16_t)((block_count << 1) + 0xa0);
+        blit_to_cga(&ds_pool[src_ofs], dest, 1, 4);
     }
 }
 

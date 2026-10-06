@@ -28,6 +28,20 @@ void init_level7_objects(void);
 void update_level7_objects(void);
 void check_l7_all_objects(void);
 
+/* spawn_thrown_object (level_objects.asm L41-138, T37): hace caer un corazon desde la ventana mas cercana a cat_y, en la columna
+ * de cat_x. Usa l7_obj_spawn_slot (0..7) como slot a ocupar. */
+void spawn_thrown_object(void);
+
+extern int16_t  l7_obj_x[8];          /* DS 0x2b5a */
+extern uint8_t  l7_obj_y[8];          /* DS 0x2b6a */
+extern uint8_t  l7_obj_active[8];     /* DS 0x2b72 */
+extern uint16_t l7_obj_spawn_slot;    /* DS 0x2e8d */
+extern uint8_t  l7_obj_closest_dist;  /* DS 0x2e91 */
+extern uint16_t l7_obj_closest_row;   /* DS 0x2e92 */
+extern uint16_t l7_obj_last_picked;   /* DS 0x2e94 */
+extern uint16_t l7_obj_cur_x;         /* DS 0x2e96 */
+extern uint8_t  l7_obj_cur_y;         /* DS 0x2e98 */
+
 /* run_victory_sequence — the level-7 completion cutscene. Blocking, by
  * design (see the comment above it in level7_epilogue.c) — call this
  * once when the epilogue finishes, not from the per-frame update loop. */

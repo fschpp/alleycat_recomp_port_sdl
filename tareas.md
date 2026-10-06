@@ -256,13 +256,13 @@ Estado compartido de los niveles 4 y 5: **los dos usan las variables `l5_obj_*`*
 - **Destino:** `src/level2.c`.
 - **Verificar:** 100 ticks con semilla fija; los objetos caen y reaparecen en posiciones deterministas (anotar las 3 primeras).
 
-### T36 — Animaciones del nivel 2 [M · 83]
+### T36 — Animaciones del nivel 2 [M · 83] ✅ HECHO (PROGRESS.md §6ag; corrige también `draw_level2_background`: 2 bytes por bloque y registra `l2_block_types`; sin cablear hasta T42/T75)
 - **ASM:** `level_objects.asm` L1017–1099 (`animate_level2_blocks`, `update_entrance_anim`).
 - **Destino:** `src/level2.c`.
 - **Datos:** `level2_block_types=0x2656`, `level2_bar_sprites=0x2020`.
 - **Verificar:** pixel counts de la franja de bloques en dos ticks consecutivos (deben diferir).
 
-### T37 — Nivel 7: `spawn_thrown_object` [M · 98]
+### T37 — Nivel 7: `spawn_thrown_object` [M · 98] ✅ HECHO (PROGRESS.md §6ah; `l7_obj_*` pasa a estado público; lo llama T38, sin cablear)
 - **ASM:** `level_objects.asm` L41–138.
 - **Destino:** `src/level7_epilogue.c`.
 - **Datos:** `l7_obj_x=0x2b5a`, `l7_obj_y=0x2b6a`, `l7_obj_active=0x2b72`, `l7_obj_erase_sprite=0x2b7a` (ya verificados en §6b).

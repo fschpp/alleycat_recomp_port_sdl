@@ -14,8 +14,8 @@ graphics assets, so it is not meant to be published or redistributed.
 
 ## 0. Current focus / todo / blockers
 
-**Current focus:** `tareas.md` execution: T00, T10-T34 (§6g-§6ae) and **T35** (`update_level2_objects`, §6af) are done. Next up: T36 (level-2 animations: `animate_level2_blocks`, `update_entrance_anim`).
-T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-level4`, `test-level4-state`, `test-level5`, `test-level5-anim`, `test-level5-objects`, `test-level6`, `test-level6b`, `test-level6c`, `test-level6d`, `test-level2`, `test-level2b`, `test-level2c`). The death
+**Current focus:** `tareas.md` execution: T00, T10-T36 (§6g-§6ag) and **T37** (level 7: `spawn_thrown_object`, §6ah) are done. Next up: T38 (level 7: `tick_level_thrown_objects`; it is what sets `l7_obj_spawn_slot` and fills `l7_obj_*`).
+T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-level4`, `test-level4-state`, `test-level5`, `test-level5-anim`, `test-level5-objects`, `test-level6`, `test-level6b`, `test-level6c`, `test-level6d`, `test-level2`, `test-level2b`, `test-level2c`, `test-level2d`, `test-level7`). The death
 handler (`entry.asm` lab_01b7+, T41) is still replaced in `main.c` by "re-enter the alley".
 
 - [x] `sound.asm` — full port, wired into every previously-stubbed call site (§6e)
@@ -47,6 +47,8 @@ handler (`entry.asm` lab_01b7+, T41) is still replaced in `main.c` by "re-enter 
 - [x] T33 — level-2 helpers and data (`level2.c`): `init_level2_objects`, `reset_caught_objects`, `erase_level_object` (§6ad)
 - [x] T34 — `check_level_objects` (`level2.c`): 24-slot catch scan, fatal-hit blocking noise loop with simulated retrace (§6ae)
 - [x] T35 — `update_level2_objects` (`level2.c`): one slot per call, time-sliced by the BIOS tick; `dat_3509` becomes shared state (§6af)
+- [x] T36 — `animate_level2_blocks`, `update_entrance_anim` (`level2.c`); **fix** of `draw_level2_background` (2 bytes per block, records `l2_block_types`) (§6ag)
+- [x] T37 — `spawn_thrown_object` (`level7_epilogue.c`): level-7 heart drop from the window row nearest to `cat_y`; `l7_obj_*` state now public (§6ah)
 - [ ] T01 — full headless harness (`tests/harness.h`, `make test`); only `tests/test_alley_loop.c` exists so far
 - [ ] T41 — death handler / level selector (`entry.asm` lab_01b7+); `main.c` just re-enters the alley meanwhile
 - [ ] `ui.asm` — `window_open_state` toggling, the other half of item (h)
@@ -3953,6 +3955,58 @@ and `+0x18`, skipped erase, `hit`, `& 0x18`, `<< 3`, parity, `+0x18` frame, acti
 **Caveat:** no x86 emulator (model from the ASM text); SDL2 is not installable here so `main.c` was not linked. Out-of-range Y (> 199) is not exercised: it cannot happen in the original either.
 
 Suggested commit: `T35: update_level2_objects (level 2 falling/bouncing objects) + share dat_3509 with check_level_objects`
+
+
+## 6ag. T36 — level-2 animations (`src/level2.c`, `include/level2.h`; level_objects.asm L1017-1099) + `draw_level2_background` fix
+
+Literal ports (`lab_380b`/`lab_3829`/`lab_384a`, `lab_3860`/`lab_38a3`). Not wired into `main.c` yet (T42/T75).
+
+**DS data verified in `/tmp/data_segment.bin`:** `level2_block_types` = DS 0x2656, byte[0x28], zero at start (the block-strip background fills it); `level2_bar_sprites` = 0x2020 (4 frames of
+1 word x 4 rows = 8 bytes, index `type & 0x18`); `dat_35d0` = words {0x3530, 0x3558, 0x3580, 0x35a8} (entrance frames, 2 words x 10 rows = 0x28 bytes each, index `dat_35d8 & 6`);
+`dat_350d`, `dat_350f`, `dat_35d8`, `dat_35da` zero at start. `mov di,enemy_sprite_table_hi` has no brackets: the entrance sprite is drawn at CGA offset **0x15c9** (the label's DS address used
+as a constant, rule 3 of tareas.md §0.2; it is row 0x8a, byte 57 = x 0xe4, which is exactly the rect the routine then tests).
+
+**`animate_level2_blocks`.** Runs when `tick - dat_350f >= 8` (unsigned). `dat_350d` goes 1..0x27 and wraps to 0 (then `dat_350f = tick`): `dat_350f` is ONLY refreshed on the wrap, so once the first 8 ticks pass
+the wave advances one block per call, continuously. Block pos = `0xa0 + 2*block` (`db 0xd1,0xe7` = `shl di,1`, the listing's `shl di,0x0`); if `cat_y <= 7` (unsigned `ja`) and
+`|(cat_x>>2) + 1 - 2*block|` < 4 (computed as `sub` and, on borrow, `not ax`, NOT a negation: off by one on the left side) the block is skipped (cat standing on the top strip). Otherwise `type += 8`
+and `blit_to_cga(bar_sprites + (type & 0x18), 1x4)`.
+
+**`update_entrance_anim`.** Runs when `tick - dat_35da >= 6`; `dat_35d8 += 2`, draws frame `dat_35d0[dat_35d8 & 6]` (2x10) at 0x15c9, then `check_rect_collision(0xe4, 0x8a, 0x10 x 0xa  vs  cat 0x18 x 0xe)`;
+on overlap writes the LOW BYTE of `level_complete` (`mov byte`), so the port keeps the high byte.
+
+**Fix (found while porting): `draw_level2_background` was wrong.** It is a port of score.asm L159-191, which uses `shl di,1` (bytes `d1 e7`, listing says `shl di,0x0`) and `cx = 0x401` (1 WORD x 4 rows),
+and stores each chosen type in `level2_block_types[block]` (L180). The port drew blocks at `0xa0 + block` with `blit_bytes_to_cga` of 1 BYTE (a half-width block every byte) and discarded the types
+(`(void)LEVEL2_BLOCK_TYPES`). Now: dest = `0xa0 + 2*block`, `blit_to_cga(.., 1, 4)`, `l2_block_types[block] = dl` — which is what `animate_level2_blocks` rotates. Same family as the `shr bl,0x0` of §6o and the
+T35 `shl si,0x0`: **every `op reg,0x0` shift in the listing is really `op reg,1`**; worth grepping the remaining unported ASM for `,0x0` shifts before each task.
+
+**Verified:** `tests/test_level2d.c` (`make test-level2d`, part of `make test`). Independent model with its own LFSR and a model CGA screen (bank interleave): (0) 200 random seeds of the level-2 background
+(whole screen, `level2_block_types` and RNG state); (1) `animate_level2_blocks` 3000 scenarios x 40 calls (106471 steps, 2940 wraps; wrap edge 0x26/0x27, cat on/off the top strip, near/far blocks, borrow
+of `not ax`), whole screen and types compared after every call; (1b) hand case (block 1 -> type 8 at 0xa2, wave keeps going without refreshing `dat_350f`); (2) `update_entrance_anim` 3000 x 30 calls
+(20282 draws, 1805 collisions, `level_complete` high byte preserved), whole screen compared. **Mutation check:** 22 deliberate edits (all thresholds `<`/`<=`/`>`/`>=`, `shl`, `+0xa0`, `+8`, `& 0x18`/`& 0x38`,
+`not` vs `neg`, `+1`, `dat_350f`/`dat_35da` refresh, `& 6`, 2x10 height, rect y/height, byte vs word `level_complete`, background `<< 1`, missing type record) are all caught. `-Wall -Wextra` clean, full `make test` passes.
+The tareas.md check "pixel counts de la franja en dos ticks consecutivos" is covered by the exact screen comparison.
+**Caveat:** no x86 emulator (model from the ASM text); SDL2 is not installable here so `main.c` was not linked.
+
+Suggested commit: `T36: animate_level2_blocks, update_entrance_anim; fix draw_level2_background (2 bytes per block, record block types)`
+
+
+## 6ah. T37 — `spawn_thrown_object` (`src/level7_epilogue.c`, `include/level7_epilogue.h`; level_objects.asm L41-138)
+
+Literal port (labels `lab_2e67`…`lab_2f59`, with `goto`). Not wired into `main.c` yet: its caller `tick_level_thrown_objects` is T38.
+
+**DS data verified in `/tmp/data_segment_labels.txt` (`grep -w`):** `l7_obj_spawn_slot`=0x2e8d (word), `l7_obj_closest_dist`=0x2e91 (byte), `l7_obj_closest_row`=0x2e92 (word), `l7_obj_last_picked`=0x2e94, `l7_obj_cur_x`=0x2e96 (word), `l7_obj_cur_y`=0x2e98 (byte), `window_row_y_table`=0x2bd4 = {176,152,128,104,80,56,32,0} (only the first 7 are scanned), `l7_obj_sprite`=0x2af0 (0x2af0..0x2b4a = 90 bytes = 3 words x 15 rows, bounded by `l7_obj_init_x_table`=0x2b4a). `cupid_active`=0x70f2 stays the static stub in this file. The DS image has all the spawn variables at 0.
+
+**Traps handled:**
+- `db 0xd0,0xe3` (shown as `shl bl,0x0`) is `D0 /4` = **SHL BL,1** (index → word offset). The byte arrays (`l7_obj_y`, `l7_obj_active`) are indexed *before* the shift.
+- `not al`, not `neg`: the stored distance for a row above the cat is `|a-b|-1`. The chosen *row* is the same either way (rows are 24 px apart), only `l7_obj_closest_dist` differs, so the test checks that variable. Ties go to the lowest index (`ja` skips only on strictly greater).
+- `cmp word [0x2e92],0xffff` is dead code (the loop always leaves a row), ported anyway.
+- `check_rect_collision` register map: A = (`ax`=x, `dl`=y, `si`=0x18, `cl`=0xf), B = (`bx`=cur_x, `dh`=cur_y, `di`=0x18, `ch`=0xf), because `cx`=0xf0f. An overlap with another *active* slot makes the whole spawn `ret` silently (no draw, no tone, `spawn_slot` untouched).
+- `mov ah,0xb / int 0x10` (BX=0, border colour) has no visible effect in the port.
+- `l7_obj_x/y/active` were `static` and are now public (declared in the header) so the test can read them; the spawn variables are public globals too.
+
+**Verification (`make test-level7`, `tests/test_level7.c`):** independent model written from the ASM (own LFSR, own AABB, banked CGA screen model, `--wrap` event log for `restore_alley_buffer`/`draw_alley_foreground`/`start_tone`): all 256 `cat_y` x 9 `cat_x` values (row, X clamp `0x107 & 0xffc`, `closest_row/dist`, `cur_x/y`, `last_picked`, `spawn_slot=0xffff`, event order RESTORE→FG→TONE(0x3e8,0x4a5)); sprite drawn on the CGA model; guards (`slot>=8`, `joy_button!=0` touch nothing); overlap sweep dx/dy ±0x20/±0x14 (inclusive limits, inactive and own slot ignored); and `check_l7_object_overlap` is no longer inert: with `init_level7_objects` seeded, a heart dropped on top of heart-cat 1 is caught (slot deactivated), one dropped 0x30 px away is not. A mutation `not`→`neg` makes the test fail. `make test` all green.
+
+Suggested commit: `T37: spawn_thrown_object (level 7 heart drop) + public l7_obj_* state, test-level7`
 
 
 ## 7. General lesson for this whole project

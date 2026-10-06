@@ -321,3 +321,72 @@ lab_37b6:
     blit_to_cga(&ds_pool[si], l2_obj_cur_addr, 1, 6);  /* cx = 0x601 */
     return;
 }
+
+/* ===== T36: animate_level2_blocks / update_entrance_anim (level_objects.asm L1017-1099) ===== */
+#define L2_BAR_SPRITES   0x2020   /* DS: level2_bar_sprites, 4 frames de 1 palabra x 4 filas (8 bytes), indice = tipo & 0x18 */
+#define L2_ENTRANCE_PTRS 0x35d0   /* DS: dat_35d0, word[4] = {0x3530,0x3558,0x3580,0x35a8}: frames 2 palabras x 10 filas (0x28 bytes) */
+#define L2_ENTRANCE_DST  0x15c9   /* `mov di,enemy_sprite_table_hi`: la DIRECCION del label (0x15c9) usada como offset CGA */
+
+uint8_t  l2_block_types[L2_BLOCK_COUNT];  /* DS 0x2656 (byte[0x28]): tipo/fase de cada bloque de la franja; lo llena draw_level2_background */
+uint16_t l2_dat_350d = 0;                 /* DS 0x350d (word): bloque en curso de la ola de animacion */
+uint16_t l2_dat_350f = 0;                 /* DS 0x350f (word): tick de arranque de la ola */
+uint16_t l2_dat_35d8 = 0;                 /* DS 0x35d8 (word): fase de la animacion de la entrada (+2 por frame) */
+uint16_t l2_dat_35da = 0;                 /* DS 0x35da (word): ultimo tick de la animacion de la entrada */
+
+void animate_level2_blocks(void) {
+    uint16_t dx, ax, bx, di;
+    dx = l2_read_bios_tick();                          /* sub ah,ah / int 0x1a */
+    ax = dx;
+    ax = (uint16_t)(ax - l2_dat_350f);
+    if (ax < 0x8) goto lab_384a;                       /* cmp ax,8 / jb */
+    l2_dat_350d = (uint16_t)(l2_dat_350d + 1);
+    bx = l2_dat_350d;
+    if (bx < 0x28) goto lab_380b;
+    bx = 0;                                            /* sub bx,bx */
+    l2_dat_350d = bx;
+    l2_dat_350f = dx;
+lab_380b:
+    di = (uint16_t)(bx << 1);                          /* db 0xd1,0xe7 = shl di,1 (el listado dice shl di,0x0) */
+    if (cat_y > 0x7) goto lab_3829;                    /* cmp byte [cat_y],7 / ja (sin signo) */
+    ax = (uint16_t)((uint16_t)cat_x >> 2);
+    ax = (uint16_t)(ax + 1);
+    {
+        bool borrow = ax < di;                         /* sub ax,di / jnb */
+        ax = (uint16_t)(ax - di);
+        if (borrow) ax = (uint16_t)~ax;                /* not ax */
+    }
+    if (ax < 0x4) goto lab_384a;                       /* gato cerca de este bloque: no se anima */
+lab_3829:
+    di = (uint16_t)(di + 0xa0);
+    {
+        uint8_t al = l2_block_types[bx];
+        al = (uint8_t)(al + 0x8);
+        l2_block_types[bx] = al;
+        ax = (uint16_t)(al & 0x18);                    /* and ax,0x18 (ah no cuenta) */
+    }
+    ax = (uint16_t)(ax + L2_BAR_SPRITES);
+    blit_to_cga(&ds_pool[ax], di, 1, 4);               /* cx = 0x401 */
+lab_384a:
+    return;
+}
+
+void update_entrance_anim(void) {
+    uint16_t dx, ax, bx, si;
+    dx = l2_read_bios_tick();
+    ax = dx;
+    ax = (uint16_t)(ax - l2_dat_35da);
+    if (ax >= 0x6) goto lab_3860;                      /* cmp ax,6 / jnb */
+    return;
+lab_3860:
+    l2_dat_35da = dx;
+    l2_dat_35d8 = (uint16_t)(l2_dat_35d8 + 0x2);
+    bx = l2_dat_35d8;
+    bx = (uint16_t)(bx & 0x6);
+    si = l2_ds_word((uint16_t)(L2_ENTRANCE_PTRS + bx));
+    blit_to_cga(&ds_pool[si], L2_ENTRANCE_DST, 2, 10); /* cx = 0xa02 */
+    /* rect A: x = 0xe4, y = 0x8a, ancho 0x10, alto cl = 0xa; rect B (gato): cat_x, cat_y, 0x18, ch = 0xe */
+    if (!check_rect_collision(0xe4, 0x8a, 0x10, 0x0a, (uint16_t)cat_x, cat_y, 0x18, 0xe)) goto lab_38a3;   /* jnb */
+    level_complete = (uint16_t)((level_complete & 0xff00) | 0x1);   /* mov byte [level_complete],1 */
+lab_38a3:
+    return;
+}
