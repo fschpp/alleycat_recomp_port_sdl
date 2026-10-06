@@ -239,6 +239,13 @@ build/test_title: tests/test_title.c $(TEST_SRC) include/*.h
 test-title: build/test_title
 	./build/test_title
 
-test: test-alley test-l3doors test-level4 test-level4-state test-level5 test-level5-anim test-level5-objects test-level6 test-level6b test-level6c test-level6d test-level2 test-level2b test-level2c test-level2d test-level7 test-level7b test-level7c test-game-flow test-game-flow-loop test-game-level test-palette test-transition test-wipe test-result test-level-complete test-score-bar-a test-score-bar-b test-ui-text test-hardware test-title
+build/test_attract: tests/test_attract.c $(TEST_SRC) include/*.h
+	@mkdir -p build
+	$(CC) $(CFLAGS) tests/test_attract.c $(TEST_SRC) -o $@
 
-.PHONY: all run clean test test-alley test-l3doors test-level4 test-level4-state test-level5 test-level5-anim test-level5-objects test-level6 test-level6b test-level6c test-level6d test-level2 test-level2b test-level2c test-level2d test-level7 test-level7b test-level7c test-game-flow test-game-flow-loop test-game-level test-palette test-transition test-wipe test-result test-level-complete test-score-bar-a test-score-bar-b test-ui-text test-hardware test-title
+test-attract: build/test_attract
+	./build/test_attract
+
+test: test-alley test-l3doors test-level4 test-level4-state test-level5 test-level5-anim test-level5-objects test-level6 test-level6b test-level6c test-level6d test-level2 test-level2b test-level2c test-level2d test-level7 test-level7b test-level7c test-game-flow test-game-flow-loop test-game-level test-palette test-transition test-wipe test-result test-level-complete test-score-bar-a test-score-bar-b test-ui-text test-hardware test-title test-attract
+
+.PHONY: all run clean test test-alley test-l3doors test-level4 test-level4-state test-level5 test-level5-anim test-level5-objects test-level6 test-level6b test-level6c test-level6d test-level2 test-level2b test-level2c test-level2d test-level7 test-level7b test-level7c test-game-flow test-game-flow-loop test-game-level test-palette test-transition test-wipe test-result test-level-complete test-score-bar-a test-score-bar-b test-ui-text test-hardware test-title test-attract

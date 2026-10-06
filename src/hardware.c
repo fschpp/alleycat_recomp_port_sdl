@@ -71,3 +71,16 @@ int detect_video(void) {
     bios_equipment_after = (uint8_t)(((bios_equipment & 0xff) & 0xcf) | 0x10);   /* and al,0xcf / or al,0x10 */
     return 0;
 }
+
+/* Parte de la ISR de INT 9 (hardware.asm, `in al,0x60 / mov ah,al / and al,0x7f / ... repne scasb / sub di,0x6a2 /
+ * and ah,0x80 / mov [di+0x6b7],ah`): el scancode sin el bit 7 se busca en los 22 bytes de DS 0x6a1; si esta, la entrada
+ * de la matriz toma el bit 7 (1 = soltada = 0x80, 0 = pulsada = 0x00). El contador keyboard_counter lo incrementa
+ * quien llame (main.c) al pulsar. */
+void int9_set_scancode(uint8_t scancode, bool pressed) {
+    for (int i = 0; i < KEY_MATRIX_SIZE; i++) {
+        if (ds_pool[0x6a1 + i] == (uint8_t)(scancode & 0x7f)) {
+            key_matrix[i] = pressed ? 0x00 : 0x80;
+            return;
+        }
+    }
+}

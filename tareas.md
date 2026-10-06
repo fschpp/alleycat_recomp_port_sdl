@@ -374,7 +374,7 @@ Estado compartido de los niveles 4 y 5: **los dos usan las variables `l5_obj_*`*
 - **Datos:** `attract_anim_idx=0x6a8d`, `attract_icon_ptrs=0x6a8f`, `attract_icon_sprite_a=0x6d37`, `attract_icon_sprite_b=0x6d63`.
 - **Verificar:** 50 ticks del gato del título; posición y frame dentro de rango.
 
-### T54 — `show_attract_mode` [M · 76]
+### T54 — `show_attract_mode` [M · 76] ✅ HECHO (PROGRESS.md §6ax; `src/ui.c`; las teclas son Y/N (joystick) y K/H/T/A (dificultad), no 1-4; incluye `detect_joystick`/`test_joystick_axis`; `int9_set_scancode` en `hardware.c`; sin game port Y muestra el aviso y reinicia)
 - **ASM:** `ui.asm` L307–382.
 - **Destino:** `src/ui.c`.
 - **Datos:** `attract_timing=0x56da`, `title_joy_offset=0x6d8f`.

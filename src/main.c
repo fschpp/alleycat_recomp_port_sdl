@@ -43,7 +43,22 @@ static void ui_wait_pump(void) {
             video_shutdown();
             exit(0);
         }
-        if (ev.type == SDL_KEYDOWN && !ev.key.repeat) keyboard_counter++;
+        if ((ev.type == SDL_KEYDOWN || ev.type == SDL_KEYUP) && !ev.key.repeat) {
+            /* T54: la ISR de INT 9 fija ademas la matriz de teclas (0x00 pulsada / 0x80 suelta) para los scancodes de la
+             * tabla de DS 0x6a1; show_attract_mode lee Y/N (joystick) y K/H/T/A (dificultad). Scancodes XT de esas teclas. */
+            uint8_t xt = 0;
+            switch (ev.key.keysym.scancode) {
+                case SDL_SCANCODE_Y: xt = 0x15; break;
+                case SDL_SCANCODE_N: xt = 0x31; break;
+                case SDL_SCANCODE_K: xt = 0x25; break;
+                case SDL_SCANCODE_H: xt = 0x23; break;
+                case SDL_SCANCODE_T: xt = 0x14; break;
+                case SDL_SCANCODE_A: xt = 0x1e; break;
+                default: break;
+            }
+            if (xt) int9_set_scancode(xt, ev.type == SDL_KEYDOWN);
+            if (ev.type == SDL_KEYDOWN) keyboard_counter++;   /* la ISR solo cuenta pulsaciones (bit 7 = 0) */
+        }
     }
     video_present();
     SDL_Delay(10);

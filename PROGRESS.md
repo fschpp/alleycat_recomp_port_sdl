@@ -14,7 +14,7 @@ graphics assets, so it is not meant to be published or redistributed.
 
 ## 0. Current focus / todo / blockers
 
-**Current focus:** `tareas.md` execution: T00, T10-T45 (§6g-§6ap) and **T46** (`show_level_result` + `draw_result_frame` in `src/result.c`, §6aq) **T47** (`handle_level_complete` in `src/score.c`, §6ar) **T48** (bonus text/flash/mask + BIOS text model and font, §6as) and **T49** (`animate_score_bar`, `binary_to_bcd` in `src/score_bar.c`, §6at) are done: the bonus bar is fully real now. **T50** (`src/ui.c`: `print_string`, `set_cursor`, `wait_for_input`, `display_text_line`, `clear_cga`, §6au) is done too. **T51** (`src/hardware.c`: `check_special_keys`, `init_bios_data`, `detect_video`, `print_startup_msg`, §6av) too. **T52 + T53** (`show_title_screen`, `move_title_cat`, `animate_title_icon` in `src/ui.c`, §6aw) too. Next up: T54 (`show_attract_mode`). Still stubbed: `love_scene_outro` (T58, called by `show_level_result` for level 7). `main.c` runs the real flow for every level.
+**Current focus:** `tareas.md` execution: T00, T10-T45 (§6g-§6ap) and **T46** (`show_level_result` + `draw_result_frame` in `src/result.c`, §6aq) **T47** (`handle_level_complete` in `src/score.c`, §6ar) **T48** (bonus text/flash/mask + BIOS text model and font, §6as) and **T49** (`animate_score_bar`, `binary_to_bcd` in `src/score_bar.c`, §6at) are done: the bonus bar is fully real now. **T50** (`src/ui.c`: `print_string`, `set_cursor`, `wait_for_input`, `display_text_line`, `clear_cga`, §6au) is done too. **T51** (`src/hardware.c`: `check_special_keys`, `init_bios_data`, `detect_video`, `print_startup_msg`, §6av) too. **T52 + T53** (`show_title_screen`, `move_title_cat`, `animate_title_icon` in `src/ui.c`, §6aw) too. **T54** (`show_attract_mode`, `detect_joystick`, `test_joystick_axis` in `src/ui.c`, §6ax) too. Next up: T55 (`show_pause_menu`). Still stubbed: `love_scene_outro` (T58, called by `show_level_result` for level 7). `main.c` runs the real flow for every level.
 T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-level4`, `test-level4-state`, `test-level5`, `test-level5-anim`, `test-level5-objects`, `test-level6`, `test-level6b`, `test-level6c`, `test-level6d`, `test-level2`, `test-level2b`, `test-level2c`, `test-level2d`, `test-level7`, `test-level7b`, `test-level7c`, `test-game-flow`, `test-game-flow-loop`).
 
 - [x] `sound.asm` — full port, wired into every previously-stubbed call site (§6e)
@@ -63,6 +63,7 @@ T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-lev
 - [x] T51 — `check_special_keys`, `init_bios_data`, `detect_video`, `print_startup_msg` (`hardware.c`, `hardware.h`); wired in `input.c`/`main.c`/`game_hw_init`; `test-hardware` (§6av)
 - [x] T52 — `show_title_screen` (`ui.c`), real title screen; stub removed from `flow_stubs.c`; `title_music_restart` in `sound.c` (§6aw)
 - [x] T53 — `move_title_cat`, `animate_title_icon` (`ui.c`), ported together with T52 because its loop calls them; `test-title` (§6aw)
+- [x] T54 — `show_attract_mode`, `detect_joystick`, `test_joystick_axis` (`ui.c`); Y/N + K/H/T/A via key matrix, `int9_set_scancode` (`hardware.c`); stub removed; `test-attract` (§6ax)
 - [ ] T01 — full headless harness (`tests/harness.h`, `make test`); only `tests/test_alley_loop.c` exists so far
 - [x] T41 — alley loop pass, death handler, weighted level selector (`game_flow.c`); `main.c` wired to `game_start()`/`game_alley_frame()` (§6al)
 - [ ] `ui.asm` — `window_open_state` toggling, the other half of item (h)
@@ -4278,6 +4279,25 @@ Suggested commit: `T51: check_special_keys, init_bios_data, detect_video, print_
 **Verification:** `make test-title` (no SDL; the big callees and `play_music_note`/`title_music_restart` are `--wrap`ped and recorded): icon alternation; `move_title_cat` at x=0x20/0/0x120/0x150, 399 LFSR seeds against `cga_random()` for the 3 outcomes (still/right/left), no change when dt < 0x12; `show_title_screen`: call order (`POASHCLI`), initial state (level 0, cat x/y, lives 9/0xff, inputs), tick base passed to the music restart (with 16-bit tick wrap), the 6 bitmaps at their CGA offsets row by row, exit by key on pass 7, timeout at pass 86 (852 ticks), no timeout and 2 cycle restarts with `attract_shown != 0`, joystick held / released-then-pressed, and key exit with the joystick held. Rendered with the real alley scene to `title_screen.png` (cat on the fence, IBM logo, "Alley Cat", "By Bill Williams", copyright, scores and lives): looks like the original layout but was not compared pixel by pixel with an emulator. `make test` all green (30 OK). `main.c`'s `ui_wait_pump` still not compiled (no SDL in the sandbox).
 
 Suggested commit: `T52/T53: show_title_screen, move_title_cat, animate_title_icon (ui.asm L55-236) en ui.c; title_music_restart; test-title`
+
+
+## 6ax. T54 — `show_attract_mode` + `detect_joystick` (`src/ui.c`; ui.asm L300-382 and L431-469)
+
+**Ported literally (goto):** `show_attract_mode` (Y/N joystick question, difficulty selection, instruction screens, final wait), plus `detect_joystick` and `test_joystick_axis`, which it calls and which were not ported before (they were T59/T60 territory, but `show_attract_mode` cannot run without them). The stub in `flow_stubs.c` is removed.
+
+**Findings:**
+- The ASM comment says "difficulty via keys 1-4", but the key matrix says otherwise. Entry i of the 22-byte scancode table at DS 0x6a1 lives at DS 0x6b7+i: 0x6c1 = scancode 0x15 (**Y**), 0x6c2 = 0x31 (**N**), 0x6c3 = 0x25 (**K**), 0x6c4 = 0x23 (**H**), 0x6c5 = 0x14 (**T**), 0x6c6 = 0x1e (**A**). So joystick = Y/N and difficulty 0..3 = K/H/T/A. Priority when several are held: K > H > T > A (the test order of the ASM). `KEY_IDX_*` constants added to `hardware.h`.
+- `difficulty_counter` (the output the ASM stores) is `diff_icon_idx` (DS 0x6df8); `show_attract_mode` also sets `use_joystick`.
+- The key-wait loops snapshot `keyboard_counter`, spin until it changes, then read the matrix; a key that is not one of the expected ones just waits again.
+
+**Port decisions:**
+- `int9_set_scancode(scancode, pressed)` (`hardware.c`) is the matrix half of the INT 9 handler (`repne scasb` over DS 0x6a1, then `matrix[i] = bit 7`). `main.c`'s `ui_wait_pump` now sets the matrix on KEYDOWN/KEYUP for Y/N/K/H/T/A (SDL scancode -> XT scancode) and counts only key presses in `keyboard_counter`. `input.c` only writes entries 0-4, so it does not clobber 10-15.
+- `detect_joystick`: `int 0x11` is `bios_equipment` (bit 12 = game port). The default equipment (0x0020) has no game port, so answering Y shows the "no joystick" notice (4 lines from `title_joy_offset = 0x24`), waits a key and restarts the screen, exactly like a PC without a game port. `test_joystick_axis` reads `joy_port_fn` (port 0x201; the one-shot `out` is a no-op) and times out after 0x12 ticks via `score_tick()` (`title_input_tick`, DS 0x6dfa). A real joystick therefore needs T59/T60 to set `bios_equipment |= 0x1000` and provide `joy_port_fn`.
+- All spin loops call `ui_wait_hook` (the original spins without pausing).
+
+**Verification:** `make test-attract` (no SDL; keys scripted per hook iteration): scancode table to matrix indices; `test_joystick_axis` (responds, times out, tick counter wrap); `detect_joystick` (no game port, responds, first test times out and second responds, both time out); keyboard flow N then H with a stray key in between; all difficulty combinations and the K>H>T>A priority; Y without game port restarts and clears the notice; Y with a responsive joystick (joystick instruction lines 0x20 x2 and 0x18 x2, `use_joystick = 1`). The final screen is compared byte-for-byte with an independent replay of the ASM line sequence. Full `make test` passes, all files `-Wall -Wextra` clean. `main.c` could not be compiled here (no SDL).
+
+Suggested commit: `T54: show_attract_mode, detect_joystick, test_joystick_axis (ui.asm L300-382, L431-469) en ui.c; int9_set_scancode; test-attract`
 
 
 ## 7. General lesson for this whole project

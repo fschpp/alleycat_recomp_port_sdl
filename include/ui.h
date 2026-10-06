@@ -42,4 +42,12 @@ void move_title_cat(void);
 /* animate_title_icon: alterna los 2 frames del icono del titulo (attract_icon_ptrs). */
 void animate_title_icon(void);
 
+/* --- T54: show_attract_mode (ui.asm L300-382) y detect_joystick / test_joystick_axis (L431-469). --- */
+extern uint16_t title_input_tick;   /* DS 0x6dfa: tick de arranque de test_joystick_axis */
+/* test_joystick_axis / detect_joystick devuelven el flag CF del original: 0 = joystick presente, 1 = no. */
+int test_joystick_axis(void);
+int detect_joystick(void);
+/* show_attract_mode: pantalla Y/N de joystick, dificultad (K/H/T/A -> diff_icon_idx 0..3) e instrucciones; fija
+ * use_joystick y diff_icon_idx. Bloquea como el original; las teclas se leen de key_matrix (hardware.h). */
+void show_attract_mode(void);
 #endif
