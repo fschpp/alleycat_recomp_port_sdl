@@ -37,65 +37,10 @@ bool update_scroll(void) {
     }
 }
 
-/* update_cat_movement — literal goto-based port of game_loop.asm's
- * ~lines 265-330 momentum/scroll/dive block. See include/movement.h and
- * PROGRESS.md §5e for the full writeup, including the in_level_mode
- * tri-state discovery this port surfaced. */
-void update_cat_movement(void) {
-    /* snapshot BEFORE this frame's new direction/mode are computed —
-     * select_cat_sprite() compares against these afterward */
-    prev_scroll_dir = scroll_direction;
-    prev_vert_dir = in_level_mode;
-
-    int8_t al = input_horizontal;
-    if (al != 0) goto lab_0a1a;
-
-    /* no horizontal input: decay speed_ramp toward its floor */
-    if (speed_ramp < 0x10) goto lab_0a37;
-    speed_ramp--;
-    goto lab_0a37;
-
-lab_0a1a:
-    if (al != scroll_direction) goto lab_0a2e;
-    /* same direction held: ramp speed_ramp up toward its ceiling */
-    if (speed_ramp >= 0x30) goto lab_0a37;
-    speed_ramp += 3;
-    goto lab_0a37;
-
-lab_0a2e:
-    /* direction just changed: reset to the baseline ramp value */
-    scroll_direction = al;
-    speed_ramp = 0x20;
-
-lab_0a37: {
-    uint16_t speed = speed_ramp >> 3;
-    uint16_t cap = max_swim_speed[difficulty_level & 0x5];
-    if (speed > cap) speed = cap;
-    scroll_speed = speed;
-    update_scroll();
-}
-
-    al = input_vertical;
-    if (al != 0) goto lab_0a6a;
-
-    /* no vertical input: keep in_level_mode as-is, decay anim_counter */
-    if (anim_counter < 0x10) goto lab_0a86;
-    anim_counter--;
-    goto lab_0a86;
-
-lab_0a6a:
-    if (al != in_level_mode) goto lab_0a7e;
-    /* same vertical direction held: ramp anim_counter up toward ceiling */
-    if (anim_counter >= 0x40) goto lab_0a86;
-    anim_counter += 4;
-    goto lab_0a86;
-
-lab_0a7e:
-    /* vertical direction just changed (tri-state: -1/0/1 straight from input) */
-    in_level_mode = al;
-    anim_counter = 0x20;
-
-lab_0a86: {
+/* update_cat_dive — lab_0a86..lab_0ace de game_loop.asm: deriva cat_y de anim_counter e in_level_mode.
+ * Exportada (T70) porque la rama de muerte del nivel 2 salta directo a lab_0a86 sin pasar por el
+ * bloque de scroll anterior. Cuerpo sin cambios respecto a update_cat_movement. */
+void update_cat_dive(void) {
     uint8_t dive_cap = max_dive_depth[difficulty_level & 0x5];
     uint8_t bl = anim_counter >> 4;
     if (bl > dive_cap) bl = dive_cap;
@@ -141,6 +86,69 @@ lab_0abd:
 lab_0ace:
     cat_y = dl;
 }
+
+/* update_cat_movement — literal goto-based port of game_loop.asm's
+ * ~lines 265-330 momentum/scroll/dive block. See include/movement.h and
+ * PROGRESS.md §5e for the full writeup, including the in_level_mode
+ * tri-state discovery this port surfaced. */
+void update_cat_movement(void) {
+    /* snapshot BEFORE this frame's new direction/mode are computed —
+     * select_cat_sprite() compares against these afterward */
+    prev_scroll_dir = scroll_direction;
+    prev_vert_dir = in_level_mode;
+
+    int8_t al = input_horizontal;
+    if (al != 0) goto lab_0a1a;
+
+    /* no horizontal input: decay speed_ramp toward its floor */
+    /* ASM L282: `cmp word [speed_ramp],0x10 / jc lab_0a2e` — por debajo del piso se REINICIA la
+     * direccion (scroll_direction = al = 0, speed_ramp = 0x20); no se salta a lab_0a37 (bug T70). */
+    if (speed_ramp < 0x10) goto lab_0a2e;
+    speed_ramp--;
+    goto lab_0a37;
+
+lab_0a1a:
+    if (al != scroll_direction) goto lab_0a2e;
+    /* same direction held: ramp speed_ramp up toward its ceiling */
+    if (speed_ramp >= 0x30) goto lab_0a37;
+    speed_ramp += 3;
+    goto lab_0a37;
+
+lab_0a2e:
+    /* direction just changed: reset to the baseline ramp value */
+    scroll_direction = al;
+    speed_ramp = 0x20;
+
+lab_0a37: {
+    uint16_t speed = speed_ramp >> 3;
+    uint16_t cap = max_swim_speed[difficulty_level & 0x5];
+    if (speed > cap) speed = cap;
+    scroll_speed = speed;
+    update_scroll();
+}
+
+    al = input_vertical;
+    if (al != 0) goto lab_0a6a;
+
+    /* no vertical input: keep in_level_mode as-is, decay anim_counter */
+    if (anim_counter < 0x10) goto lab_0a86;
+    anim_counter--;
+    goto lab_0a86;
+
+lab_0a6a:
+    if (al != in_level_mode) goto lab_0a7e;
+    /* same vertical direction held: ramp anim_counter up toward ceiling */
+    if (anim_counter >= 0x40) goto lab_0a86;
+    anim_counter += 4;
+    goto lab_0a86;
+
+lab_0a7e:
+    /* vertical direction just changed (tri-state: -1/0/1 straight from input) */
+    in_level_mode = al;
+    anim_counter = 0x20;
+
+lab_0a86:
+    update_cat_dive();
 }
 
 /* update_walk_frame — literal port of alley.asm's update_walk_frame. */
