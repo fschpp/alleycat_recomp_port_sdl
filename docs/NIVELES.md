@@ -300,18 +300,33 @@ No es una celda vacia.
 El nivel 0 "jugable" es el callejon (`game_alley_frame`), no ese bloque. `game_level_frame` mantiene `case 0:` junto a `case 1:`
 solo por si alguien deja `level_number = 0` a mano.
 
-## Estado de la entrada/salida por nivel (`make test-soak-levels`)
+## Resultados por nivel con entrada simulada (T79, `make test-soak-levels`)
 
-`tests/test_soak.c` corre cada nivel con entrada simulada y comprueba que entra y sale por el flag esperado
-(la prueba de partida completa y el registro de resultados por nivel son T79):
+`tests/test_soak.c` (modo `levels`): para cada nivel 0..7, partida nueva, `game_death_handler()`, se fuerza `level_number`,
+se entra con `game_level_enter()` y se corre `game_level_frame()` con entrada aleatoria de semilla fija (`740 + nivel`; teclas
+mantenidas 10-130 frames, fuego 1 de cada 8) hasta que el nivel marca `GL_EXIT` (tope 300000 frames). El reloj BIOS es simulado
+(un tick cada ~3 frames) y los retardos de sonido se anulan. Las semillas de la entrada son fijas pero la corrida NO es del todo determinista: los niveles 0, 1, 2, 4 y 7 dan números
+distintos entre corridas (siguen dependiendo de algún reloj/espera en tiempo real; ver §6bk-c de `PROGRESS.md`), mientras que
+los niveles 3, 5 y 6 salieron idénticos. Se muestran dos corridas del `main` en T79 (tras T76/T77, que cambiaron los números de T75):
 
-| nivel | frames hasta salir | `level_number` al salir |
-|---|---|---|
-| 0 | 1442 | 2 |
-| 1 | 790 | 1 |
-| 2 | 811 | 2 |
-| 3 | 943 | 3 |
-| 4 | 1579 | 4 |
-| 5 | 1000 | 5 |
-| 6 | 52654 | 6 |
-| 7 | 247 | 7 |
+| nivel | frames hasta salir (corrida A / B) | salida | `level_number` al salir | vidas al salir |
+|---|---|---|---|---|
+| 0 (callejón/entrada) | 1405 / 370 | `GL_EXIT` | 1 | 3 |
+| 1 | 1177 / 1315 | `GL_EXIT` | 1 | 3 |
+| 2 | 703 / 1204 | `GL_EXIT` | 2 | 3 |
+| 3 | 1567 / 1567 | `GL_EXIT` | 3 | 3 |
+| 4 | 2794 / 1831 | `GL_EXIT` | 4 | 3 |
+| 5 | 1000 / 1000 | `GL_EXIT` | 5 | 3 |
+| 6 | 52654 / 52654 | `GL_EXIT` | 6 | 3 |
+| 7 | 262 / 79 | `GL_EXIT` | 7 | 3 |
+
+Lectura: los 8 niveles entran y salen sin cuelgue ni crash, con `-Wall -Wextra` limpio. El nivel 0 pasa a `level_number = 1` al salir
+(D4: es el bloque `lab_03e2`, compartido con el 1). El nivel 6 tarda ~52 k frames porque con entrada aleatoria el gato casi no
+cumple la condición de salida (no es un cuelgue: sale siempre). Las vidas no bajan en ninguna corrida: este test mide
+entrada/salida, no la muerte dentro de un nivel (eso lo cubren los tests por nivel, p. ej. `test-level6d`, `test-level2d`).
+
+**Partida completa (`make soak`, semilla 74, 200 000 frames):** 41 game over, 0 entradas a nivel. Con entrada aleatoria entrar a
+un nivel desde el callejón es muy raro (en T76: 0-3 por millón de frames, en T77: 0-1), así que `make soak` NO sirve como
+cobertura de niveles; para eso está el modo `levels`. Se comparó T76 (`4876489`) contra T77 (`54edfe4`) con varias semillas: la
+tasa es igual de baja en ambos, o sea que T77 no es una regresión. Una cobertura real de "título -> callejón -> nivel" pide un bot
+dirigido (anotado en `PROGRESS.md` §0).

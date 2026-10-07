@@ -14,8 +14,27 @@ graphics assets, so it is not meant to be published or redistributed.
 
 ## 0. Current focus / todo / blockers
 
-**Current focus:** `tareas.md` execution: T00, T10-T45 (§6g-§6ap) and **T46** (`show_level_result` + `draw_result_frame` in `src/result.c`, §6aq) **T47** (`handle_level_complete` in `src/score.c`, §6ar) **T48** (bonus text/flash/mask + BIOS text model and font, §6as) and **T49** (`animate_score_bar`, `binary_to_bcd` in `src/score_bar.c`, §6at) are done: the bonus bar is fully real now. **T50** (`src/ui.c`: `print_string`, `set_cursor`, `wait_for_input`, `display_text_line`, `clear_cga`, §6au) is done too. **T51** (`src/hardware.c`: `check_special_keys`, `init_bios_data`, `detect_video`, `print_startup_msg`, §6av) too. **T52 + T53** (`show_title_screen`, `move_title_cat`, `animate_title_icon` in `src/ui.c`, §6aw) too. **T54** (`show_attract_mode`, `detect_joystick`, `test_joystick_axis` in `src/ui.c`, §6ax) too. **T55** (`show_pause_menu` in `src/ui.c`, `set_bios_tick` in `score.c`, §6ay) too. **T56** (`reset_cupid`, `update_cupid` in `src/cupid.c`, §6az) too. **T57** (`draw_cupid`, `erase_cupid`, `cupid_toggle_window`, `check_cupid_collision` in `src/cupid_draw.c`, §6ba) too: the level-7 flying enemy is fully real. **T58** (`love_scene_outro` in `src/ui.c`, §6bb) too: `flow_stubs.c` now holds no stub of a pending task (only the weak `input_process_keys` fallback). **T59 + T60** (joystick: UI part already done in T54; `poll_joystick`/`decode_joystick_axis` in `src/joystick.c`, wired into `game_flow.c`, §6bc) too. **T61** (`read_keyboard_dirs`/`process_keyboard` in `src/keyboard.c`; `input.c` now plays the INT 9 handler; §6bd) too: Phase 4 is complete. **T70** (audit of `update_animation` A, game_loop.asm L158-285: new `src/animation_entry.c`, §6be) too: the tick gate, the level-4/6 blocks and the whole level-2 block (phase time, meow, border colour, death) had NO C equivalent. **T71** (audit B, game_loop.asm L286-440: `update_cat_frame` in `animation.c`, 3 deviations fixed in `movement.c`, §6bf) too. **T72 C1** (audit of `update_animation` L441-560: `update_animation_c1` in `src/animation_c.c`, §6bg) too. **T72 C2** (§6bh) and **T73** (§6bi) too. **T74** (§6bj): `update_animation()` (`src/update_animation.c`) now joins T70-T73 and replaces every call to `update_alley_movement` in `game_flow.c`/`ui.c` — PARTIAL, see §6bj (soak finding open). T74 closed (§6bk-§6bl: soak finding resolved, `game_run()`, 8-level soak). **T75** (`docs/NIVELES.md` + `tools/check_niveles.py`, §6bm): no empty cell; one behavioural deviation open (D1 → T75b). **T76** (`update_enemy_viewport` partial reveal in `src/enemy.c`, §6bn) done. **T77** (fish-jump scanline sprite + unnamed flags `[0x418]`/`[0x556]`/`[0x558]` wired, §6bo) done. **T78** (explosion border colour via `bios_color_select`, §6bp) done. Next up: T79 (and T75b). `main.c` runs the real flow for every level.
-T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-level4`, `test-level4-state`, `test-level5`, `test-level5-anim`, `test-level5-objects`, `test-level6`, `test-level6b`, `test-level6c`, `test-level6d`, `test-level2`, `test-level2b`, `test-level2c`, `test-level2d`, `test-level7`, `test-level7b`, `test-level7c`, `test-game-flow`, `test-game-flow-loop`).
+**Current focus:** `tareas.md` está hecho hasta **T79** (ver abajo). Todo el flujo real corre en `main.c` -> `game_run()`
+(título -> callejón -> niveles 0-7 -> resultado), con `update_animation()` real. Lo único que queda son las tareas abiertas de
+"Todo". Estado de verificación: `make` y `make test` limpios, sin warnings (`-Wall -Wextra`); `make test-soak-levels` entra y sale
+de los 8 niveles; resultados por nivel en `docs/NIVELES.md`.
+
+### Todo (abierto)
+
+- [ ] T75b — decidir D1: quitar `immune_flag = 0` de `game_alley_frame` (hay que actualizar E4 de `tests/test_game_flow_loop.c`; ver `docs/NIVELES.md` D1)
+- [ ] T78b — flash de borde del nivel 2 (`l2_set_border`/`l2_border_color` siguen siendo un stub con nombre; cablear a `bios_color_select` mueve el fondo del nivel completo y puede cambiar los conteos de píxeles de `test-level2*`) (§6bp)
+- [ ] T78c — PCjr (`rom_id == 0xfd`): el borde cambia pero los píxeles de índice 0 no (el borde de la PCjr es un registro aparte) (§6bp)
+- [ ] T01 — arnés headless común (`tests/harness.h`: `cga_dump_ascii`, `cga_dump_ppm`...); hoy cada `tests/test_*.c` lleva sus helpers
+- [ ] T02 — lista de pendientes autogenerada (`tools/unported.py`, `docs/PENDIENTES.md`)
+- [ ] Soak por niveles no determinista (niveles 0, 1, 2, 4, 7 varían entre corridas con las mismas semillas): buscar el reloj/espera en tiempo real que queda (§6bq)
+- [ ] Cobertura de partida completa con entrada aleatoria: `make soak` casi nunca entra a un nivel (ver §6bq); una entrada dirigida (bot que camina a una puerta y sube) lo cubriría
+
+### Blockers
+
+Ninguno. (El hallazgo de §6bj sobre el soak quedó resuelto en §6bk. En §6bq se comprobó que T77 no empeora la tasa de entrada a niveles.)
+
+### Completed
+
 
 - [x] `sound.asm` — full port, wired into every previously-stubbed call site (§6e)
 - [x] PC speaker / PIT channel 2 emulation + SDL2 audio backend (§6e)
@@ -79,21 +98,10 @@ T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-lev
 - [x] T74 — `update_animation()` wired (§6bj), soak bugs fixed (§6bk), `game_run()` + 8-level soak coverage (§6bl)
 - [x] T75 — `docs/NIVELES.md` (per-level wiring table) + `tools/check_niveles.py` (ASM-vs-C call-sequence check); no empty cell; D1 (`immune_flag = 0` per alley frame) open as T75b (§6bm)
 - [x] T76 — partial dog reveal ported (`update_enemy_viewport`, `test-enemy-reveal`, §6bn)
+- [x] T79 — resultados por nivel (`docs/NIVELES.md`), PROGRESS.md reordenado (§6bq)
 - [x] T78 — `play_explosion_effect` sets border/background red (BX=4) and back to black (BX=0) through `bios_color_select`; `palette_border_rgb()` feeds the renderer clear colour in `video.c`; level-7 `handle_level_complete` black reset wired (`test-explosion-border`, §6bp)
 - [x] T77 — fish scanline drawn (`draw_fish_line`), `force_level7`/`mode_start_tick`/`entry_steps` replace the "always 0" flags (`test-fish-flags`, §6bo)
-- [ ] T75b — decide D1: remove `immune_flag = 0` from `game_alley_frame` (needs `test_game_flow_loop.c` E4 updated)
-- [ ] T01 — full headless harness (`tests/harness.h`, `make test`); only `tests/test_alley_loop.c` exists so far
 - [x] T41 — alley loop pass, death handler, weighted level selector (`game_flow.c`); `main.c` wired to `game_start()`/`game_alley_frame()` (§6al)
-- [ ] `ui.asm` — `window_open_state` toggling, the other half of item (h)
-- [ ] §17 item (f): level-2 collectibles + bg tiles (unblocked since §6e)
-
-**Latest blockers/discoveries:** (§6bj) `make soak` (1M frames, scripted player input, real `update_animation`) never reached a death or a level entry; after an early climb the cat ended at `cat_x=296, cat_y=180, scroll_direction=-1` and did not move for 800k frames even with input -1, while a clean right-then-left run (`cat_x` 290 -> 8) works. Cause not found yet. Earlier: (§6be) `update_animation`'s entry is not called anywhere: every `game_level_frame` case goes straight to `update_alley_movement` (= lab_0e23), so the level-2 timeout death (`object_hit`), the meow and the border colours never run until T74/T75 wires `update_animation_entry`. the three deviations suspected there were confirmed and fixed in T71 (§6bf). Earlier: (§6g) `check_level_platform` in
-`level_collision.c` deviates from the ASM in three ways that T10 did NOT touch
-(see §6g "Open deviations"). Before that: item (h) was never blocked on
-`spawn_window_event` at all — two different things called "the window state
-machine" had been conflated. See §6f's corrections. Earlier: `sound_enabled`
-was typed `bool` in this port but is a 0xFF/0x00 BYTE in the original, which
-would have silenced two effects permanently (§6e finding 1).
 
 ---
 
@@ -116,14 +124,14 @@ would have silenced two effects permanently (§6e finding 1).
 | `blit_transparent` (color-keyed, black=transparent) | **Fixed & verified — see §5j** |
 | Real geometry-gated climb trigger (`level_objects.asm`/`level_physics.asm`) | **Levels 1-6 done, verified — see §5n.** Levels 0/7 need the unported window-state machine. |
 | Dog enemy AI (`enemy.asm`) | **State machine done & verified (§5o); real sprite extraction + rendering also done (§5p); main-loop wiring bug fixed (§5q).** Dog is now visible, animated, and correctly triggerable from both call sites. |
-| `level_objects.asm` | **Fully surveyed (§5q) — 6 mostly-independent subsystems identified, none yet ported.** Level-2 prop physics (needs sprite extraction), level-2 collectibles (needs sound.asm), level-2 bg tiles, `check_stairs_collision` (confirmed blocked on window state machine, §5r), the level-7 victory/love-scene epilogue (~600 lines, self-contained), and footprint decals (needs new sprite extraction). |
+| `level_objects.asm` | **Fully ported** — thrown objects/footprints (§5z, T12-T16, T37-T39), levels 2-7 (T20-T36, §6q-§6ag), level-7 epilogue (§6a-§6d, T56-T58). Wiring per level: `docs/NIVELES.md`. |
 | Master game loop (`entry.asm`) | **Fully read & documented, §5r.** Confirms `update_animation` (already ported) is correctly the shared per-level dispatch, and identifies the alley scene (level 0)'s extra per-frame systems — **now correctly characterized and partly ported, see §5s** (this replaces §5r's "jump/gravity/obstacle-dodge mechanic" label, which conflated 3 separate systems and mischaracterized what actually jumps). |
 | Alley patrol objects (rats/mice — `objects.asm`'s `init_objects`/`cycle_animations`) | **Done, verified, unit-tested — see §5s.** Real AI (idle/patrol/chase/reversal), real sprites, real cat-collision knockback + climb-transition trigger, wired into the main loop. |
-| Fish-jump enemy + thrown-projectile gravity (`level_physics.asm`'s `update_cat_jump`/`apply_cat_gravity`) | **Surveyed, not yet ported — see §5s.** Data tables (`gravity_sprite_ptrs`/`gravity_sprite_dims_tbl`) already verified in §5i. |
-| Falling window objects (`level_physics.asm`'s `animate_falling`/`check_jump_collision`) | **Surveyed, not yet ported — see §5s.** `fall_sprite`'s dims are computed dynamically (not a lookup table) and need more work to fully verify. |
+| Fish-jump enemy + thrown-projectile gravity (`level_physics.asm`'s `update_cat_jump`/`apply_cat_gravity`) | **Ported & verified — see §5t, T77 (§6bo: fish scanline sprite, `force_level7`/`mode_start_tick`).** |
+| Falling window objects (`level_physics.asm`'s `animate_falling`/`check_jump_collision`) | **Ported & verified — see §5u.** |
 | `alley.asm` (background save/restore, window events, death) | **Ported & verified — see §6f.** `save_alley_buffer`/`restore_alley_buffer`/`draw_alley_foreground`/`save_cat_background` are real in all four files that stubbed them, so sprites erase themselves and the demo no longer wipes the screen every frame. `spawn_window_event`/`enter_building`/`handle_cat_death` ported too. |
 | `sound.asm` (PC speaker, music, effects) | **Ported & verified — see §6e.** All ~40 routines, driving an emulated PIT channel 2 + port 0x61 (`src/speaker.c`) through SDL2 audio (`src/audio.c`). Every previously-stubbed sound call site in the project is now wired to the real thing. |
-| Game loop / physics / enemies / sound / UI / score | **Substantially advanced (§5b/5e/5f/5n/5o/5q/5r/5s/5t/5u/5v); fish-jump/gravity-toss (§5t), falling-object dodge (§5u), and score/lives HUD (§5v) all ported and verified. `draw_level_background` covers all indoor levels (1-6, §5w/§5x) except level 7's victory epilogue. `sound.asm` done (§6e); `ui.asm`/`throw.asm` still not started.** |
+| Game loop / physics / enemies / sound / UI / score | **All ported and wired** (`game_run()` in `game_flow.c`, §6bl; `update_animation()` T70-T74). Open items: §0 "Todo". |
 
 Build: `make` (needs `libsdl2-dev`). Run: `make run` or `./build/alleycat`.
 
@@ -1901,134 +1909,6 @@ traced original call site — `score.asm` itself never calls
 `game_loop.asm`/`alley.asm` does, and that exact call site wasn't
 separately confirmed in this pass.
 
-## 6. Immediate next steps (in order)
-
-1. ~~Decode Pool A's bitfield frame-selection logic~~ — **done, see §5b.**
-2. ~~Confirm the `blit_masked` silhouette hypothesis~~ — **done, confirmed:
-   pure black silhouette, no sprite-driven color, walk-cycle-consistent
-   leg movement across frames. See §5b.**
-3. ~~Wire real rendering into `main.c`~~ — **done, see §5c.**
-4. ~~Investigate the two unaccounted-for gaps~~ — **gap 1 fully resolved
-   (recoil/entering-window/climbing sprites, see §5d); gap 2 characterized
-   as likely mask-plane data but consumer not yet found — open, revisit
-   with `level_objects.asm`.**
-6. Real movement physics: ~~done, see §5e~~ — **CORRECTION per §5g: this
-   turned out to be level-2 "drowning" physics specifically, not general
-   movement.** `level_physics.asm`'s actual content (thrown-object
-   gravity, enemy jump arcs) is separately still unported — revisit
-   alongside `enemy.asm`.
-7. ~~Find and port the REAL general-movement dispatch chain~~ — **done,
-   see §5h.** `update_walk_frame`/`update_alley_movement` ported, verified,
-   and wired into `main.c` as the primary demo path.
-8. ~~Port the climbing/window-transition branches~~ — **done, see §5m.**
-9. ~~Port the real `check_level_collision`-gated ladder-entry trigger~~ —
-   **done for levels 1-6, see §5n.** Levels 0/7 still use the
-   input-driven fallback (need the unported window-state machine).
-   Still needed: implement `save_alley_buffer`/`restore_alley_buffer` for
-   real (currently both stubs/inert — see §5f/§5h), which will let the
-   last-frame-redraw demo workaround in `alley_movement.c` be removed.
-10. ~~`check_dog_collision`/`check_enemy_activate` (`enemy.asm`)~~ —
-    **done for the AI/state-machine side, see §5o.** Enemy sprite bitmap
-    data still not extracted (rendering is a stub). `update_footprint`/
-    `spawn_window_event` (`level_objects.asm`/`alley.asm`) still stubbed.
-    Level 0's `check_jump_collision`/window-landing semantics and level
-    7's `check_stairs_collision` also still open (§5n) — both really
-    `check_dog_collision`'s ORIGINAL literal name turned out to refer to
-    a different, level-0-specific gravity-fall mechanic (§5o), not the
-    dog at all.
-11. `game_loop.asm`'s remaining core dispatch (scoring/collision triggers,
-    level-transition logic beyond what §5h/§5n covered) and the rest of
-    `level_objects.asm` (3861 lines total — only the collision-detection
-    slice used by §5n has been read so far), the rest of `enemy.asm`
-    (enemy sprite bitmap extraction, `decode_enemy_params`/
-    `check_fish_collision` not yet read), `sound.asm` (PC speaker → SDL
-    audio square-wave synthesis), `ui.asm`, `score.asm`, `throw.asm`.
-12. ~~Sprite-category verification across all 6 remaining categories~~ —
-    **done, see §5i/§5k.** Extraction to C headers still pending for:
-    enemy sprites (8 pointers resolved, bitmap bytes not yet pulled),
-    `extralife_sprites`/`title_sprites` (fully verified, ready to extract
-    — same script pattern as `extract_death_sprite.py` applies directly),
-    `cycle_idle_sprite`/`cycle_walk_sprite`/`collision_sprite` (mostly
-    verified, two small unexplained gaps to resolve first).
-13. ~~Fix `blit_transparent` for real~~ — **done, see §5j.** Correctly
-    understood as black-is-transparent color-keying, verified by brute
-    force, `death_sprite` extracted and visually confirmed.
-14. ~~Resolve the two remaining small gaps from §5k~~ — **done, see §5l.**
-    `cycle_walk_sprite`'s 96 bytes confirmed as legitimate zero padding;
-    `collision_sprite`'s 28-byte tail characterized but deliberately not
-    chased further (low value). All object sprites now extracted.
-15. ~~Port the real `check_level_collision`-gated ladder-entry trigger~~ —
-    **done for levels 1-6, see §5n.** Levels 0/7 still use the
-    input-driven fallback (need the unported window-state machine).
-    Still needed: implement `save_alley_buffer`/`restore_alley_buffer` for
-    real (currently both stubs/inert — see §5f/§5h), which will let the
-    last-frame-redraw demo workaround in `alley_movement.c` be removed.
-16. ~~Port the dog enemy AI state machine~~ — **done, see §5o.** ~~Extract
-    enemy sprite bitmap data~~ — **done, see §5p.** ~~Wire real rendering
-    into `draw_enemy`/`erase_enemy`/`update_enemy_viewport`~~ — **done,
-    see §5p.** ~~Fix `check_enemy_activate` main-loop wiring~~ — **done,
-    see §5q.**
-17. **CORRECTED per §5r, then per §5s**: `throw.asm`'s `update_thrown_objects`
-    and `level_objects.asm`'s `tick_thrown_objects` are NOT the same system —
-    see §5r for the split. §5r's item (a)/(b) ("jump/gravity/obstacle-dodge
-    mechanic") turned out to bundle 3 unrelated systems — see §5s for the
-    full disambiguation and corrected scope:
-    (a) ~~`objects.asm`'s `init_objects`/`cycle_animations` (the alley's 3
-    ground-patrol rats/mice)~~ — **done, ported and verified, see §5s.**
-    (b) ~~`level_physics.asm`'s `update_cat_jump`/`apply_cat_gravity`~~ —
-    **done, ported and verified, see §5t.** A fish-creature enemy that
-    jumps from a ledge near a patrol object and throws a projectile at
-    the cat. The fish's own jump-arc sprite still isn't extracted (only
-    the thrown projectile draws); real-time-gated toss logic verified
-    end-to-end.
-    (c) ~~`objects.asm`'s `animate_falling`/`check_jump_collision`~~ —
-    **done, ported and verified, see §5u.** Turned out simpler than
-    feared — the "dynamic dims" were just a variable row-count, not
-    pointer arithmetic; also caught a labeling red herring (`dat_1b02`
-    was a disassembler artifact from an immediate operand, not real data).
-    (d) ~~`level_objects.asm`'s `tick_thrown_objects`
-    prop system (needs a new sprite extraction pass for `l1_sprite_data`/
-    `dat_3260`'s pointer table, `l1_bg_sprite`, `l1_obj_sprites`,
-    `l1_anim_sprite_a/b/c` — none yet through the §3/§4 rigor pass)~~ —
-    **done, see §5z** (turned out `l1_anim_sprite_a/b/c` belong to a
-    different, still-unported system; no separate extraction pass was
-    actually needed, same as §5x/§5y — just direct `ds_pool` offsets);
-    (e)
-    ~~the level-7 victory/love-scene epilogue (self-contained, ~600 lines)~~
-    — **done, see §6a-§6d** (ported incrementally in 5 checked-in chunks);
-    (f) level-2 collectibles + bg tiles (needs sound.asm); (g) ~~footprint
-    decals~~ **done, see §5z** (turned out to share state with (d) rather
-    than being separable); (h) `check_stairs_collision`/`check_window_landing`, both
-    confirmed (§5r) genuinely blocked on the unported window spawn/
-    animation state machine (`spawn_window_event`, `alley.asm`) rather than
-    on anything unclear in their own logic. (i) ~~level 3's own bird-enemy
-    subsystem (`check_fence_collision`/`init_level3_enemy`/
-    `update_level3_enemy`, same file, separate from the fence-tile
-    *background* which §5x now covers)~~ — **done, see §5y.**
-18. ~~`score.asm`~~ — **the core score/lives HUD (`draw_lives`,
-    `draw_current_score`/`draw_high_score_display`, `add_score`/
-    `add_bcd_scores`) is done, see §5v.** `draw_level_background` turned
-    out NOT to be simple score-bar chrome as originally thought here — it's
-    the full per-level room background system (border/doors/platforms/
-    ledges/tiles), ported for levels 2/5/6, see §5w. ~~Levels 1/3/4~~ —
-    **done, see §5x.** The level-7 victory epilogue (`draw_love_scene_bg`)
-    still remains.
-19. ~~`sound.asm`~~ — **done, see §6e.** Full port plus an emulated PC
-    speaker/PIT and an SDL2 audio backend; every stubbed sound call site in
-    the project is wired to the real routine. This unblocks §17 item (f)
-    (level-2 collectibles), which was waiting on nothing else. Remaining
-    external blocker for item (h) is still `alley.asm`'s window state
-    machine. `render_sprites` (a drawing routine that happens to live in
-    sound.asm) deliberately left for the alley-drawing work — see §6e.
-20. ~~`alley.asm`~~ — **done, see §6f.** The background save/restore
-    pipeline is real in all four files that stubbed it, the per-frame screen
-    wipe and the last-frame-redraw demo hack are gone, and
-    `spawn_window_event`/`enter_building`/`handle_cat_death` are ported.
-    **Corrects items 9/15/17(h) above**: those said item (h) was blocked on
-    `spawn_window_event`. It is not — it is blocked on `throw.asm`
-    (`current_floor`/`window_column`) and `ui.asm` (`window_open_state`).
-    `update_viewport` is the only unported routine left in `alley.asm`.
-
 ## 5x. `draw_level_background` — levels 1, 3, 4 ported; source repo re-acquired
 
 The `alleycat-disassembly-main` source repo (this whole project's ground
@@ -2250,6 +2130,136 @@ intended behavior.
 mistake briefly deleted `copy_with_stride`'s body while adding
 `blit_or`'s declaration — caught immediately by recompiling `cga.c` in
 isolation before moving on, restored, then re-verified clean.
+
+## 6. Immediate next steps (in order) — HISTÓRICO
+
+> **Histórico:** esta lista es de cuando el port estaba en §5w y quedó superada; el plan vivo es `tareas.md` y el estado actual está en §0. Se conserva por el razonamiento de cada punto.
+
+1. ~~Decode Pool A's bitfield frame-selection logic~~ — **done, see §5b.**
+2. ~~Confirm the `blit_masked` silhouette hypothesis~~ — **done, confirmed:
+   pure black silhouette, no sprite-driven color, walk-cycle-consistent
+   leg movement across frames. See §5b.**
+3. ~~Wire real rendering into `main.c`~~ — **done, see §5c.**
+4. ~~Investigate the two unaccounted-for gaps~~ — **gap 1 fully resolved
+   (recoil/entering-window/climbing sprites, see §5d); gap 2 characterized
+   as likely mask-plane data but consumer not yet found — open, revisit
+   with `level_objects.asm`.**
+6. Real movement physics: ~~done, see §5e~~ — **CORRECTION per §5g: this
+   turned out to be level-2 "drowning" physics specifically, not general
+   movement.** `level_physics.asm`'s actual content (thrown-object
+   gravity, enemy jump arcs) is separately still unported — revisit
+   alongside `enemy.asm`.
+7. ~~Find and port the REAL general-movement dispatch chain~~ — **done,
+   see §5h.** `update_walk_frame`/`update_alley_movement` ported, verified,
+   and wired into `main.c` as the primary demo path.
+8. ~~Port the climbing/window-transition branches~~ — **done, see §5m.**
+9. ~~Port the real `check_level_collision`-gated ladder-entry trigger~~ —
+   **done for levels 1-6, see §5n.** Levels 0/7 still use the
+   input-driven fallback (need the unported window-state machine).
+   Still needed: implement `save_alley_buffer`/`restore_alley_buffer` for
+   real (currently both stubs/inert — see §5f/§5h), which will let the
+   last-frame-redraw demo workaround in `alley_movement.c` be removed.
+10. ~~`check_dog_collision`/`check_enemy_activate` (`enemy.asm`)~~ —
+    **done for the AI/state-machine side, see §5o.** Enemy sprite bitmap
+    data still not extracted (rendering is a stub). `update_footprint`/
+    `spawn_window_event` (`level_objects.asm`/`alley.asm`) still stubbed.
+    Level 0's `check_jump_collision`/window-landing semantics and level
+    7's `check_stairs_collision` also still open (§5n) — both really
+    `check_dog_collision`'s ORIGINAL literal name turned out to refer to
+    a different, level-0-specific gravity-fall mechanic (§5o), not the
+    dog at all.
+11. `game_loop.asm`'s remaining core dispatch (scoring/collision triggers,
+    level-transition logic beyond what §5h/§5n covered) and the rest of
+    `level_objects.asm` (3861 lines total — only the collision-detection
+    slice used by §5n has been read so far), the rest of `enemy.asm`
+    (enemy sprite bitmap extraction, `decode_enemy_params`/
+    `check_fish_collision` not yet read), `sound.asm` (PC speaker → SDL
+    audio square-wave synthesis), `ui.asm`, `score.asm`, `throw.asm`.
+12. ~~Sprite-category verification across all 6 remaining categories~~ —
+    **done, see §5i/§5k.** Extraction to C headers still pending for:
+    enemy sprites (8 pointers resolved, bitmap bytes not yet pulled),
+    `extralife_sprites`/`title_sprites` (fully verified, ready to extract
+    — same script pattern as `extract_death_sprite.py` applies directly),
+    `cycle_idle_sprite`/`cycle_walk_sprite`/`collision_sprite` (mostly
+    verified, two small unexplained gaps to resolve first).
+13. ~~Fix `blit_transparent` for real~~ — **done, see §5j.** Correctly
+    understood as black-is-transparent color-keying, verified by brute
+    force, `death_sprite` extracted and visually confirmed.
+14. ~~Resolve the two remaining small gaps from §5k~~ — **done, see §5l.**
+    `cycle_walk_sprite`'s 96 bytes confirmed as legitimate zero padding;
+    `collision_sprite`'s 28-byte tail characterized but deliberately not
+    chased further (low value). All object sprites now extracted.
+15. ~~Port the real `check_level_collision`-gated ladder-entry trigger~~ —
+    **done for levels 1-6, see §5n.** Levels 0/7 still use the
+    input-driven fallback (need the unported window-state machine).
+    Still needed: implement `save_alley_buffer`/`restore_alley_buffer` for
+    real (currently both stubs/inert — see §5f/§5h), which will let the
+    last-frame-redraw demo workaround in `alley_movement.c` be removed.
+16. ~~Port the dog enemy AI state machine~~ — **done, see §5o.** ~~Extract
+    enemy sprite bitmap data~~ — **done, see §5p.** ~~Wire real rendering
+    into `draw_enemy`/`erase_enemy`/`update_enemy_viewport`~~ — **done,
+    see §5p.** ~~Fix `check_enemy_activate` main-loop wiring~~ — **done,
+    see §5q.**
+17. **CORRECTED per §5r, then per §5s**: `throw.asm`'s `update_thrown_objects`
+    and `level_objects.asm`'s `tick_thrown_objects` are NOT the same system —
+    see §5r for the split. §5r's item (a)/(b) ("jump/gravity/obstacle-dodge
+    mechanic") turned out to bundle 3 unrelated systems — see §5s for the
+    full disambiguation and corrected scope:
+    (a) ~~`objects.asm`'s `init_objects`/`cycle_animations` (the alley's 3
+    ground-patrol rats/mice)~~ — **done, ported and verified, see §5s.**
+    (b) ~~`level_physics.asm`'s `update_cat_jump`/`apply_cat_gravity`~~ —
+    **done, ported and verified, see §5t.** A fish-creature enemy that
+    jumps from a ledge near a patrol object and throws a projectile at
+    the cat. The fish's own jump-arc sprite still isn't extracted (only
+    the thrown projectile draws); real-time-gated toss logic verified
+    end-to-end.
+    (c) ~~`objects.asm`'s `animate_falling`/`check_jump_collision`~~ —
+    **done, ported and verified, see §5u.** Turned out simpler than
+    feared — the "dynamic dims" were just a variable row-count, not
+    pointer arithmetic; also caught a labeling red herring (`dat_1b02`
+    was a disassembler artifact from an immediate operand, not real data).
+    (d) ~~`level_objects.asm`'s `tick_thrown_objects`
+    prop system (needs a new sprite extraction pass for `l1_sprite_data`/
+    `dat_3260`'s pointer table, `l1_bg_sprite`, `l1_obj_sprites`,
+    `l1_anim_sprite_a/b/c` — none yet through the §3/§4 rigor pass)~~ —
+    **done, see §5z** (turned out `l1_anim_sprite_a/b/c` belong to a
+    different, still-unported system; no separate extraction pass was
+    actually needed, same as §5x/§5y — just direct `ds_pool` offsets);
+    (e)
+    ~~the level-7 victory/love-scene epilogue (self-contained, ~600 lines)~~
+    — **done, see §6a-§6d** (ported incrementally in 5 checked-in chunks);
+    (f) level-2 collectibles + bg tiles (needs sound.asm); (g) ~~footprint
+    decals~~ **done, see §5z** (turned out to share state with (d) rather
+    than being separable); (h) `check_stairs_collision`/`check_window_landing`, both
+    confirmed (§5r) genuinely blocked on the unported window spawn/
+    animation state machine (`spawn_window_event`, `alley.asm`) rather than
+    on anything unclear in their own logic. (i) ~~level 3's own bird-enemy
+    subsystem (`check_fence_collision`/`init_level3_enemy`/
+    `update_level3_enemy`, same file, separate from the fence-tile
+    *background* which §5x now covers)~~ — **done, see §5y.**
+18. ~~`score.asm`~~ — **the core score/lives HUD (`draw_lives`,
+    `draw_current_score`/`draw_high_score_display`, `add_score`/
+    `add_bcd_scores`) is done, see §5v.** `draw_level_background` turned
+    out NOT to be simple score-bar chrome as originally thought here — it's
+    the full per-level room background system (border/doors/platforms/
+    ledges/tiles), ported for levels 2/5/6, see §5w. ~~Levels 1/3/4~~ —
+    **done, see §5x.** The level-7 victory epilogue (`draw_love_scene_bg`)
+    still remains.
+19. ~~`sound.asm`~~ — **done, see §6e.** Full port plus an emulated PC
+    speaker/PIT and an SDL2 audio backend; every stubbed sound call site in
+    the project is wired to the real routine. This unblocks §17 item (f)
+    (level-2 collectibles), which was waiting on nothing else. Remaining
+    external blocker for item (h) is still `alley.asm`'s window state
+    machine. `render_sprites` (a drawing routine that happens to live in
+    sound.asm) deliberately left for the alley-drawing work — see §6e.
+20. ~~`alley.asm`~~ — **done, see §6f.** The background save/restore
+    pipeline is real in all four files that stubbed it, the per-frame screen
+    wipe and the last-frame-redraw demo hack are gone, and
+    `spawn_window_event`/`enter_building`/`handle_cat_death` are ported.
+    **Corrects items 9/15/17(h) above**: those said item (h) was blocked on
+    `spawn_window_event`. It is not — it is blocked on `throw.asm`
+    (`current_floor`/`window_column`) and `ui.asm` (`window_open_state`).
+    `update_viewport` is the only unported routine left in `alley.asm`.
 
 ## 6a. Level-7 victory epilogue — chunks 1-2 of ~5 (`level_objects.asm` ~3096-3327)
 
@@ -4694,6 +4704,20 @@ Los tres "siempre 0" eran falsos: `[0x558]` no era un flag desconocido sino `ent
 **Límites conocidos (abiertos).** (a) En PCjr (`rom_id == 0xfd`) el borde cambia pero los píxeles de índice 0 siguen el registro de paleta EGA 0, así que el fondo no se pone rojo (el borde real de la PCjr es un registro aparte). (b) El flash de borde del nivel 2 (`l2_set_border`, `l2_border_color`, 0x1/0xf y muerte) sigue siendo un stub con nombre: no se cablea a `bios_color_select` aquí porque hace parpadear el fondo del nivel completo y puede mover los conteos de píxeles de los tests del nivel 2; queda como T78b.
 
 **Verificación.** `make test-explosion-border` (`tests/test_explosion_border.c`): durante la explosión el registro 0x3D9 vale 0x24/0x04 (según paleta; intensidad borrada), `palette_border_rgb()` y `palette_rgb(0)` valen 0xFFAA0000 (rojo CGA), al salir queda 0x20/0x00 y el borde negro; se presenta exactamente una vez; con y sin sonido; sin hook no falla. `make test` completo limpio, 0 warnings con `-Wall -Wextra`; `video.c` comprobado con `-fsyntax-only` contra un stub mínimo de SDL (no hay libsdl2-dev aquí, así que el cambio visual en pantalla real no se ha visto).
+
+## 6bq. T79 — prueba completa y ordenamiento de `PROGRESS.md`
+
+**(1) Los niveles con entrada simulada.** `make test-soak-levels`: los 8 niveles entran y salen (corrida A: 1405, 1177, 703, 1567, 2794, 1000, 52654, 262; corrida B: 370, 1315, 1204, 1567, 1831, 1000, 52654, 79). **No es determinista:** los niveles 0, 1, 2, 4 y 7 cambian entre corridas con las mismas semillas (queda alguna espera/reloj en tiempo real, relacionado con §6bk-c, sin investigar); 3, 5 y 6 salen idénticos. Tabla en `docs/NIVELES.md` ("Resultados por nivel"). `python3 tools/check_niveles.py` sigue en 0 (ninguna celda vacía).
+
+**Hallazgo del soak de partida completa.** `make soak` (200 000 frames, semilla 74) dio 41 game over y **0** entradas a nivel; en T74 daba 1-2. Para saber si T76/T77 habían roto algo se corrieron `4876489` (T76) y `54edfe4` (T77) en worktrees separados con semillas 1-6: ambos tienen una tasa de entrada a nivel muy baja (T76: 0 entradas en 3 de 3 semillas completadas; T77: 1 entrada en 5 semillas, semilla 4). Con ~40 muertes por cada 200 k frames y entrada aleatoria, entrar a un nivel es un evento raro, así que la diferencia 3 -> 0 en 1 M frames es ruido, no regresión. Conclusión: `make soak` solo sirve como prueba de no-cuelgue/no-crash; la cobertura de niveles es el modo `levels`. Queda abierto un bot dirigido (§0).
+
+**(2) Reordenamiento de `PROGRESS.md`.** §5x-§5z estaban después de §6 ("Immediate next steps"); ahora van justo después de §5w y antes de §6. §6 se renombró "HISTÓRICO" con una nota: es la lista de cuando el port estaba en §5w, superada por `tareas.md`. Se comprobó por script que el conjunto de encabezados `##` es el mismo (101) salvo ese renombrado. §1 (tabla de estado): se corrigieron las filas que decían "not yet ported" y siguen ya contradichas por §6x.
+
+**(3) §0 al día.** Se reescribieron "Current focus / Todo / Blockers" (antes: un párrafo de ~3 KB y un "blocker" del soak resuelto en §6bk) y las 64 casillas `[x]` pasaron a "Completed" (sin duplicados). Todo abierto: T75b, T78b, T78c, T01, T02 y el bot dirigido para el soak.
+
+**Verificación.** `make` (sin SDL aquí: se compila con el mismo `CFLAGS` y `LDFLAGS=` los `.c` que no dependen de SDL) y `make test` limpios, 0 warnings. `video.c` comprobado con `-fsyntax-only` contra un stub de SDL (en T78).
+
+Suggested commit: `T79: resultados por nivel en NIVELES.md, PROGRESS.md reordenado (5x-5z antes de §6, §0 al día)`
 
 ## 7. General lesson for this whole project
 
