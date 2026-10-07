@@ -23,6 +23,20 @@
 #define KEY_IDX_DIFF1   13  /* DS 0x6c4, 0x23 (H) */
 #define KEY_IDX_DIFF2   14  /* DS 0x6c5, 0x14 (T) */
 #define KEY_IDX_DIFF3   15  /* DS 0x6c6, 0x1e (A) */
+/* T61 (input.asm L90-193): resto de la tabla de DS 0x6a1. Los labels del ASM engañan: key_ctrl (0x6c0) es Esc, key_pause
+ * (0x6c9) es Ctrl, key_fn (0x6c1) es Y; key_mod1..4 son PgUp/PgDn/End/Home (diagonales). */
+#define KEY_IDX_UP      1   /* DS 0x6b8, 0x48 */
+#define KEY_IDX_DOWN    3   /* DS 0x6ba, 0x50 */
+#define KEY_IDX_MOD1    5   /* DS 0x6bc, 0x49 PgUp  (arriba+derecha) */
+#define KEY_IDX_MOD2    6   /* DS 0x6bd, 0x51 PgDn  (abajo+derecha) */
+#define KEY_IDX_MOD3    7   /* DS 0x6be, 0x4f End   (abajo+izquierda) */
+#define KEY_IDX_MOD4    8   /* DS 0x6bf, 0x47 Home  (arriba+izquierda) */
+#define KEY_IDX_ESC     9   /* DS 0x6c0, 0x01 Esc: pausa (el label del ASM es key_ctrl) */
+#define KEY_IDX_QUIT    10  /* DS 0x6c1, 0x15 Y: con Ctrl sale al DOS (el label del ASM es key_fn); es KEY_IDX_JOY_YES */
+#define KEY_IDX_SOUND   16  /* DS 0x6c7, 0x1f S */
+#define KEY_IDX_RESTART 17  /* DS 0x6c8, 0x13 R */
+#define KEY_IDX_DEMO    20  /* DS 0x6cb, 0x32 M */
+#define KEY_IDX_CHEAT   21  /* DS 0x6cc, 0x0a 9 */
 extern uint8_t key_matrix[KEY_MATRIX_SIZE];
 extern uint16_t keyboard_prev;     /* DS 0x691 */
 
@@ -32,6 +46,8 @@ extern uint8_t crtc_hsync_pos;
 /* Ctrl+Alt+Del: el original hace un reinicio en caliente (0x1234 en 0040:0072 y jmp F000:E05B). El port lo traduce
  * a "salir" (main.c lee este flag). */
 extern bool reboot_requested;
+/* T61: Ctrl+Y (process_keyboard lab_13a5: restore_handlers + retf = volver al DOS). main.c lo trata como salir. */
+extern bool quit_requested;
 
 void int9_set_scancode(uint8_t scancode, bool pressed);   /* parte de la ISR de INT 9: busca el scancode en DS 0x6a1 y fija la matriz */
 void init_bios_data(void);         /* parte del ASM que toca el DS: matriz a 0x80 y keyboard_prev */

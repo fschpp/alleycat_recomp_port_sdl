@@ -10,6 +10,7 @@ uint8_t  key_matrix[KEY_MATRIX_SIZE];
 uint16_t keyboard_prev;
 uint8_t  crtc_hsync_pos;
 bool     reboot_requested;
+bool     quit_requested;
 uint16_t bios_equipment = 0x0020;
 bool     cga_ram_ok = true;
 uint8_t  bios_equipment_after;
