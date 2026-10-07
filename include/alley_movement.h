@@ -9,4 +9,10 @@
  * verified, but level-2-specific (see §5g). */
 void update_alley_movement(void);
 
+
+#include "sprite.h"
+#include <stdint.h>
+/* Tabla climb_sprite_ptrs/climb_sprite_dims indexada como lab_0f14 (indice en WORDS 0..5; T73 la reutiliza). */
+const cat_walk_frame_t *select_vertical_sprite(uint8_t bx_word_index);
+
 #endif

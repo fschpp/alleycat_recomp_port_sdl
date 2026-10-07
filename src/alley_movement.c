@@ -51,7 +51,7 @@
  * enter_sprite_dims[0..4] (already extracted in §5d's gap-1 work). So
  * this table is expressed directly in terms of the sprites we already
  * have, rather than needing a new extraction. */
-static const cat_walk_frame_t *select_vertical_sprite(uint8_t bx_word_index) {
+const cat_walk_frame_t *select_vertical_sprite(uint8_t bx_word_index) {
     switch (bx_word_index) {
         case 0: return &climb_sprite;
         case 1: return &enter_sprite[0];

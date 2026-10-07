@@ -4537,6 +4537,39 @@ Suggested commit: `T72 C1: update_animation L441-560 (lab_0bac..lab_0ce7) en ani
 
 Suggested commit: `T72 C2: update_animation L561-684 (lab_0ce7..lab_0e1f) en animation_c.c: movimiento vertical, recoil_frame, recortes superior/inferior; test-animation-c2`
 
+## 6bi. T73 — `update_animation` D: entrada por geometría, poses de transición y paso de caminata (`src/animation_d.c`, `include/animation_d.h`; game_loop.asm L685-817)
+
+**Tabla de solo lectura (lab_XXXX -> C).** Todo vive en `update_animation_d(ac_next_t from)` (`AC_L0E23` o `AC_L0E78`, los dos valores que devuelve C1); termina siempre en `ret`.
+
+| ASM | Qué hace | C |
+|---|---|---|
+| `lab_0e23`..`lab_0e31` | nivel 7 salta el límite; resto: `cat_y >= 0xb4` -> `lab_0e78` | `update_animation_d` |
+| `lab_0e31`..`lab_0e43` | `check_level_collision` sin suelo: `scroll_direction = 0`, modo 1, **`lab_0eb1`** (sin mirar `cat_y`) | igual |
+| `lab_0e43`..`lab_0e78` | nivel 0 con suelo: `check_jump_collision` -> `play_death_melody` (solo si `jump_hit == 0`), `input_vertical = 1`, `jump_hit = 1`, `input_horizontal` = +1/-1 al azar; sin choque `jump_hit = 0` | igual |
+| `lab_0e78`..`lab_0e91` | `prev_scroll_dir`, `scroll_direction = input_horizontal`, `in_level_mode = input_vertical`; 0 -> `lab_0f34` | igual |
+| `lab_0e91`..`lab_0eb1` | modo 1: `cat_y < 0xb4` -> bajada; si no vuelve al callejón (`auto_walk = 0`, `input_vertical = 0`) | igual |
+| `lab_0eb1`, `lab_0ec9`..`lab_0ef1` | bajada (`anim_step = 0x20`, timer 8) / subida (`scroll_speed - 2`, `((speed ^ 0xf) << 4)`, `game_mode` 1 -> 2) | igual |
+| `lab_0ef1`..`lab_0f33` | `anim_step/counter/accumulator`, `at_platform = 0`, `vert_sprite`, `l3_platform_id`, `play_catch_sound`; **no dibuja** | igual (`select_vertical_sprite`, ahora exportada) |
+| `lab_0f34`..`lab_0f63` | huella (no niveles 0/7), `update_scroll`, `cat_screen_pos`; quieto -> `spawn_window_event` | igual |
+| `lab_0f63`..`lab_0f86` | `update_walk_frame`, `cat_sprite_data = bx`, restore, perro/enemigo, dims `0xb03`, dibujo | igual |
+
+**Diferencias de `update_alley_movement` (el camino de demo) que T74 debe retirar** (por eso `update_animation_d` es una función aparte, como en T70-T72):
+1. Sólo consulta `check_level_collision` si `level_number` no es 0 ni 7; el ASM la consulta también en el nivel 0 (solo el 7 salta el límite `cat_y >= 0xb4`).
+2. Falta la rama del nivel 0 con suelo: `check_jump_collision`, `play_death_melody`, salto forzado y `jump_hit`.
+3. Sin suelo llama a `update_climb_transition`, que repite el chequeo `cat_y < 0xb4` (el ASM salta directo a `lab_0eb1`).
+4. `update_climb_transition` **dibuja** la pose al final; el ASM no dibuja ahí (lo hace `update_animation_c2` en el siguiente frame vía `vert_sprite`).
+5. No guarda `cat_sprite_data` en el paso de caminata y toma las dims del frame en lugar del inmediato `0xb03` (coinciden: 3x11).
+
+**Detalles que merece la pena conservar:**
+- `jc` tras `check_level_collision` = suelo sólido (misma polaridad que `lab_0e31` de C1).
+- `mov [scroll_speed],ax` conserva el byte alto; `jbe` (sin signo) deja `scroll_speed <= 2` sin restar, pero `anim_step` usa el valor **antes** de restar.
+- `cat_sprite_data = bx` aquí sí se conserva (nada lo pisa, a diferencia de C1): offset DS del frame (`walk_frame_table` 0x0f7a = 0xbd2,0xc14,0xc98,0xc56,0xcda,0xd1c,0xd5e,0xda0,0xe24,0xde2,0xe66,0xea8, verificada contra el segmento de datos).
+- El "Conectar `check_level_objects` y `check_window_landing`" de tareas.md: este rango no llama a `check_level_objects`; `check_window_landing` entra por `check_level_collision` (T10, ya enganchada).
+
+**Verificación:** `make test-animation-d`: despacho por `from`, caminata (dims, `cat_sprite_data` y puntero coherentes), idle, barrido nivel 3 (suelo/hueco), modo 1 en los tres sentidos, retorno al callejón, modo -1 (`scroll_speed` 5/2/0x0108, `game_mode`), `door_contact`, enemigo, nivel 0 (salto forzado en 40 repeticiones con las dos direcciones, y `jump_hit = 0`), nivel 7 (700 sin suelo / 100 con suelo). `make test`: todo verde, sin warnings.
+
+Suggested commit: `T73: update_animation L685-817 (lab_0e23..lab_0f86) en animation_d.c: entrada por geometria, salto forzado nivel 0, poses de transicion, paso de caminata; test-animation-d`
+
 ## 7. General lesson for this whole project
 
 **Never trust a same-file label as a data region's end boundary, and never
