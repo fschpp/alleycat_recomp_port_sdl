@@ -61,6 +61,10 @@ static void unpack_cga(void) {
 void video_present(void) {
     unpack_cga();
     SDL_UpdateTexture(g_texture, NULL, g_pixels, CGA_WIDTH * (int)sizeof(uint32_t));
+    {   /* borde: las franjas fuera de la imagen logica toman el color de fondo/borde de CGA (T78) */
+        uint32_t b = palette_border_rgb();
+        SDL_SetRenderDrawColor(g_renderer, (uint8_t)(b >> 16), (uint8_t)(b >> 8), (uint8_t)b, 0xff);
+    }
     SDL_RenderClear(g_renderer);
     SDL_RenderCopy(g_renderer, g_texture, NULL, NULL);
     SDL_RenderPresent(g_renderer);

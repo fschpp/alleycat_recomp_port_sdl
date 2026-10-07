@@ -467,7 +467,7 @@ Estado compartido de los niveles 4 y 5: **los dos usan las variables `l5_obj_*`*
 - **Qué hacer:** extraer el sprite del pez (método §3/§4) y buscar, con `grep` en todo el ASM, **quién escribe** cada flag; reemplazar los "siempre 0" por el valor real.
 - **Verificar:** el pez se ve durante el salto; cada flag documentado con su escritor.
 
-### T78 — Fidelidad: explosión (borde) y cutscenes [S]
+### T78 — Fidelidad: explosión (borde) y cutscenes [S] ✅ HECHO (PROGRESS.md §6bp; el borde ya estaba modelado en `palette.c` (reg 0x3D9 bits 0-3 = borde = color del índice 0); `play_explosion_effect` llama `bios_color_select(0,4)` y `(0,0)`; `tests/test_explosion_border.c`; cutscenes bloqueantes del nivel 7 se dejan como están)
 - **Qué hacer:** modelar el registro de borde de color (`int 0x10` AH=0x0B) en `video.c` y usarlo en `play_explosion_effect`; decidir si las cutscenes bloqueantes del nivel 7 se dejan como están (recomendado) y dejarlo escrito.
 - **Verificar:** el borde cambia a rojo y vuelve a negro durante la explosión.
 

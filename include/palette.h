@@ -25,5 +25,7 @@ void set_palette(void);
 
 /* Color 0xAARRGGBB del indice CGA 0..3 con el estado actual (lo usa video.c). */
 uint32_t palette_rgb(unsigned idx);
+/* Color del borde (T78): lo usa video.c para el fondo del renderer (franjas fuera de los 320x200). */
+uint32_t palette_border_rgb(void);
 
 #endif
