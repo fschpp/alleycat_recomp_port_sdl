@@ -16,6 +16,8 @@
 #include "cat_state.h"
 #include "cga.h"
 #include "input.h"
+#include "palette.h"
+#include "game_flow.h"
 #include "gen/ds_pool.h"
 
 #include <stdint.h>
@@ -363,10 +365,13 @@ lab_568d:
  * see PROGRESS.md §6e. */
 void play_explosion_effect(void) {
     silence_speaker();
-    /* `mov ah,0xB / mov bx,4 / int 0x10` — set CGA border/background to red.
-     * cga.c models the framebuffer only (no border register), so this has no
-     * counterpart yet. Left explicit rather than silently dropped. */
-    /* TODO: border colour — needs a border/palette register in cga.c. */
+    /* `mov ah,0xB / mov bx,4 / int 0x10` — borde/fondo a rojo (T78). En CGA modo 4 el color de borde es el
+     * mismo registro (0x3D9 bits 0-3) que el color del indice 0, que palette.c ya modela: bios_color_select(0,4)
+     * deja ese registro en 4 (BH=0 tambien borra la intensidad, bit 4). */
+    bios_color_select(0x0, 0x4);
+    /* En el hardware el cambio se ve al instante; aqui el bucle bloquea sin presentar, asi que se presenta UNA
+     * vez (nada mas toca la pantalla en estos ~2 ticks). Sin hook (tests) no hace nada. */
+    if (game_present_hook) game_present_hook();
 
     explode_start_tick = read_bios_tick();
     explode_counter    = 0;
@@ -392,7 +397,8 @@ void play_explosion_effect(void) {
         if ((uint16_t)(read_bios_tick() - explode_start_tick) >= 2) break;
     }
 
-    /* `mov ah,0xB / sub bx,bx / int 0x10` — border back to black. */
+    /* `mov ah,0xB / sub bx,bx / int 0x10` — borde/fondo de vuelta a negro (BH=0, BL=0). */
+    bios_color_select(0x0, 0x0);
     post_explode_ticks = 0x0c;
     silence_speaker();
 }

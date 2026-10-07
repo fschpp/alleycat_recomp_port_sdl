@@ -2,6 +2,7 @@
 #include "cat_state.h"
 #include "alley.h"
 #include "sound.h"
+#include "palette.h"
 #include "speaker.h"
 #include "cga.h"
 #include "level7_epilogue.h"
@@ -801,9 +802,8 @@ static void position_victory_cat(void) {
 
         if (l7_cupid_tick == 0xa) {
             handle_level_complete();                /* level_objects.asm L3618 (T47) */
-            /* original also resets the CGA border/background color to
-             * black here (int 10h, ah=0xb, bx=0) — no equivalent needed,
-             * this port doesn't model a separately-settable border. */
+            /* int 10h, ah=0xb, bx=0: borde/fondo a negro (T78: palette.c lo modela) */
+            bios_color_select(0x0, 0x0);
         }
         l7_cupid_tick = 2;
     }

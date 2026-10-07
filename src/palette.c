@@ -58,3 +58,10 @@ uint32_t palette_rgb(unsigned idx) {
         return rgbi(c);
     }
 }
+
+/* Color del borde (overscan), T78: BL & 0xf del ultimo INT 10h AH=0Bh BH=0, o sea cga_color_select & 0xf. En CGA es
+ * ademas el color del indice 0 (palette_rgb(0)); en PCjr la BIOS lo escribe en el registro de borde, que NO es el
+ * registro de paleta 0, asi que alli el borde cambia pero los pixeles del indice 0 no. */
+uint32_t palette_border_rgb(void) {
+    return rgbi((uint8_t)(cga_color_select & 0xf));
+}

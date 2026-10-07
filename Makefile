@@ -345,9 +345,16 @@ build/test_fish_flags: tests/test_fish_flags.c $(TEST_SRC) include/*.h
 test-fish-flags: build/test_fish_flags
 	./build/test_fish_flags
 
-test: test-alley test-l3doors test-level4 test-level4-state test-level5 test-level5-anim test-level5-objects test-level6 test-level6b test-level6c test-level6d test-level2 test-level2b test-level2c test-level2d test-level7 test-level7b test-level7c test-game-flow test-game-flow-loop test-game-level test-palette test-transition test-wipe test-result test-level-complete test-score-bar-a test-score-bar-b test-ui-text test-hardware test-title test-attract test-pause test-cupid test-cupid-draw test-outro test-joystick test-keys test-input-keys test-animation-entry test-animation-b test-animation-c1 test-animation-c2 test-animation-d test-update-animation test-t74-fixes test-soak-levels test-enemy-reveal test-fish-flags
+build/test_explosion_border: tests/test_explosion_border.c $(TEST_SRC) include/*.h
+	@mkdir -p build
+	$(CC) $(CFLAGS) tests/test_explosion_border.c $(TEST_SRC) -o $@
 
-.PHONY: test-fish-flags test-enemy-reveal test-t74-fixes all run clean test test-alley test-l3doors test-level4 test-level4-state test-level5 test-level5-anim test-level5-objects test-level6 test-level6b test-level6c test-level6d test-level2 test-level2b test-level2c test-level2d test-level7 test-level7b test-level7c test-game-flow test-game-flow-loop test-game-level test-palette test-transition test-wipe test-result test-level-complete test-score-bar-a test-score-bar-b test-ui-text test-hardware test-title test-attract test-pause test-cupid test-cupid-draw test-outro test-joystick test-keys test-input-keys test-animation-entry test-animation-b test-animation-c1 test-animation-c2 test-animation-d test-update-animation
+test-explosion-border: build/test_explosion_border
+	./build/test_explosion_border
+
+test: test-alley test-l3doors test-level4 test-level4-state test-level5 test-level5-anim test-level5-objects test-level6 test-level6b test-level6c test-level6d test-level2 test-level2b test-level2c test-level2d test-level7 test-level7b test-level7c test-game-flow test-game-flow-loop test-game-level test-palette test-transition test-wipe test-result test-level-complete test-score-bar-a test-score-bar-b test-ui-text test-hardware test-title test-attract test-pause test-cupid test-cupid-draw test-outro test-joystick test-keys test-input-keys test-animation-entry test-animation-b test-animation-c1 test-animation-c2 test-animation-d test-update-animation test-t74-fixes test-soak-levels test-enemy-reveal test-fish-flags test-explosion-border
+
+.PHONY: test-explosion-border test-fish-flags test-enemy-reveal test-t74-fixes all run clean test test-alley test-l3doors test-level4 test-level4-state test-level5 test-level5-anim test-level5-objects test-level6 test-level6b test-level6c test-level6d test-level2 test-level2b test-level2c test-level2d test-level7 test-level7b test-level7c test-game-flow test-game-flow-loop test-game-level test-palette test-transition test-wipe test-result test-level-complete test-score-bar-a test-score-bar-b test-ui-text test-hardware test-title test-attract test-pause test-cupid test-cupid-draw test-outro test-joystick test-keys test-input-keys test-animation-entry test-animation-b test-animation-c1 test-animation-c2 test-animation-d test-update-animation
 
 build/test_update_animation: tests/test_update_animation.c $(TEST_SRC) include/*.h
 	@mkdir -p build
