@@ -457,7 +457,7 @@ Estado compartido de los niveles 4 y 5: **los dos usan las variables `l5_obj_*`*
 - **Qué hacer:** una tabla en `docs/NIVELES.md` con, por nivel 0–7, cada función del ASM que `entry.asm` llama (init, update, exit) y la función C que la cubre. Cualquier celda vacía abre una tarea nueva.
 - **Verificar:** ninguna celda vacía.
 
-### T76 — Fidelidad: recorte parcial del perro [M]
+### T76 — Fidelidad: recorte parcial del perro [M] ✅ HECHO (PROGRESS.md §6bn; `tests/test_enemy_reveal.c`)
 - **ASM:** `enemy.asm`, `update_enemy_viewport` (ver su `copy_with_stride` y el suma de `enemy_approach_timer` al puntero).
 - **Destino:** `src/enemy.c`. Portar el "reveal" gradual en lugar de mostrar el frame completo (§5p).
 - **Verificar:** PPM de la secuencia de aproximación en 5 ticks.
