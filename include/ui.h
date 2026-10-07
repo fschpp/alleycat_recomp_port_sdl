@@ -58,4 +58,10 @@ extern uint16_t pause_counter;      /* DS 0x6e00: keyboard_counter de la ultima 
 /* show_pause_menu: guarda la region de CGA bajo el cartel, muestra "Paws Game" + indicacion, espera tecla/boton y
  * restaura pantalla y tick BIOS. */
 void show_pause_menu(void);
+
+/* --- T58: love_scene_outro (ui.asm L489-570) --- */
+extern uint16_t title_scroll_pos;     /* DS 0x6f24 */
+extern uint16_t title_scroll_tick_1;  /* DS 0x6f26 */
+extern uint16_t title_scroll_tick_2;  /* DS 0x6f28 */
+/* love_scene_outro (declarada en game_flow.h): epilogo del nivel 7, dos fases de ticks con tonos del altavoz. */
 #endif

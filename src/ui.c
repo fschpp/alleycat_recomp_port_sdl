@@ -18,6 +18,7 @@
 #include "game_setup.h"
 #include "enemy.h"
 #include "hardware.h"
+#include "speaker.h"
 
 uint16_t keyboard_counter;                 /* DS 0x0693 */
 uint16_t title_joy_offset;                 /* DS 0x6d8f */
@@ -25,6 +26,9 @@ uint16_t title_input_tick;                 /* DS 0x6dfa */
 uint16_t title_saved_cx;                   /* DS 0x6dfc: tick (dx) guardado al pausar */
 uint16_t title_saved_dx;                   /* DS 0x6dfe: palabra alta del tick (cx) */
 uint16_t pause_counter;                    /* DS 0x6e00 */
+uint16_t title_scroll_pos;                 /* DS 0x6f24: desplazamiento CGA del gatito/pareja del epilogo (T58) */
+uint16_t title_scroll_tick_1;              /* DS 0x6f26: ultimo tick visto en la fase 1 del epilogo */
+uint16_t title_scroll_tick_2;              /* DS 0x6f28: ultimo tick visto en la fase 2 del epilogo */
 void (*ui_wait_hook)(void);
 uint8_t (*joy_port_fn)(void);
 
@@ -341,4 +345,57 @@ lab_5eba:
     blit_to_cga(pause_save, 0xdca, 0x20, 0x10);            /* si=0xe, di=0xdca */
     set_bios_tick(title_saved_cx);                         /* mov ah,1 / int 0x1a con cx=saved_dx, dx=saved_cx */
     pause_counter = keyboard_counter;
+}
+
+/* --- T58: love_scene_outro (ui.asm L489-570). PROGRESS.md §6bb. --- */
+#define DS_DAT_6E10  0x6e10        /* 3 words x 12 filas (0x48 bytes): sprite que baja */
+#define DS_DAT_6E58  0x6e58        /* 6 words x 17 filas (0xcc bytes): imagen final (termina justo en title_scroll_pos) */
+
+/* love_scene_outro: epilogo del nivel 7. Fase 1: un paso por tick BIOS; borra el sprite anterior (3x12 words a cero;
+ * el original pone a cero DS:0xe..0x56 con rep stosw y lo usa de fuente, el port usa un buffer propio), baja
+ * title_scroll_pos 0x1e0 (6 filas de banco = 12 lineas) y dibuja dat_6e10; con sonido, un tono PIT canal 2 de
+ * divisor pos>>1 (`db 0xd1,0xe8` = shr ax,1, no 0). Se repite mientras pos < 0x1a40. Fase 2: dibuja dat_6e58 (6x17) en
+ * pos y alterna dos tonos (0xc00 con tick par, 0xb54 con impar) hasta que pasen 0x12 ticks desde el ultimo tick de la
+ * fase 1; luego silence_speaker. check_vsync = en retrace (el `jz lab_6058` no salta). Bloqueante como el original
+ * (cutscene de una sola vez); ui_wait_hook presenta/bombea SDL en cada vuelta de espera de tick. */
+void love_scene_outro(void) {
+    static const uint8_t blank[0x24 * 2];                  /* DS:0xe, 0x24 words a cero (sub ax,ax / rep stosw) */
+    uint16_t dx, ax;
+    title_scroll_pos = 0x25;                               /* mov word [title_scroll_pos],0x25 */
+lab_6058:
+    /* call check_vsync / jz lab_6058: en retrace, no salta */
+    blit_to_cga(blank, title_scroll_pos, 0x3, 0xc);        /* si=0xe, di=pos, cx=0xc03: borra el sprite anterior */
+    title_scroll_pos = (uint16_t)(title_scroll_pos + 0x1e0);
+    blit_to_cga(&ds_pool[DS_DAT_6E10], title_scroll_pos, 0x3, 0xc);
+lab_607d:
+    if (ui_wait_hook) ui_wait_hook();                      /* port: presentar y bombear SDL */
+    dx = score_tick();                                     /* sub ah,ah / int 0x1a */
+    if (dx == title_scroll_tick_1) goto lab_607d;          /* cmp dx,[title_scroll_tick_1] / jz */
+    title_scroll_tick_1 = dx;
+    if (sound_enabled == 0x0) goto lab_60a7;               /* cmp byte [0],0 / jz */
+    pit_out_43(0xb6);                                      /* mov al,0xb6 / out 0x43,al */
+    ax = (uint16_t)(title_scroll_pos >> 1);                /* shr ax,1 */
+    pit_ch2_out((uint8_t)(ax & 0xff));                     /* out 0x42,al */
+    pit_ch2_out((uint8_t)(ax >> 8));                       /* mov al,ah / out 0x42,al */
+    port61_out((uint8_t)(port61_in() | 0x3));              /* in al,0x61 / or al,3 / out 0x61,al */
+lab_60a7:
+    if (title_scroll_pos < 0x1a40) goto lab_6058;          /* cmp / jb (sin signo) */
+    blit_to_cga(&ds_pool[DS_DAT_6E58], title_scroll_pos, 0x6, 0x11);   /* cx=0x1106 */
+lab_60bc:
+    if (ui_wait_hook) ui_wait_hook();
+    dx = score_tick();
+    if (dx == title_scroll_tick_2) goto lab_60bc;          /* cmp dx,[title_scroll_tick_2] / jz */
+    title_scroll_tick_2 = dx;
+    if (sound_enabled == 0x0) goto lab_60e6;
+    pit_out_43(0xb6);
+    ax = 0xc00;
+    if ((dx & 0x1) == 0) goto lab_60e0;                    /* test dl,1 / jz (el mov previo no toca flags) */
+    ax = 0xb54;
+lab_60e0:
+    pit_ch2_out((uint8_t)(ax & 0xff));
+    pit_ch2_out((uint8_t)(ax >> 8));
+lab_60e6:
+    dx = (uint16_t)(dx - title_scroll_tick_1);             /* sub dx,[title_scroll_tick_1] */
+    if (dx < 0x12) goto lab_60bc;                          /* cmp dx,0x12 / jb (sin signo) */
+    silence_speaker();
 }
