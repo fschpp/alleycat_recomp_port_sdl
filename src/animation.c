@@ -1,6 +1,11 @@
 #include "cat_state.h"
 #include "sprite.h"
 #include "gen/cat_walk_frames.h"
+#include "gen/ds_pool.h"
+#include "cga.h"
+#include "alley.h"
+#include "level2.h"
+#include <stddef.h>
 #include <stdint.h>
 
 /* select_cat_sprite — literal port of game_loop.asm ~lines 349-411 (the
@@ -75,4 +80,26 @@ lab_0b53:
 
 lab_0b64:
     return &cat_walk_frames[bx / 2];
+}
+
+/* update_cat_frame — game_loop.asm lab_0ace (desde `mov cx,[cat_x]`) .. lab_0bab (T71, PROGRESS.md §6bf).
+ * Final de la rama del nivel 2 de update_animation, tras fijar cat_y (update_cat_movement/update_cat_dive):
+ * calcula cat_screen_pos, elige la pose (select_cat_sprite = lab_0ae9..lab_0b64), guarda su puntero y dims en
+ * cat_sprite_data/cat_sprite_dims (los lee el chequeo de pasos de update_cat_dive), borra al gato, lo dibuja
+ * y barre los objetos del nivel (un golpe/captura redibuja). */
+void update_cat_frame(void) {
+    cat_screen_pos = (uint16_t)calc_cga_addr(cat_y, (uint16_t)cat_x, NULL);
+    const cat_walk_frame_t *frame = select_cat_sprite();
+    unsigned idx = (unsigned)(frame - cat_walk_frames);
+    /* lab_0b64: walk_sprite_ptrs[bx] / walk_sprite_dims[bx] (DS 0x09a6 / 0x09c0, una palabra por pose) */
+    cat_sprite_data = (uint16_t)(ds_pool[0x09a6 + 2 * idx] | (ds_pool[0x09a6 + 2 * idx + 1] << 8));
+    cat_sprite_dims = (uint16_t)(ds_pool[0x09c0 + 2 * idx] | (ds_pool[0x09c0 + 2 * idx + 1] << 8));
+    cat_sprite_ptr  = frame->data;
+    /* L0b6d..lab_0b95: con rom_id > 0xfd y cat_y <= 8 (0x30 y cx=0x2bc con rom_id==0xfd; sin espera con
+     * rom_id < 0xfd) el original espera un flanco de retrace y un bucle `loop` de 1000 vueltas para no parpadear.
+     * Sin CGA real no hay nada que esperar: se omite (check_vsync = no-op, regla 10 de tareas.md). */
+    restore_alley_buffer();
+    cat_draw_pos = cat_screen_pos;
+    draw_alley_foreground();
+    if (check_level_objects()) draw_alley_foreground();   /* jnc lab_0bab: CF=1 -> segundo dibujo */
 }
