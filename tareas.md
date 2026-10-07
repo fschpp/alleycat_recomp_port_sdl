@@ -444,7 +444,7 @@ Estado compartido de los niveles 4 y 5: **los dos usan las variables `l5_obj_*`*
 - **ASM:** `game_loop.asm` L441–684 (`lab_0bac` a `lab_0e1f`): la máquina `entry_steps`/`at_platform` y las llamadas a `check_level_objects`, `check_jump_collision`, `check_dog_collision`.
 - **Corte:** C1 = L441–560, C2 = L561–684. Mismo método que T70.
 
-### T73 — Auditoría de `update_animation` D [M · 133]
+### T73 — Auditoría de `update_animation` D [M · 133] ✅ HECHO (PROGRESS.md §6bi; `update_animation_d` en `src/animation_d.c`; `select_vertical_sprite` exportada; 5 diferencias de `update_alley_movement` listadas para T74; `test-animation-d`)
 - **ASM:** `game_loop.asm` L685–817 (`lab_0e23` a `lab_0f86`): climb/transition (ya en §5m/§5n) y `lab_0f63`.
 - **Mismo método que T70.** Conectar `check_level_objects` (T34) y `check_window_landing` (T10).
 
