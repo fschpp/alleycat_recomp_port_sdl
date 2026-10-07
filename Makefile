@@ -331,7 +331,7 @@ build/test_attract: tests/test_attract.c $(TEST_SRC) include/*.h
 test-attract: build/test_attract
 	./build/test_attract
 
-test: test-alley test-l3doors test-level4 test-level4-state test-level5 test-level5-anim test-level5-objects test-level6 test-level6b test-level6c test-level6d test-level2 test-level2b test-level2c test-level2d test-level7 test-level7b test-level7c test-game-flow test-game-flow-loop test-game-level test-palette test-transition test-wipe test-result test-level-complete test-score-bar-a test-score-bar-b test-ui-text test-hardware test-title test-attract test-pause test-cupid test-cupid-draw test-outro test-joystick test-keys test-input-keys test-animation-entry test-animation-b test-animation-c1 test-animation-c2 test-animation-d test-update-animation test-t74-fixes
+test: test-alley test-l3doors test-level4 test-level4-state test-level5 test-level5-anim test-level5-objects test-level6 test-level6b test-level6c test-level6d test-level2 test-level2b test-level2c test-level2d test-level7 test-level7b test-level7c test-game-flow test-game-flow-loop test-game-level test-palette test-transition test-wipe test-result test-level-complete test-score-bar-a test-score-bar-b test-ui-text test-hardware test-title test-attract test-pause test-cupid test-cupid-draw test-outro test-joystick test-keys test-input-keys test-animation-entry test-animation-b test-animation-c1 test-animation-c2 test-animation-d test-update-animation test-t74-fixes test-soak-levels
 
 .PHONY: test-t74-fixes all run clean test test-alley test-l3doors test-level4 test-level4-state test-level5 test-level5-anim test-level5-objects test-level6 test-level6b test-level6c test-level6d test-level2 test-level2b test-level2c test-level2d test-level7 test-level7b test-level7c test-game-flow test-game-flow-loop test-game-level test-palette test-transition test-wipe test-result test-level-complete test-score-bar-a test-score-bar-b test-ui-text test-hardware test-title test-attract test-pause test-cupid test-cupid-draw test-outro test-joystick test-keys test-input-keys test-animation-entry test-animation-b test-animation-c1 test-animation-c2 test-animation-d test-update-animation
 
@@ -346,6 +346,10 @@ test-update-animation: build/test_update_animation
 build/test_soak: tests/test_soak.c $(TEST_SRC) include/*.h
 	@mkdir -p build
 	$(CC) $(CFLAGS) -Wl,--wrap=speaker_spin_cycles,--wrap=read_bios_tick tests/test_soak.c $(TEST_SRC) -o $@
+
+# T74: cobertura de los 8 niveles (entra a cada uno por game_level_enter y corre su loop hasta GL_EXIT). Rapido y determinista.
+test-soak-levels: build/test_soak
+	./build/test_soak 300000 levels
 
 soak: build/test_soak
 	timeout 300 ./build/test_soak

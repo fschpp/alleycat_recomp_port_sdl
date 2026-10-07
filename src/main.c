@@ -64,6 +64,22 @@ static void ui_wait_pump(void) {
     SDL_Delay(10);
 }
 
+/* T74: eventos SDL + lectura de teclado una vez por frame, antes de la logica. false = salir. */
+static bool frame_poll(void) {
+    SDL_Event ev;
+    while (SDL_PollEvent(&ev)) {
+        if (ev.type == SDL_QUIT) return false;
+    }
+    if (!use_joystick) input_poll();           /* read_keyboard_dirs (port: SDL); con joystick lo pisaria poll_joystick (T60) */
+    return true;
+}
+
+/* T74: presentar y retardar tras la logica. El original es un loop cerrado sin retardo; ~30 Hz aqui. */
+static void frame_present(void) {
+    video_present();
+    SDL_Delay(33);
+}
+
 int main(int argc, char **argv) {
     (void)argc; (void)argv;
 
@@ -74,56 +90,15 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    /* entry.asm opens with sound on and the music engine reset; the audio
-     * device is this port's stand-in for "the speaker exists". If no device
-     * can be opened the game just runs silent. */
-    bool have_audio = audio_init();
+    /* entry.asm opens with sound on and the music engine reset; the audio device is this port's stand-in for
+     * "the speaker exists". If no device can be opened the game just runs silent. */
+    if (!audio_init()) fprintf(stderr, "NO audio device - running silent.\n");
     wipe_step_hook = wipe_present_step;
     ui_wait_hook = ui_wait_pump;
+    game_poll_hook = frame_poll;
+    game_present_hook = frame_present;
 
-    printf("Alley Cat C/SDL port - entry.asm flow (T40/T41).\n");
-    printf("Arrows (and PgUp/PgDn/End/Home diagonals) walk the cat, Alt = fire, Esc = pause; Ctrl+S sound, Ctrl+R restart, Ctrl+M demo, Ctrl+Y quit.\n");
-    printf("%s\n", have_audio ? "Audio device opened OK." : "NO audio device - running silent.");
-
-    /* entry.asm L27-143: init, title (T52 stub), attract (T54 stub), new game, alley setup.
-     * Returns where lab_0155 (the alley loop) begins. */
-    game_start();
-
-    bool running = true;
-    bool in_level = false;                         /* true while a level loop (T42) runs instead of the alley */
-    while (running) {
-        SDL_Event ev;
-        while (SDL_PollEvent(&ev)) {
-            if (ev.type == SDL_QUIT) running = false;
-        }
-        if (reboot_requested || quit_requested) running = false;   /* T51: Ctrl+Alt+Del (reinicio en caliente); T61: Ctrl+Y (salir al DOS) */
-        if (!running) break;
-
-        if (!use_joystick) input_poll();           /* read_keyboard_dirs (port: SDL); con joystick lo pisaria poll_joystick (T60) */
-        gf_next_t next;
-        if (in_level) {
-            /* one pass of the level loop (entry.asm lab_027e/lab_02c5/lab_0319, T42) */
-            next = (game_level_frame() == GL_EXIT) ? game_level_exit() : GF_STAY;
-        } else {
-            next = game_alley_frame();             /* one pass of lab_0155 (entry.asm L144-212) */
-        }
-
-        video_present();
-        SDL_Delay(33); /* ~30Hz: the original has a closed loop with no delay */
-
-        switch (next) {
-        case GF_STAY:   break;
-        case GF_TO_0081: in_level = false; game_flow_run(GF_LAB_0081); break;   /* game over -> title */
-        case GF_TO_00A3: in_level = false; game_flow_run(GF_LAB_00A3); break;   /* attract timeout */
-        case GF_TO_00AE: in_level = false; game_flow_run(GF_LAB_00AE); break;   /* restart */
-        case GF_TO_00F3: in_level = false; game_flow_run(GF_LAB_00F3); break;   /* level exit -> alley (lab_0427) */
-        case GF_TO_0238:
-            /* The cat died: game_death_handler() already picked level_number; lab_0238 dispatches to
-             * the init of that level (T42/T43: every level is ported) and its loop runs from now on. */
-            in_level = game_level_enter();
-            break;
-        }
-    }
+    game_run();
 
     silence_speaker();
     audio_shutdown();
