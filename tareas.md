@@ -440,7 +440,7 @@ Estado compartido de los niveles 4 y 5: **los dos usan las variables `l5_obj_*`*
 - **ASM:** `game_loop.asm` L286–440 (`lab_0a2e` a `lab_0bab`).
 - **Mismo método que T70.** Atención a `walk_frame`/`scroll_speed`/`anim_accumulator`.
 
-### T72 — Auditoría de `update_animation` C [L · 244 → partir en dos]
+### T72 — Auditoría de `update_animation` C [L · 244 → partir en dos] — C1 ✅ HECHO (PROGRESS.md §6bg; `update_animation_c1` en `src/animation_c.c`, devuelve la etiqueta de continuación; `test-animation-c1`); C2 (L561–684) pendiente
 - **ASM:** `game_loop.asm` L441–684 (`lab_0bac` a `lab_0e1f`): la máquina `entry_steps`/`at_platform` y las llamadas a `check_level_objects`, `check_jump_collision`, `check_dog_collision`.
 - **Corte:** C1 = L441–560, C2 = L561–684. Mismo método que T70.
 
