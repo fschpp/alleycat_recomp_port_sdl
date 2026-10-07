@@ -408,13 +408,13 @@ Estado compartido de los niveles 4 y 5: **los dos usan las variables `l5_obj_*`*
 - **Notas:** cutscene final; bloqueante está justificado (una sola vez). Usa `check_vsync` (no-op).
 - **Verificar:** corre hasta terminar bajo `timeout 30s`; PPM del último frame.
 
-### T59 — Joystick en UI [S · 53]
+### T59 — Joystick en UI [S · 53] ✅ HECHO (PROGRESS.md §6bc; ya portado en T54; decisión: `joy_port_fn == NULL` = nunca detectado; el mapeo a mando SDL queda sin escribir)
 - **ASM:** `ui.asm` L436–488 (`detect_joystick`, `test_joystick_axis`).
 - **Destino:** `src/ui.c`.
 - **Notas:** **Opcional.** Mapear a mando SDL o dejar siempre "no detectado" y documentarlo. Datos: `title_input_tick=0x6dfa`.
 - **Verificar:** ejecución con y sin dispositivo simulado.
 
-### T60 — Joystick en input [M · 86]
+### T60 — Joystick en input [M · 86] ✅ HECHO (PROGRESS.md §6bc; `src/joystick.c` en vez de `input.c` para poder testear sin SDL; cableado en los 8 `TODO(T60)` de `game_flow.c`; `test-joystick`)
 - **ASM:** `input.asm` L4–89 (`poll_joystick`, `decode_joystick_axis`).
 - **Destino:** `src/input.c`.
 - **Datos:** `joy_button=0x069a`, `joy_timer=0x069c`, `joy_pending=0x069e`, `joy_last_tick=0x069f`.

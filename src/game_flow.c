@@ -40,6 +40,7 @@
 #include "level3_enemy.h"
 #include "level2.h"
 #include "palette.h"
+#include "joystick.h"
 
 uint16_t (*game_tick_fn)(void) = NULL;
 uint16_t (*pit_counter_fn)(void) = NULL;
@@ -232,7 +233,7 @@ gf_next_t game_alley_frame(void) {
     input_process_keys();                           /* lab_015f: process_keyboard */
     if (show_attract) return GF_TO_00A3;            /* timeout -> attract */
     if (restart_game) return GF_TO_00AE;            /* restart */
-    /* lab_0176: poll_joystick -> TODO(T60), el joystick no esta portado */
+    poll_joystick();                                /* lab_0176 */
     immune_flag = 0;                                /* heredado del loop de main.c (T19) */
     update_alley_movement();                        /* update_animation (auditoria T70-T73) */
     update_enemies();
@@ -371,7 +372,7 @@ gl_next_t game_level_frame(void) {
     case 7:
         /* lab_027e */
         input_process_keys();                      /* process_keyboard */
-        /* poll_joystick: TODO(T60) */
+        poll_joystick();
         play_sound();
         update_alley_movement();                   /* update_animation */
         update_cupid();
@@ -384,7 +385,7 @@ gl_next_t game_level_frame(void) {
     case 6:
         /* lab_02c5 */
         input_process_keys();
-        /* poll_joystick: TODO(T60) */
+        poll_joystick();
         play_sound();
         update_level6_movement();
         update_level6_timing();
@@ -397,7 +398,7 @@ gl_next_t game_level_frame(void) {
     case 5:
         /* lab_0319 */
         input_process_keys();
-        /* poll_joystick: TODO(T60) */
+        poll_joystick();
         play_sound();
         update_level5_objects();
         update_level5_anim();
@@ -410,7 +411,7 @@ gl_next_t game_level_frame(void) {
     case 4:
         /* lab_0364 */
         input_process_keys();
-        /* poll_joystick: TODO(T60) */
+        poll_joystick();
         play_sound();
         update_alley_movement();
         update_level4_state();
@@ -422,7 +423,7 @@ gl_next_t game_level_frame(void) {
     case 3:
         /* lab_03b2 */
         input_process_keys();
-        /* poll_joystick: TODO(T60) */
+        poll_joystick();
         play_sound();
         update_alley_movement();
         update_level3_enemy();
@@ -436,7 +437,7 @@ gl_next_t game_level_frame(void) {
         /* lab_03fa (el bloque de nivel 0/1 fija level_number=1; el 0 solo es posible si alguien lo
          * deja a mano) */
         input_process_keys();
-        /* poll_joystick: TODO(T60) */
+        poll_joystick();
         play_sound();
         update_alley_movement();
         tick_thrown_objects();
@@ -452,7 +453,7 @@ gl_next_t game_level_frame(void) {
     case 2:
         /* lab_0478 */
         input_process_keys();
-        /* poll_joystick: TODO(T60) */
+        poll_joystick();
         play_sound();
         update_alley_movement();
         update_level2_objects();
