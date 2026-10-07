@@ -179,7 +179,10 @@ extern uint16_t entrance_x;
 extern uint8_t  entrance_y;
 extern uint8_t  platform_cur_type;
 extern uint16_t platform_cur_width;
-extern uint8_t  door_hit_flag; /* original's [0x551] */
+/* DS 0x551 es UN solo byte: entry.asm lo llama cat_died y enemy.asm/level_physics.asm lo escriben por direccion cruda
+ * (`mov byte [0x551],1`). El port lo tenia duplicado como door_hit_flag y el alias nunca activaba el loop del callejon
+ * (T74, PROGRESS.md §6bk): ahora es el mismo simbolo. */
+#define door_hit_flag cat_died
 
 /* Verified tables — see PROGRESS.md §5n for cross-checks */
 extern const uint8_t door_position_table[22];  /* DS 0x0ff0 */

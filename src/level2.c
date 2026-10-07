@@ -1,3 +1,4 @@
+#include "bios_clock.h"
 #include "level2.h"
 #include "cat_state.h"
 #include "cga.h"
@@ -116,10 +117,7 @@ static uint16_t l2_ds_word(uint16_t off) { return (uint16_t)(ds_pool[off] | (ds_
 
 static uint16_t l2_read_bios_tick(void) {            /* sub ah,ah / int 0x1a -> dx */
     if (l2_tick_fn) return l2_tick_fn();
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    uint64_t ms = (uint64_t)ts.tv_sec * 1000 + (uint64_t)(ts.tv_nsec / 1000000);
-    return (uint16_t)(ms / 55);
+    return bios_clock_read();
 }
 
 /* check_vsync + `jz`: aqui el bucle ESPERA de verdad (el original bloquea ~1 retrace por vuelta, y llama update_noise sin

@@ -1,4 +1,5 @@
 /* level4.c — nivel 4, helpers A (T21). Ver include/level4.h y PROGRESS.md §6r. */
+#include "bios_clock.h"
 #include "level4.h"
 #include "level45_state.h"
 #include "level_collision.h"
@@ -133,10 +134,7 @@ int32_t l4_tick_override = -1;
 /* `sub ah,ah / int 0x1a` -> dx (mismo sustituto que en el resto del port). */
 static uint16_t read_bios_tick(void) {
     if (l4_tick_override >= 0) return (uint16_t)l4_tick_override;
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    uint64_t ms = (uint64_t)ts.tv_sec * 1000 + (uint64_t)(ts.tv_nsec / 1000000);
-    return (uint16_t)(ms / 55);
+    return bios_clock_read();
 }
 
 /* Offsets DS (resueltos con tools/asm_label.sh; son CONSTANTES inmediatas del tipo `mov ax,label`,

@@ -1,3 +1,4 @@
+#include "bios_clock.h"
 #include "level6.h"
 #include "cat_state.h"
 #include "cga.h"
@@ -56,10 +57,7 @@ static uint16_t l6_tracker_save[30];   /* DS 0x43a0..0x43dc = 0x3c bytes = 3 wor
 /* `sub ah,ah / int 0x1a` -> dx (mismo sustituto que level4.c, 55 ms por tick). */
 static uint16_t read_bios_tick(void) {
     if (l6_tick_override >= 0) return (uint16_t)l6_tick_override;
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    uint64_t ms = (uint64_t)ts.tv_sec * 1000 + (uint64_t)(ts.tv_nsec / 1000000);
-    return (uint16_t)(ms / 55);
+    return bios_clock_read();
 }
 
 static uint16_t ds_word(uint16_t off) { return (uint16_t)(ds_pool[off] | (ds_pool[off + 1] << 8)); }

@@ -1,3 +1,4 @@
+#include "bios_clock.h"
 #include "cat_state.h"
 #include "sound.h"
 #include "cga.h"
@@ -14,7 +15,6 @@ uint16_t entrance_x = 0;
 uint8_t  entrance_y = 0;
 uint8_t  platform_cur_type = 0;
 uint16_t platform_cur_width = 0;
-uint8_t  door_hit_flag = 0;
 
 /* check_rect_collision — literal port of level_objects.asm's real
  * algorithm (already commented in the disassembly repo itself). AABB
@@ -115,13 +115,21 @@ bool check_fence_collision(void) {
  * first (matching the original's dedicated door/entrance re-check while
  * already inside). */
 bool check_level_platform(void) {
-    if (level_number == 3 && check_fence_collision()) return true;
+    l3_platform_id = 0;                                    /* lab_16c9: mov [l3_platform_id],0 */
 
     if (in_level_mode == 1) {
         if (check_rect_collision((int16_t)(entrance_x - 4), (uint8_t)(entrance_y - 8), 0xc, 0x10,
                                   (uint16_t)cat_x, cat_y, 0x18, 0xe)) {
-            return true;
+            /* level_physics.asm L129-131: mov byte [0x551],1 / clc / ret -> la gata llego a la entrada: cat_died = 1 y
+             * "sin suelo" (CF = 0). El port devolvia true y no marcaba nada (T74, §6bk). */
+            cat_died = 1;
+            return false;
         }
+    }
+
+    if (level_number == 3 && check_fence_collision()) {    /* lab_16fc: la valla va DESPUES de la entrada */
+        at_platform = 1;                                   /* jnc lab_170e / mov [at_platform],1 / ret (CF = 1) */
+        return true;
     }
 
     uint8_t cl = (uint8_t)(cat_y & 0xf8);
@@ -175,10 +183,7 @@ bool check_level_platform(void) {
 #define DS_WINDOW_ROW_OFFS  0x1025u  /* 3 bytes const: 00 05 0a */
 
 static uint16_t read_bios_tick_lc(void) { /* int 0x1a, ver alley.c */
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    uint64_t ms = (uint64_t)ts.tv_sec * 1000 + (uint64_t)(ts.tv_nsec / 1000000);
-    return (uint16_t)(ms / 55);
+    return bios_clock_read();
 }
 
 /* Lectura de un byte DS en [bx+si+0x1016]. Normalmente cae dentro de

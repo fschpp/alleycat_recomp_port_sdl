@@ -1,3 +1,4 @@
+#include "bios_clock.h"
 #include "cat_state.h"
 #include "cga.h"
 #include "level_collision.h"
@@ -11,10 +12,7 @@
 /* BIOS `int 0x1a` tick substitute — same convention used throughout this
  * port (enemy.c, level3_enemy.c, cga.c's RNG seeding). */
 static uint16_t read_bios_tick(void) {
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    uint64_t ms = (uint64_t)ts.tv_sec * 1000 + (uint64_t)(ts.tv_nsec / 1000000);
-    return (uint16_t)(ms / 55); /* ~18.2 ticks/sec */
+    return bios_clock_read();
 }
 
 static uint8_t objects_random_byte(void) {

@@ -1,3 +1,4 @@
+#include "bios_clock.h"
 #include "cat_state.h"
 #include "alley.h"
 #include "sound.h"
@@ -19,10 +20,7 @@
 uint16_t (*l7_tick_fn)(void) = NULL;   /* gancho para tests (como l2_tick_fn); NULL = reloj real */
 static uint16_t read_bios_tick(void) {
     if (l7_tick_fn) return l7_tick_fn();
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    uint64_t ms = (uint64_t)ts.tv_sec * 1000 + (uint64_t)(ts.tv_nsec / 1000000);
-    return (uint16_t)(ms / 55); /* ~18.2 ticks/sec */
+    return bios_clock_read();
 }
 
 /* Sleeps a short real-world slice. Used only by the victory-cutscene

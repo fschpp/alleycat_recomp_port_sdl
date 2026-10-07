@@ -3,6 +3,21 @@
 #include <time.h>
 
 uint8_t cga_mem[CGA_MEM_SIZE];
+
+/* Acceso a cga_mem con la ventana real del hardware: la CGA ocupa 16 KB; un offset fuera de ella (p. ej. di = 0xFFFE tras
+ * `sub di,4` con di = 0, como en check_cycle_cat_collision) no toca memoria de video: se descartan las escrituras y las
+ * lecturas dan 0, en vez de salirse del array (T74, PROGRESS.md §6bk). */
+static inline void cga_store(size_t off, const void *src, size_t n) {
+    if (off >= CGA_MEM_SIZE) return;
+    if (n > CGA_MEM_SIZE - off) n = CGA_MEM_SIZE - off;
+    memcpy(&cga_mem[off], src, n);
+}
+static inline void cga_load(void *dst, size_t off, size_t n) {
+    memset(dst, 0, n);
+    if (off >= CGA_MEM_SIZE) return;
+    size_t m = (n > CGA_MEM_SIZE - off) ? CGA_MEM_SIZE - off : n;
+    memcpy(dst, &cga_mem[off], m);
+}
 uint16_t rng_seed = 0xFA59; /* fallback seed used by the original when PIT reads 0 */
 
 void cga_init(void) {
@@ -36,7 +51,7 @@ static inline size_t next_row_offset(size_t off) {
 void blit_to_cga(const uint8_t *src, size_t dst_offset, uint8_t width_words, uint8_t height) {
     size_t row_bytes = (size_t)width_words * 2;
     for (uint8_t y = 0; y < height; y++) {
-        memcpy(&cga_mem[dst_offset], src, row_bytes);
+        cga_store(dst_offset, src, row_bytes);
         src += row_bytes;
         dst_offset = next_row_offset(dst_offset);
     }
@@ -50,7 +65,7 @@ void blit_to_cga(const uint8_t *src, size_t dst_offset, uint8_t width_words, uin
  * file where width is a WORD count (§4) — do not confuse the two. */
 void blit_bytes_to_cga(const uint8_t *src, size_t dst_offset, uint8_t width_bytes, uint8_t height) {
     for (uint8_t y = 0; y < height; y++) {
-        memcpy(&cga_mem[dst_offset], src, width_bytes);
+        cga_store(dst_offset, src, width_bytes);
         src += width_bytes;
         dst_offset = next_row_offset(dst_offset);
     }
@@ -59,7 +74,7 @@ void blit_bytes_to_cga(const uint8_t *src, size_t dst_offset, uint8_t width_byte
 void save_from_cga(uint8_t *dst, size_t src_offset, uint8_t width_words, uint8_t height) {
     size_t row_bytes = (size_t)width_words * 2;
     for (uint8_t y = 0; y < height; y++) {
-        memcpy(dst, &cga_mem[src_offset], row_bytes);
+        cga_load(dst, src_offset, row_bytes);
         dst += row_bytes;
         src_offset = next_row_offset(src_offset);
     }
@@ -71,7 +86,7 @@ void blit_masked(const uint8_t *src, size_t dst_offset, uint8_t width_words, uin
         size_t x = 0;
         for (uint8_t w = 0; w < width_words; w++, x += 2) {
             uint16_t dest_word;
-            memcpy(&dest_word, &cga_mem[dst_offset + x], sizeof(dest_word));
+            cga_load(&dest_word, dst_offset + x, sizeof(dest_word));
             if (mask_save) *mask_save++ = dest_word;
 
             uint16_t src_word;
@@ -79,7 +94,7 @@ void blit_masked(const uint8_t *src, size_t dst_offset, uint8_t width_words, uin
             src += 2;
 
             uint16_t result = src_word & dest_word;
-            memcpy(&cga_mem[dst_offset + x], &result, sizeof(result));
+            cga_store(dst_offset + x, &result, sizeof(result));
         }
         dst_offset = next_row_offset(dst_offset);
     }
@@ -103,7 +118,7 @@ void blit_transparent(const uint8_t *src, size_t dst_offset, uint8_t width_words
         size_t x = 0;
         for (uint8_t w = 0; w < width_words; w++, x += 2) {
             uint16_t dest_word;
-            memcpy(&dest_word, &cga_mem[dst_offset + x], sizeof(dest_word));
+            cga_load(&dest_word, dst_offset + x, sizeof(dest_word));
             if (mask_save) *mask_save++ = dest_word; /* §5p: matches the real asm's
                                                         * "mov word[bp],bx" side effect,
                                                         * missed in the original §5j fix */
@@ -119,7 +134,7 @@ void blit_transparent(const uint8_t *src, size_t dst_offset, uint8_t width_words
                 result |= (src_px == 0) ? (dest_word & mask) : src_px;
             }
 
-            memcpy(&cga_mem[dst_offset + x], &result, sizeof(result));
+            cga_store(dst_offset + x, &result, sizeof(result));
         }
         dst_offset = next_row_offset(dst_offset);
     }
@@ -129,7 +144,7 @@ void copy_with_stride(const uint8_t *src, size_t dst_offset, uint8_t width_words
                        uint8_t extra_stride_bytes) {
     size_t row_bytes = (size_t)width_words * 2;
     for (uint8_t y = 0; y < height; y++) {
-        memcpy(&cga_mem[dst_offset], src, row_bytes);
+        cga_store(dst_offset, src, row_bytes);
         src += row_bytes + extra_stride_bytes;
         dst_offset = next_row_offset(dst_offset);
     }
@@ -142,7 +157,7 @@ void blit_or(const uint8_t *src, size_t dst_offset, uint8_t width_words, uint8_t
         size_t x = 0;
         for (uint8_t w = 0; w < width_words; w++, x += 2) {
             uint16_t dest_word;
-            memcpy(&dest_word, &cga_mem[dst_offset + x], sizeof(dest_word));
+            cga_load(&dest_word, dst_offset + x, sizeof(dest_word));
             if (mask_save) *mask_save++ = dest_word;
 
             uint16_t src_word;
@@ -150,7 +165,7 @@ void blit_or(const uint8_t *src, size_t dst_offset, uint8_t width_words, uint8_t
             src += 2;
 
             uint16_t result = (uint16_t)(src_word | dest_word);
-            memcpy(&cga_mem[dst_offset + x], &result, sizeof(result));
+            cga_store(dst_offset + x, &result, sizeof(result));
         }
         dst_offset = next_row_offset(dst_offset);
     }
