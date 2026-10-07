@@ -9,6 +9,7 @@
 #include "jump_gravity.h"
 #include "gen/enemy_sprites_ex.h"
 #include <stdint.h>
+#include <string.h>
 #include <stdbool.h>
 #include <time.h>
 
@@ -41,6 +42,13 @@ void init_sound(void) {
     init_chase_sound();
 }
 
+/* T76: el ASM copia el recorte a un scratch en DS (0xe) y pone enemy_sprite_ptr = 0xe
+ * (enemy.asm L564-593). Aqui enemy_sprite_ptr sigue siendo el indice del frame, asi que el
+ * scratch es propio y enemy_cropped dice que draw_enemy debe leerlo en lugar del frame
+ * completo. update_enemy_sprite lo apaga (reasigna enemy_sprite_ptr, como el ASM). */
+static uint8_t enemy_crop_buf[4 * 2 * 15];
+static bool    enemy_cropped = false;
+
 /* update_enemy_sprite — literal port. See PROGRESS.md §5o: this confirms
  * enemy_sprite_table's full intended layout (already partially verified
  * in §5i/§5k) — indices 0-3 (word-offsets 0,2,4,6) are the 2-frame×2-
@@ -62,30 +70,36 @@ static void update_enemy_sprite(void) {
      * index for now rather than a real pointer — nothing currently reads
      * pixels through it. */
     enemy_sprite_ptr = bl;
+    enemy_cropped = false;
 }
 
-/* update_enemy_viewport — literal port of the addressing/positioning
- * half. NOT ported (documented simplification, see PROGRESS.md §5p): the
- * original also adds the `al` parameter (a countdown value, e.g.
- * enemy_approach_timer) as a byte offset directly into the sprite
- * bitmap data before a partial copy_with_stride — a "partial reveal"
- * effect where the dog appears to slide/emerge gradually during its
- * approach animation. This port always shows the full, uncropped frame
- * for approach/exit states instead of that partial-reveal nuance. */
+/* update_enemy_viewport — port literal de enemy.asm L564-593 (T76, PROGRESS.md §6bn; antes §5p
+ * lo simplificaba a "frame completo"). Revela el perro de forma gradual:
+ *   cx = 0x0f04 - al        ancho (words) = 4 - al, alto 15 filas
+ *   ah == 0xff (entra por la derecha): enemy_x = 0x120 + al*8, el recorte empieza en el borde
+ *                           izquierdo del sprite (se ve su parte delantera);
+ *   si no (entra por la izquierda): enemy_sprite_ptr += al*2 (se saltan `al` words de cada fila)
+ *                           y enemy_x = 0 (se ve su parte trasera).
+ * Luego copy_with_stride(si=sprite, di=0xe, ancho, 15 filas, al=4): filas de origen de 8 bytes
+ * (4 words), destino compacto de (4-al)*2 bytes por fila. */
 static void update_enemy_viewport(uint8_t al, int8_t ah_dir_flag) {
-    /* original subtracts al from the width field here for the
-     * partial-reveal crop effect — not ported (see above), so dims
-     * always stay the full frame size to match what draw_enemy actually
-     * draws. al is still used below for enemy_x positioning, which IS
-     * ported faithfully. */
-    enemy_sprite_dims = 0x0f04;
+    uint8_t cl = (uint8_t)(0x04 - al);
+    enemy_sprite_dims = (uint16_t)(0x0f00 | cl);
+    size_t skip_bytes = 0;
     if (ah_dir_flag == -1) {
-        uint16_t ax = (uint16_t)(al << 3);
-        ax = (uint16_t)(ax + 0x120);
-        enemy_x = ax;
+        enemy_x = (uint16_t)(0x120 + (uint16_t)(al << 3));
     } else {
+        skip_bytes = (size_t)al * 2u;
         enemy_x = 0;
     }
+    uint8_t idx = (uint8_t)(enemy_sprite_ptr / 2);
+    if (idx > 7) idx = 7;
+    const cat_walk_frame_t *frame = &enemy_sprite_frames[idx];
+    size_t row_bytes = (size_t)cl * 2u;
+    for (size_t row = 0; row < 15 && row_bytes != 0; row++) {
+        memcpy(&enemy_crop_buf[row * row_bytes], frame->data + row * 8u + skip_bytes, row_bytes);
+    }
+    enemy_cropped = true;
 }
 
 /* draw_enemy — the enemy_active==0 (normal walk/chase) path is ported
@@ -99,6 +113,11 @@ static void draw_enemy(void) {
     enemy_erase_dims = enemy_sprite_dims;
     if (enemy_active != 0) {
         /* TODO: "caught the cat" draw path — needs [0x1cbd] identified */
+        return;
+    }
+    if (enemy_cropped) {
+        blit_transparent(enemy_crop_buf, enemy_draw_addr, (uint8_t)(enemy_sprite_dims & 0xff),
+                         (uint8_t)(enemy_sprite_dims >> 8), enemy_save_buf);
         return;
     }
     uint8_t idx = (uint8_t)(enemy_sprite_ptr / 2);
