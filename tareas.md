@@ -471,7 +471,7 @@ Estado compartido de los niveles 4 y 5: **los dos usan las variables `l5_obj_*`*
 - **Qué hacer:** modelar el registro de borde de color (`int 0x10` AH=0x0B) en `video.c` y usarlo en `play_explosion_effect`; decidir si las cutscenes bloqueantes del nivel 7 se dejan como están (recomendado) y dejarlo escrito.
 - **Verificar:** el borde cambia a rojo y vuelve a negro durante la explosión.
 
-### T79 — Prueba completa y ordenamiento de PROGRESS.md [M]
+### T79 — Prueba completa y ordenamiento de PROGRESS.md [M] ✅ HECHO (PROGRESS.md §6bq; resultados por nivel en `docs/NIVELES.md`; §5x-§5z antes de §6, §6 marcado histórico, §0 reescrito con Todo/Blockers/Completed; el soak de partida completa casi no entra a niveles (ruido, no regresión de T77): queda un bot dirigido pendiente)
 - **Qué hacer:** (1) ejecutar los 7 niveles con entrada simulada y registrar resultados en `docs/NIVELES.md`; (2) reordenar PROGRESS.md (secciones 5x–5z después de la 6, correcciones superpuestas), dejando §0 con Current focus / Todo / Blockers al día; (3) mover lo completado a "Completed".
 - **Verificar:** `make` y `make test` limpios; PROGRESS.md sin contradicciones.
 
