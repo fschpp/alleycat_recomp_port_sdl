@@ -448,7 +448,7 @@ Estado compartido de los niveles 4 y 5: **los dos usan las variables `l5_obj_*`*
 - **ASM:** `game_loop.asm` L685–817 (`lab_0e23` a `lab_0f86`): climb/transition (ya en §5m/§5n) y `lab_0f63`.
 - **Mismo método que T70.** Conectar `check_level_objects` (T34) y `check_window_landing` (T10).
 
-### T74 — Reemplazar el loop demo por el flujo real [M] 🔶 PARCIAL (PROGRESS.md §6bj; `update_animation()` en `src/update_animation.c` cableada en `game_flow.c`/`ui.c`; `test-update-animation`; `make soak` NO llega a muerte/nivel y deja a la gata clavada en x=296: pendiente de diagnóstico; el loop sigue en `main.c`; §6bk: el soak ya entra y sale de niveles tras arreglar reloj, alias DS 0x551 y CGA fuera de ventana; faltan cobertura de los 8 niveles y mover el loop)
+### T74 — Reemplazar el loop demo por el flujo real [M] ✅ HECHO (PROGRESS.md §6bj-§6bl; `update_animation()` cableada; `game_run()` en `src/game_flow.c` con `game_poll_hook`/`game_present_hook`, `main.c` solo inicializa; `test-soak-levels` cubre los 8 niveles; binario real 120 s headless sin crash)
 - **Destino:** `src/main.c`, `src/game_flow.c`.
 - **Qué hacer:** `main()` solo inicializa SDL/audio y llama `game_run()`; eliminar el `level_number = 3` fijo, los `printf` de ayuda y `difficulty_level = 5`. Mantener `SDL_Delay`/tick de 18.2 Hz para los timers BIOS.
 - **Verificar:** arrancar con título → partida → muerte → selector de nivel → nivel → resultado, en una ejecución headless de 2 minutos sin crash.

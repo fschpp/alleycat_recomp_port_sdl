@@ -60,6 +60,15 @@ gl_next_t game_level_frame(void);
  * start_in_level/level_state/level_number y level_transition y devuelve GF_TO_00F3. */
 gf_next_t game_level_exit(void);
 
+/* T74: el flujo completo (titulo -> partida -> callejon/niveles -> muerte -> selector -> resultado). Es el bucle que
+ * estaba en main.c; la parte de plataforma (SDL) entra por hooks para que game_flow.c siga sin SDL:
+ *   game_poll_hook:  una vez por frame, ANTES de la logica (eventos, input_poll). Devuelve false para salir.
+ *   game_present_hook: una vez por frame, DESPUES de la logica (video_present + retardo ~30 Hz).
+ * game_run() sale al recibir false del poll, o con reboot_requested/quit_requested (hardware.h). */
+extern bool (*game_poll_hook)(void);
+extern void (*game_present_hook)(void);
+void game_run(void);
+
 /* Hooks de test (NULL = hardware real). */
 extern uint16_t (*game_tick_fn)(void);        /* int 0x1a: ticks BIOS (18.2 Hz) */
 extern uint16_t (*pit_counter_fn)(void);      /* PIT canal 0 latcheado (read_pit_counter) */

@@ -476,3 +476,36 @@ gf_next_t game_level_exit(void) {
     level_transition();
     return GF_TO_00F3;
 }
+
+/* ===================== T74: bucle de frames (antes en main.c) ===================== */
+
+bool (*game_poll_hook)(void) = NULL;
+void (*game_present_hook)(void) = NULL;
+
+void game_run(void) {
+    /* entry.asm L27-143: init, titulo, attract, nueva partida, callejon; vuelve donde empieza lab_0155. */
+    game_start();
+
+    bool in_level = false;                         /* true mientras corre el loop de un nivel (T42/T43) en vez del callejon */
+    for (;;) {
+        if (game_poll_hook && !game_poll_hook()) break;
+        if (reboot_requested || quit_requested) break;   /* T51: Ctrl+Alt+Del; T61: Ctrl+Y (salir al DOS) */
+
+        gf_next_t next;
+        if (in_level)
+            next = (game_level_frame() == GL_EXIT) ? game_level_exit() : GF_STAY;   /* lab_027e/lab_02c5/lab_0319 */
+        else
+            next = game_alley_frame();                                                /* una pasada de lab_0155 */
+
+        if (game_present_hook) game_present_hook();
+
+        switch (next) {
+        case GF_STAY:    break;
+        case GF_TO_0081: in_level = false; game_flow_run(GF_LAB_0081); break;   /* game over -> titulo */
+        case GF_TO_00A3: in_level = false; game_flow_run(GF_LAB_00A3); break;   /* timeout -> attract */
+        case GF_TO_00AE: in_level = false; game_flow_run(GF_LAB_00AE); break;   /* restart */
+        case GF_TO_00F3: in_level = false; game_flow_run(GF_LAB_00F3); break;   /* salida de nivel -> callejon (lab_0427) */
+        case GF_TO_0238: in_level = game_level_enter(); break;                  /* murio: level_number ya elegido */
+        }
+    }
+}

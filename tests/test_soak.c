@@ -29,6 +29,33 @@ static uint16_t soak_clock(void) { return (uint16_t)(soak_frame / 3 + soak_reads
 static uint16_t pit_fn(void)  { return (uint16_t)(rand() & 0xffff); }
 static unsigned seen_levels;
 
+/* T74: cobertura de niveles. Para cada nivel 0..7: partida nueva, se fuerza level_number y se entra por game_level_enter()
+ * (lo que hace lab_0238 tras morir), y se corre el loop del nivel con entrada aleatoria hasta GL_EXIT o `cap` frames.
+ * Informa por nivel: frames corridos, si salio, y vidas. */
+static int run_levels(long cap) {
+    int bad = 0;
+    for (int lv = 0; lv < 8; lv++) {
+        srand(740 + lv);
+        game_flow_run(GF_LAB_00AE);
+        game_death_handler();                         /* start_in_level=1, saved_cat_x/y, elige un nivel... */
+        level_number = lv;                            /* ...que se pisa por el forzado */
+        game_level_enter();
+        long f; int hold = 0; int8_t hk = 0, vk = 0; int exited = 0;
+        for (f = 0; f < cap; f++) {
+            soak_frame = f; soak_reads = 0;
+            ua_tick_override = -1;
+            if (hold-- <= 0) { hold = 10 + rand() % 120; hk = (int8_t)(rand() % 3 - 1); vk = (int8_t)(rand() % 3 - 1); }
+            input_horizontal = hk; input_vertical = vk; input_fire = (rand() % 8) == 0;
+            restart_game = false; show_attract = false;
+            if (game_level_frame() == GL_EXIT) { exited = 1; f++; break; }
+        }
+        printf("nivel %d: %ld frames, %s, level_number=%u lives=%u\n", lv, f, exited ? "SALIO" : "sigue", (unsigned)level_number, (unsigned)lives_count);
+        if (exited) (void)game_level_exit(); else bad++;
+    }
+    printf(bad ? "soak-levels: FALLO (%d niveles sin salir)\n" : "soak-levels: OK (8 niveles entran y salen)\n", bad);
+    return bad != 0;
+}
+
 int main(int argc, char **argv) {
     long frames = (argc > 1) ? atol(argv[1]) : 200000;
     srand(74);
@@ -36,6 +63,7 @@ int main(int argc, char **argv) {
     game_tick_fn = tick_fn;
     bios_clock_hook = soak_clock;
     pit_counter_fn = pit_fn;
+    if (argc > 2 && argv[2][0] == 'l') return run_levels(frames);   /* ./test_soak <cap> levels */
     game_flow_run(GF_LAB_00AE);                     /* nueva partida -> callejon listo (lab_0155) */
     int in_level = 0; long exits = 0, deaths = 0, enters = 0;
     for (long f = 0; f < frames; f++) {
