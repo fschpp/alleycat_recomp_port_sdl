@@ -32,7 +32,7 @@ void __wrap_init_level7_objects(void)      { ev(E_L7_INIT); }
 void __wrap_init_music(void)               { ev(E_MUSIC); }
 void __wrap_init_level5_objects(void)      { ev(E_L5_INIT); }
 void __wrap_play_sound(void)               { ev(E_PLAY); }
-void __wrap_update_alley_movement(void)    { ev(E_ANIM); }
+void __wrap_update_animation(void)    { ev(E_ANIM); }
 void __wrap_update_cupid(void)             { ev(E_CUPID); }
 void __wrap_tick_level_thrown_objects(void){ ev(E_L7TICK); }
 void __wrap_spawn_thrown_object(void)      { ev(E_L7SPAWN); }

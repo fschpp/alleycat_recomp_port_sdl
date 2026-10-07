@@ -2,7 +2,7 @@ CC      := cc
 CFLAGS  := -std=c11 -D_POSIX_C_SOURCE=199309L -Wall -Wextra -O2 -Iinclude $(shell pkg-config --cflags sdl2)
 LDFLAGS := $(shell pkg-config --libs sdl2)
 
-SRC := src/main.c src/cga.c src/speaker.c src/sound.c src/audio.c src/video.c src/input.c src/cat_state.c src/animation.c src/movement.c src/game_setup.c src/alley.c src/alley_movement.c src/level_collision.c src/throw.c src/alley_drawing.c src/enemy.c src/cycle_objects.c src/jump_gravity.c src/fall_object.c src/score.c src/score_bar.c src/level_background.c src/level3_enemy.c src/level_objects.c src/level45_state.c src/level4.c src/level5.c src/level6.c src/level2.c src/level7_epilogue.c src/game_flow.c src/transition.c src/wipe.c src/result.c src/palette.c src/bios_text.c src/font8x8.c src/ui.c src/cupid.c src/cupid_draw.c src/hardware.c src/joystick.c src/keyboard.c src/animation_entry.c src/animation_c.c src/animation_d.c src/flow_stubs.c src/gen_cat_walk_frames.c src/gen_cat_alley_walk_frames.c src/gen_cat_gap1_sprites.c src/gen_death_sprite.c src/gen_object_sprites.c src/gen_level_geometry.c src/gen_enemy_sprites.c src/gen_obj_hit_sprites.c src/gen_enemy_verified_sprites.c src/gen_fall_sprite.c src/gen_digit_sprites.c src/gen_ds_pool.c
+SRC := src/main.c src/cga.c src/speaker.c src/sound.c src/audio.c src/video.c src/input.c src/cat_state.c src/animation.c src/movement.c src/game_setup.c src/alley.c src/alley_movement.c src/level_collision.c src/throw.c src/alley_drawing.c src/enemy.c src/cycle_objects.c src/jump_gravity.c src/fall_object.c src/score.c src/score_bar.c src/level_background.c src/level3_enemy.c src/level_objects.c src/level45_state.c src/level4.c src/level5.c src/level6.c src/level2.c src/level7_epilogue.c src/game_flow.c src/transition.c src/wipe.c src/result.c src/palette.c src/bios_text.c src/font8x8.c src/ui.c src/cupid.c src/cupid_draw.c src/hardware.c src/joystick.c src/keyboard.c src/animation_entry.c src/animation_c.c src/animation_d.c src/update_animation.c src/flow_stubs.c src/gen_cat_walk_frames.c src/gen_cat_alley_walk_frames.c src/gen_cat_gap1_sprites.c src/gen_death_sprite.c src/gen_object_sprites.c src/gen_level_geometry.c src/gen_enemy_sprites.c src/gen_obj_hit_sprites.c src/gen_enemy_verified_sprites.c src/gen_fall_sprite.c src/gen_digit_sprites.c src/gen_ds_pool.c
 OBJ := $(SRC:src/%.c=build/%.o)
 BIN := build/alleycat
 
@@ -157,14 +157,14 @@ test-game-flow: build/test_game_flow
 
 build/test_game_flow_loop: tests/test_game_flow_loop.c $(TEST_SRC) include/*.h
 	@mkdir -p build
-	$(CC) $(CFLAGS) -Wl,--wrap=update_alley_movement,--wrap=update_enemies,--wrap=play_sound,--wrap=update_thrown_objects,--wrap=update_cat_jump,--wrap=apply_cat_gravity,--wrap=animate_falling,--wrap=update_cycle_objects,--wrap=draw_lives tests/test_game_flow_loop.c $(TEST_SRC) -o $@
+	$(CC) $(CFLAGS) -Wl,--wrap=update_animation,--wrap=update_enemies,--wrap=play_sound,--wrap=update_thrown_objects,--wrap=update_cat_jump,--wrap=apply_cat_gravity,--wrap=animate_falling,--wrap=update_cycle_objects,--wrap=draw_lives tests/test_game_flow_loop.c $(TEST_SRC) -o $@
 
 test-game-flow-loop: build/test_game_flow_loop
 	./build/test_game_flow_loop
 
 build/test_game_level: tests/test_game_level.c $(TEST_SRC) include/*.h
 	@mkdir -p build
-	$(CC) $(CFLAGS) -Wl,--wrap=level_transition,--wrap=draw_level_background,--wrap=setup_level,--wrap=init_sound,--wrap=init_thrown_objects,--wrap=reset_cupid,--wrap=init_level7_objects,--wrap=init_music,--wrap=init_level5_objects,--wrap=play_sound,--wrap=update_alley_movement,--wrap=update_cupid,--wrap=tick_level_thrown_objects,--wrap=spawn_thrown_object,--wrap=update_level7_objects,--wrap=update_level6_movement,--wrap=update_level6_timing,--wrap=update_enemies,--wrap=tick_thrown_objects,--wrap=update_level5_objects,--wrap=update_level5_anim,--wrap=init_level4_objects,--wrap=update_level4_state,--wrap=update_level4_anim,--wrap=init_level3_doors,--wrap=init_level3_enemy,--wrap=update_level3_enemy,--wrap=update_level3_doors,--wrap=update_entrance_anim,--wrap=init_level2_objects,--wrap=update_level2_objects,--wrap=animate_level2_blocks tests/test_game_level.c $(TEST_SRC) -o $@
+	$(CC) $(CFLAGS) -Wl,--wrap=level_transition,--wrap=draw_level_background,--wrap=setup_level,--wrap=init_sound,--wrap=init_thrown_objects,--wrap=reset_cupid,--wrap=init_level7_objects,--wrap=init_music,--wrap=init_level5_objects,--wrap=play_sound,--wrap=update_animation,--wrap=update_cupid,--wrap=tick_level_thrown_objects,--wrap=spawn_thrown_object,--wrap=update_level7_objects,--wrap=update_level6_movement,--wrap=update_level6_timing,--wrap=update_enemies,--wrap=tick_thrown_objects,--wrap=update_level5_objects,--wrap=update_level5_anim,--wrap=init_level4_objects,--wrap=update_level4_state,--wrap=update_level4_anim,--wrap=init_level3_doors,--wrap=init_level3_enemy,--wrap=update_level3_enemy,--wrap=update_level3_doors,--wrap=update_entrance_anim,--wrap=init_level2_objects,--wrap=update_level2_objects,--wrap=animate_level2_blocks tests/test_game_level.c $(TEST_SRC) -o $@
 
 test-game-level: build/test_game_level
 	./build/test_game_level
@@ -234,7 +234,7 @@ test-hardware: build/test_hardware
 
 build/test_title: tests/test_title.c $(TEST_SRC) include/*.h
 	@mkdir -p build
-	$(CC) $(CFLAGS) -Wl,--wrap=init_player,--wrap=init_cycle_objects,--wrap=draw_alley_scene,--wrap=setup_alley,--wrap=draw_high_score_display,--wrap=draw_current_score,--wrap=draw_lives,--wrap=init_sound,--wrap=play_music_note,--wrap=update_alley_movement,--wrap=title_music_restart tests/test_title.c $(TEST_SRC) -o $@
+	$(CC) $(CFLAGS) -Wl,--wrap=init_player,--wrap=init_cycle_objects,--wrap=draw_alley_scene,--wrap=setup_alley,--wrap=draw_high_score_display,--wrap=draw_current_score,--wrap=draw_lives,--wrap=init_sound,--wrap=play_music_note,--wrap=update_animation,--wrap=title_music_restart tests/test_title.c $(TEST_SRC) -o $@
 
 test-title: build/test_title
 	./build/test_title
@@ -331,6 +331,21 @@ build/test_attract: tests/test_attract.c $(TEST_SRC) include/*.h
 test-attract: build/test_attract
 	./build/test_attract
 
-test: test-alley test-l3doors test-level4 test-level4-state test-level5 test-level5-anim test-level5-objects test-level6 test-level6b test-level6c test-level6d test-level2 test-level2b test-level2c test-level2d test-level7 test-level7b test-level7c test-game-flow test-game-flow-loop test-game-level test-palette test-transition test-wipe test-result test-level-complete test-score-bar-a test-score-bar-b test-ui-text test-hardware test-title test-attract test-pause test-cupid test-cupid-draw test-outro test-joystick test-keys test-input-keys test-animation-entry test-animation-b test-animation-c1 test-animation-c2 test-animation-d
+test: test-alley test-l3doors test-level4 test-level4-state test-level5 test-level5-anim test-level5-objects test-level6 test-level6b test-level6c test-level6d test-level2 test-level2b test-level2c test-level2d test-level7 test-level7b test-level7c test-game-flow test-game-flow-loop test-game-level test-palette test-transition test-wipe test-result test-level-complete test-score-bar-a test-score-bar-b test-ui-text test-hardware test-title test-attract test-pause test-cupid test-cupid-draw test-outro test-joystick test-keys test-input-keys test-animation-entry test-animation-b test-animation-c1 test-animation-c2 test-animation-d test-update-animation
 
-.PHONY: all run clean test test-alley test-l3doors test-level4 test-level4-state test-level5 test-level5-anim test-level5-objects test-level6 test-level6b test-level6c test-level6d test-level2 test-level2b test-level2c test-level2d test-level7 test-level7b test-level7c test-game-flow test-game-flow-loop test-game-level test-palette test-transition test-wipe test-result test-level-complete test-score-bar-a test-score-bar-b test-ui-text test-hardware test-title test-attract test-pause test-cupid test-cupid-draw test-outro test-joystick test-keys test-input-keys test-animation-entry test-animation-b test-animation-c1 test-animation-c2 test-animation-d
+.PHONY: all run clean test test-alley test-l3doors test-level4 test-level4-state test-level5 test-level5-anim test-level5-objects test-level6 test-level6b test-level6c test-level6d test-level2 test-level2b test-level2c test-level2d test-level7 test-level7b test-level7c test-game-flow test-game-flow-loop test-game-level test-palette test-transition test-wipe test-result test-level-complete test-score-bar-a test-score-bar-b test-ui-text test-hardware test-title test-attract test-pause test-cupid test-cupid-draw test-outro test-joystick test-keys test-input-keys test-animation-entry test-animation-b test-animation-c1 test-animation-c2 test-animation-d test-update-animation
+
+build/test_update_animation: tests/test_update_animation.c $(TEST_SRC) include/*.h
+	@mkdir -p build
+	$(CC) $(CFLAGS) -Wl,--wrap=update_animation_entry,--wrap=update_cat_movement,--wrap=update_cat_dive,--wrap=update_cat_frame,--wrap=update_animation_c1,--wrap=update_animation_c2,--wrap=update_animation_d tests/test_update_animation.c $(TEST_SRC) -o $@
+
+test-update-animation: build/test_update_animation
+	./build/test_update_animation
+
+# Soak headless del flujo real (T74): no entra en `make test` (es largo y no tiene aserciones finas), `make soak`.
+build/test_soak: tests/test_soak.c $(TEST_SRC) include/*.h
+	@mkdir -p build
+	$(CC) $(CFLAGS) -Wl,--wrap=speaker_spin_cycles,--wrap=read_bios_tick tests/test_soak.c $(TEST_SRC) -o $@
+
+soak: build/test_soak
+	timeout 300 ./build/test_soak

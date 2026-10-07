@@ -19,7 +19,7 @@ enum { E_KEYS = 1, E_ANIM, E_ENEMIES, E_SOUND, E_THROWN, E_JUMP, E_GRAV, E_FALL,
 static int tr[256]; static int ntr;
 static void ev(int e) { if (ntr < 256) tr[ntr++] = e; }
 void input_process_keys(void)        { ev(E_KEYS); }
-void __wrap_update_alley_movement(void) { ev(E_ANIM); }
+void __wrap_update_animation(void) { ev(E_ANIM); }
 void __wrap_update_enemies(void)     { ev(E_ENEMIES); }
 void __wrap_play_sound(void)         { ev(E_SOUND); }
 void __wrap_update_thrown_objects(void) { ev(E_THROWN); }
