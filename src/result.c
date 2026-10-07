@@ -48,7 +48,7 @@ void show_level_result(void) {
     uint8_t al;
 
     if (level_state != 0x7) goto lab_1d81;               /* cmp word [0x6],7 */
-    love_scene_outro();                                  /* TODO(T58): stub en flow_stubs.c */
+    love_scene_outro();                                  /* T58: ui.c */
     return;
 lab_1d81:
     init_result_melody();

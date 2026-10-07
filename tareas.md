@@ -401,7 +401,7 @@ Estado compartido de los niveles 4 y 5: **los dos usan las variables `l5_obj_*`*
 - **Notas:** `cupid_toggle_window` es el segundo escritor de `window_open_state` (ver §6f). Llama `draw_bg_tile` (T39).
 - **Verificar:** alternar una ventana dos veces deja `window_open_state` como al inicio; `check_cupid_collision` con y sin solape.
 
-### T58 — `love_scene_outro` [M · 82]
+### T58 — `love_scene_outro` [M · 82] ✅ HECHO (PROGRESS.md §6bb; `src/ui.c`; `shr ax,0x0` del listado es `shr ax,1`; con `sound_enabled=0` solo escribe el `silence_speaker` final; `title_scroll_pos` termina en 0x1a65; stub de `flow_stubs.c` eliminado)
 - **ASM:** `ui.asm` L489–570.
 - **Destino:** `src/ui.c`.
 - **Datos:** `title_scroll_pos=0x6f24`, `title_scroll_tick_1=0x6f26`, `title_scroll_tick_2=0x6f28`.
