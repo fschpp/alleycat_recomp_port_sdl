@@ -453,7 +453,7 @@ Estado compartido de los niveles 4 y 5: **los dos usan las variables `l5_obj_*`*
 - **Qué hacer:** `main()` solo inicializa SDL/audio y llama `game_run()`; eliminar el `level_number = 3` fijo, los `printf` de ayuda y `difficulty_level = 5`. Mantener `SDL_Delay`/tick de 18.2 Hz para los timers BIOS.
 - **Verificar:** arrancar con título → partida → muerte → selector de nivel → nivel → resultado, en una ejecución headless de 2 minutos sin crash.
 
-### T75 — Checklist de cableado por nivel [M]
+### T75 — Checklist de cableado por nivel [M] ✅ HECHO (PROGRESS.md §6bm; `docs/NIVELES.md` + `tools/check_niveles.py`; ninguna celda vacía; D1 `immune_flag = 0` por frame del callejón queda como T75b)
 - **Qué hacer:** una tabla en `docs/NIVELES.md` con, por nivel 0–7, cada función del ASM que `entry.asm` llama (init, update, exit) y la función C que la cubre. Cualquier celda vacía abre una tarea nueva.
 - **Verificar:** ninguna celda vacía.
 
