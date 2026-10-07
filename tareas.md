@@ -431,7 +431,7 @@ Estado compartido de los niveles 4 y 5: **los dos usan las variables `l5_obj_*`*
 
 ## FASE 5: auditoría, integración y cierre
 
-### T70 — Auditoría de `update_animation` A [L · 128]
+### T70 — Auditoría de `update_animation` A [L · 128] ✅ HECHO (PROGRESS.md §6be; `src/animation_entry.c`: compuerta tick/`pcjr_delay`, bloqueos nivel 4/6 y bloque del nivel 2 (muerte por tiempo, maullido, borde) no existían; fix de `jc lab_0a2e` en `update_cat_movement`; `update_cat_dive` separada; sin cablear hasta T74/T75; `test-animation-entry`; 3 sospechas para T71 en §6be)
 - **ASM:** `game_loop.asm` L158–285 (`lab_08fc` a `lab_0a1a`: despacho por `level_number` y el bloque del nivel 2, ya portado en `select_cat_sprite`/`update_cat_movement`).
 - **Qué hacer:** (1) **solo lectura**: tabla `lab_XXXX → función C` y lista de ramas sin portar; (2) portar las que falten (muerte por ahogamiento, `play_death_melody`, `play_meow_sound`, bordes de color).
 - **Destino:** `src/movement.c`/`src/animation.c`. **Verificar:** test por rama; comparar con los tests de §5b/§5e.

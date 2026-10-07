@@ -14,7 +14,7 @@ graphics assets, so it is not meant to be published or redistributed.
 
 ## 0. Current focus / todo / blockers
 
-**Current focus:** `tareas.md` execution: T00, T10-T45 (§6g-§6ap) and **T46** (`show_level_result` + `draw_result_frame` in `src/result.c`, §6aq) **T47** (`handle_level_complete` in `src/score.c`, §6ar) **T48** (bonus text/flash/mask + BIOS text model and font, §6as) and **T49** (`animate_score_bar`, `binary_to_bcd` in `src/score_bar.c`, §6at) are done: the bonus bar is fully real now. **T50** (`src/ui.c`: `print_string`, `set_cursor`, `wait_for_input`, `display_text_line`, `clear_cga`, §6au) is done too. **T51** (`src/hardware.c`: `check_special_keys`, `init_bios_data`, `detect_video`, `print_startup_msg`, §6av) too. **T52 + T53** (`show_title_screen`, `move_title_cat`, `animate_title_icon` in `src/ui.c`, §6aw) too. **T54** (`show_attract_mode`, `detect_joystick`, `test_joystick_axis` in `src/ui.c`, §6ax) too. **T55** (`show_pause_menu` in `src/ui.c`, `set_bios_tick` in `score.c`, §6ay) too. **T56** (`reset_cupid`, `update_cupid` in `src/cupid.c`, §6az) too. **T57** (`draw_cupid`, `erase_cupid`, `cupid_toggle_window`, `check_cupid_collision` in `src/cupid_draw.c`, §6ba) too: the level-7 flying enemy is fully real. **T58** (`love_scene_outro` in `src/ui.c`, §6bb) too: `flow_stubs.c` now holds no stub of a pending task (only the weak `input_process_keys` fallback). **T59 + T60** (joystick: UI part already done in T54; `poll_joystick`/`decode_joystick_axis` in `src/joystick.c`, wired into `game_flow.c`, §6bc) too. **T61** (`read_keyboard_dirs`/`process_keyboard` in `src/keyboard.c`; `input.c` now plays the INT 9 handler; §6bd) too: Phase 4 is complete. Next up: Phase 5 (T70+, audit and integration). `main.c` runs the real flow for every level.
+**Current focus:** `tareas.md` execution: T00, T10-T45 (§6g-§6ap) and **T46** (`show_level_result` + `draw_result_frame` in `src/result.c`, §6aq) **T47** (`handle_level_complete` in `src/score.c`, §6ar) **T48** (bonus text/flash/mask + BIOS text model and font, §6as) and **T49** (`animate_score_bar`, `binary_to_bcd` in `src/score_bar.c`, §6at) are done: the bonus bar is fully real now. **T50** (`src/ui.c`: `print_string`, `set_cursor`, `wait_for_input`, `display_text_line`, `clear_cga`, §6au) is done too. **T51** (`src/hardware.c`: `check_special_keys`, `init_bios_data`, `detect_video`, `print_startup_msg`, §6av) too. **T52 + T53** (`show_title_screen`, `move_title_cat`, `animate_title_icon` in `src/ui.c`, §6aw) too. **T54** (`show_attract_mode`, `detect_joystick`, `test_joystick_axis` in `src/ui.c`, §6ax) too. **T55** (`show_pause_menu` in `src/ui.c`, `set_bios_tick` in `score.c`, §6ay) too. **T56** (`reset_cupid`, `update_cupid` in `src/cupid.c`, §6az) too. **T57** (`draw_cupid`, `erase_cupid`, `cupid_toggle_window`, `check_cupid_collision` in `src/cupid_draw.c`, §6ba) too: the level-7 flying enemy is fully real. **T58** (`love_scene_outro` in `src/ui.c`, §6bb) too: `flow_stubs.c` now holds no stub of a pending task (only the weak `input_process_keys` fallback). **T59 + T60** (joystick: UI part already done in T54; `poll_joystick`/`decode_joystick_axis` in `src/joystick.c`, wired into `game_flow.c`, §6bc) too. **T61** (`read_keyboard_dirs`/`process_keyboard` in `src/keyboard.c`; `input.c` now plays the INT 9 handler; §6bd) too: Phase 4 is complete. **T70** (audit of `update_animation` A, game_loop.asm L158-285: new `src/animation_entry.c`, §6be) too: the tick gate, the level-4/6 blocks and the whole level-2 block (phase time, meow, border colour, death) had NO C equivalent. Next up: T71 (audit B, L286-440). `main.c` runs the real flow for every level.
 T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-level4`, `test-level4-state`, `test-level5`, `test-level5-anim`, `test-level5-objects`, `test-level6`, `test-level6b`, `test-level6c`, `test-level6d`, `test-level2`, `test-level2b`, `test-level2c`, `test-level2d`, `test-level7`, `test-level7b`, `test-level7c`, `test-game-flow`, `test-game-flow-loop`).
 
 - [x] `sound.asm` — full port, wired into every previously-stubbed call site (§6e)
@@ -71,12 +71,13 @@ T01/T02 are still open (`make test` runs `test-alley`, `test-l3doors`, `test-lev
 - [x] T59 — joystick in UI: already done in T54 (`detect_joystick`, `test_joystick_axis`); decision: `joy_port_fn == NULL` = never detected (§6bc)
 - [x] T60 — `poll_joystick`, `decode_joystick_axis` (`joystick.c`, `joystick.h`); the 8 `TODO(T60)` in `game_flow.c` now call it; `test-joystick` (§6bc)
 - [x] T61 — `read_keyboard_dirs`, `process_keyboard` (`keyboard.c`, `keyboard.h`); `input.c` fills the 22-entry key matrix from SDL (INT 9 role); fixes the key bindings, the never-refreshed `joy_button` and Esc = pause; `test-keys`, `test-input-keys` (§6bd)
+- [x] T70 — audit of `update_animation` A (game_loop.asm L158-285): `update_animation_entry` (`animation_entry.c`, `animation_entry.h`: tick/`pcjr_delay` gate, level-4/6 blocks, level-2 block), `update_cat_dive` split out of `update_cat_movement`, **fix** of its `jc lab_0a2e` branch; `test-animation-entry`; NOT wired until T74/T75 (§6be)
 - [ ] T01 — full headless harness (`tests/harness.h`, `make test`); only `tests/test_alley_loop.c` exists so far
 - [x] T41 — alley loop pass, death handler, weighted level selector (`game_flow.c`); `main.c` wired to `game_start()`/`game_alley_frame()` (§6al)
 - [ ] `ui.asm` — `window_open_state` toggling, the other half of item (h)
 - [ ] §17 item (f): level-2 collectibles + bg tiles (unblocked since §6e)
 
-**Latest blockers/discoveries:** (§6g) `check_level_platform` in
+**Latest blockers/discoveries:** (§6be) `update_animation`'s entry is not called anywhere: every `game_level_frame` case goes straight to `update_alley_movement` (= lab_0e23), so the level-2 timeout death (`object_hit`), the meow and the border colours never run until T74/T75 wires `update_animation_entry`. T71 must also check three suspected deviations in lab_0a37..lab_0a86 (listed in §6be). Earlier: (§6g) `check_level_platform` in
 `level_collision.c` deviates from the ASM in three ways that T10 did NOT touch
 (see §6g "Open deviations"). Before that: item (h) was never blocked on
 `spawn_window_event` at all — two different things called "the window state
@@ -4413,6 +4414,43 @@ Suggested commit: `T59/T60: poll_joystick, decode_joystick_axis (input.asm L4-10
 
 Suggested commit: `T61: read_keyboard_dirs, process_keyboard (input.asm L90-193) en keyboard.c; input.c hace de ISR de INT 9; Esc = pausa, Ctrl+S/R/M/9/Y; refresca joy_button; test-keys, test-input-keys`
 
+
+## 6be. T70 — `update_animation` A: entry, level-4/6 blocks and level-2 block (`src/animation_entry.c`, `include/animation_entry.h`, `src/movement.c`; game_loop.asm L158-285)
+
+**Read-only table (lab_XXXX -> C), as T70 asked:**
+
+| ASM | What it does | C |
+|---|---|---|
+| `update_animation` .. `lab_08fc` | BIOS tick gate: same tick -> `pcjr_delay` countdown or `ret` | `update_animation_entry` (**new**; nothing existed) |
+| `lab_08fd`, `lab_090c` | new tick: `pcjr_delay = 0x20` (0x10 on PCjr); `lab_090c` is also reached when the countdown hits 0 | same |
+| `lab_091d` | level 2 or idle cat: `check_vsync` / `jz lab_08fc` | same (see decision below) |
+| `lab_0926`..`lab_0949` | `anim_last_tick = dx`, `anim_tick_delay = ax`; level 4 blocks while `l3_door_anim_frame != 0`; level 6 blocks while `dat_44bd != 0`; non-level-2 -> `jmp lab_0bac` | same (`UA_RET` / `UA_L0BAC`) |
+| `lab_0953`..`lab_09d6` | level 2, phase time `>= level2_phase1_ticks[d]`: `object_hit = 1` from `level2_death_ticks[d]`, meow every 6th call + `level2_rise` + masked sprite at DS 0x64e, then forced dive (`lab_09b9`) | same (`UA_L0A86`); the dive itself is `update_cat_dive` |
+| `lab_09d6`..`lab_09f6` | level 2, border colour 0/1/5/4 from `level2_color{1,2,3}_ticks[d]` | same, into `l2_border_color` (`int 0x10 ah=0xb` has no visible effect) |
+| `lab_09f6`..`lab_0a1a` | `prev_scroll_dir`/`prev_vert_dir` snapshot, `speed_ramp` ramp | `update_cat_movement` (already existed; **one branch was wrong**, below) |
+| `lab_0a86`..`lab_0ace` | `cat_y` from `anim_counter`/`in_level_mode` | `update_cat_dive` (body moved out of `update_cat_movement` unchanged, so lab_09b9 can jump to it) |
+
+**Branches that did not exist and are now ported:** the tick/`pcjr_delay` gate, both level blocks, the level-2 time phases, `object_hit` by timeout (the "drowning"), `play_meow_sound` + `level2_rise` + the 3x5-word meow sprite, the border colours. `play_death_melody` is not in L158-285 (it is in the L441+ range, T72/T73).
+
+**Fix in an existing function:** `update_cat_movement` did `if (speed_ramp < 0x10) goto lab_0a37;` for "no horizontal input", but the ASM is `cmp word [speed_ramp],0x10 / jc lab_0a2e` (L282): below the floor it resets `scroll_direction = 0` and `speed_ramp = 0x20`. Same class as the old jc/jnc inversions.
+
+**Details worth keeping:**
+- `mov si,0x64e` is an immediate (inside `alley_save_buf`, 0x05fa..0x066c): 30 bytes = 3 words x 5 rows (`cx=0x503`). `bp=0xe` is the blit's save area; the port uses its own static buffer (same decision as `show_pause_menu`).
+- Level-2 tables (`level2_phase1_ticks` 0x589, `level2_death_ticks` 0x599, `level2_color1/2/3_ticks` 0x5a9/0x5b9/0x5c9) have 8 words each, index `difficulty_level*2`; for difficulty 2: 192 / 264 / 48 / 96 / 144.
+- `cmp byte [cat_y],0xb3 / jc` jumps when `cat_y < 0xb3`; `sub dl,al / jnc / sub dl,dl` clamps to 0 on borrow; the `dl` is then `& 0xf8`.
+- When `pcjr_delay` reaches 0 by the countdown, `ax` is the leftover of `int 0x1a` (AH = 0, AL = midnight flag = 0), so `anim_tick_delay` becomes 0 on that path. Nothing in the port reads `anim_tick_delay` (alley.c uses the same DS word as a private temp), so it is exported as `ua_anim_tick_delay` for the tests.
+- **Decision:** `check_vsync` returns ZF = 1 when NOT in retrace (hardware.asm L38) and here `jz` = return. Without a CGA it is treated as "in retrace" (continue), otherwise level 2 and the idle cat would never advance.
+
+**Not wired (same policy as T31/T32/T36):** `game_level_frame` still calls `update_alley_movement` directly. Wiring `update_animation_entry` -> `update_cat_movement`/`update_cat_dive` -> `select_cat_sprite` for level 2 and the `lab_0bac` path for the others is T74/T75, once T71-T73 cover everything between.
+
+**Suspected deviations found while reading the next range (NOT touched, for T71):**
+1. `update_cat_movement`, no vertical input: ASM L300-307 is `not al` (al = 0xFF) / `cmp [anim_counter],0x10` / `jc lab_0a7e` (sets `in_level_mode = 0xFF`, `anim_counter = 0x20`); the C does `goto lab_0a86` instead of `lab_0a7e`.
+2. `max_swim_speed[difficulty_level & 0x5]` and `max_dive_depth[difficulty_level & 0x5]`: the ASM indexes directly (`shl bl,1` / `[si + max_dive_depth]`), no mask; `& 0x5` maps 2->0 and 3->1.
+3. `update_cat_dive` keeps the placeholder `cat_sprite_data == 0` instead of the `walk_sprite_ptrs[9]` footstep check (already commented in the code).
+
+**Verification:** `make test-animation-entry` (no SDL; expected values from the ASM and the real DS tables, not from running the C): gate (same tick / countdown 2->1->0 / new tick / PCjr), level-4 and level-6 blocks, border colour at the exact boundaries 47/48/95/96/143/144/191, phase 192 (no `object_hit`), 263 vs 264, meow timer 3->2 and 1->0->6, `level2_rise` +0x1e only with `cat_y >= 0xb3` and rise < 0xc8, sprite bytes at `y & 0xf8`, borrow clamp to y = 0, and the two `speed_ramp` boundary cases of the fixed branch. `make test`: all green, no warnings (`-Wall -Wextra`). main.c not compiled here (no libsdl2-dev); it was not touched.
+
+Suggested commit: `T70: entrada de update_animation (game_loop.asm L158-285) en animation_entry.c: compuerta tick/pcjr_delay, bloqueos nivel 4/6, bloque nivel 2 (muerte por tiempo, maullido, borde); fix jc lab_0a2e en update_cat_movement; update_cat_dive; test-animation-entry`
 
 ## 7. General lesson for this whole project
 

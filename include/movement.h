@@ -22,6 +22,9 @@ bool update_scroll(void);
  * afterward (do NOT update prev_* separately; this function already did). */
 void update_cat_movement(void);
 
+/* update_cat_dive (T70) — lab_0a86..lab_0ace: cat_y a partir de anim_counter/in_level_mode. */
+void update_cat_dive(void);
+
 /* update_walk_frame — ported from alley.asm. Advances the walk-cycle
  * phase (walk_anim_frame, 0-5) using its OWN independent speed-ramp
  * (scroll_speed/anim_accumulator — separate from update_cat_movement's
