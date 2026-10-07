@@ -29,7 +29,7 @@
 #include "sound.h"
 #include "enemy.h"
 #include "level7_epilogue.h"
-#include "alley_movement.h"
+#include "update_animation.h"
 #include "jump_gravity.h"
 #include "throw.h"
 #include "level_objects.h"
@@ -235,7 +235,7 @@ gf_next_t game_alley_frame(void) {
     if (restart_game) return GF_TO_00AE;            /* restart */
     poll_joystick();                                /* lab_0176 */
     immune_flag = 0;                                /* heredado del loop de main.c (T19) */
-    update_alley_movement();                        /* update_animation (auditoria T70-T73) */
+    update_animation();                        /* update_animation (T74) */
     update_enemies();
     if (enemy_active == 0x0) {
         frame_counter++;                            /* sin enemigo: throttle, fisica solo cada 4.o frame */
@@ -374,7 +374,7 @@ gl_next_t game_level_frame(void) {
         input_process_keys();                      /* process_keyboard */
         poll_joystick();
         play_sound();
-        update_alley_movement();                   /* update_animation */
+        update_animation();                   /* update_animation */
         update_cupid();
         tick_level_thrown_objects();
         spawn_thrown_object();
@@ -389,7 +389,7 @@ gl_next_t game_level_frame(void) {
         play_sound();
         update_level6_movement();
         update_level6_timing();
-        update_alley_movement();
+        update_animation();
         if (enemy_active != 0x0) update_enemies();     /* lab_02e3: si no, tick_thrown_objects */
         else tick_thrown_objects();
         /* cat_died | object_hit | cat_caught | restart_game | show_attract */
@@ -402,7 +402,7 @@ gl_next_t game_level_frame(void) {
         play_sound();
         update_level5_objects();
         update_level5_anim();
-        update_alley_movement();
+        update_animation();
         tick_thrown_objects();
         update_enemies();                          /* sin el `if enemy_active` del nivel 6 */
         /* object_hit | cat_caught | cat_died | show_attract | restart_game */
@@ -413,7 +413,7 @@ gl_next_t game_level_frame(void) {
         input_process_keys();
         poll_joystick();
         play_sound();
-        update_alley_movement();
+        update_animation();
         update_level4_state();
         update_level4_anim();
         tick_thrown_objects();
@@ -425,7 +425,7 @@ gl_next_t game_level_frame(void) {
         input_process_keys();
         poll_joystick();
         play_sound();
-        update_alley_movement();
+        update_animation();
         update_level3_enemy();
         update_level3_doors();
         tick_thrown_objects();
@@ -439,7 +439,7 @@ gl_next_t game_level_frame(void) {
         input_process_keys();
         poll_joystick();
         play_sound();
-        update_alley_movement();
+        update_animation();
         tick_thrown_objects();
         update_enemies();
         update_entrance_anim();
@@ -455,7 +455,7 @@ gl_next_t game_level_frame(void) {
         input_process_keys();
         poll_joystick();
         play_sound();
-        update_alley_movement();
+        update_animation();
         update_level2_objects();
         animate_level2_blocks();
         /* object_hit | cat_caught | show_attract | restart_game (SIN cat_died) */

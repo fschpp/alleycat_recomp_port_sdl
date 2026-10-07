@@ -29,7 +29,7 @@ void __wrap_draw_current_score(void)        { rec('C'); }
 void __wrap_draw_lives(void)                { rec('L'); }
 void __wrap_init_sound(void)                { rec('I'); }
 void __wrap_play_music_note(void)           { music_calls++; }
-void __wrap_update_alley_movement(void)     { update_calls++; last_scroll = scroll_speed; }
+void __wrap_update_animation(void)     { update_calls++; last_scroll = scroll_speed; }
 void __wrap_title_music_restart(uint16_t t) { restarts++; last_restart_tick = t; }
 
 static uint16_t now;

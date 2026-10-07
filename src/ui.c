@@ -12,7 +12,7 @@
 #include "sound.h"
 #include "input.h"
 #include "alley_drawing.h"
-#include "alley_movement.h"
+#include "update_animation.h"
 #include "cycle_objects.h"
 #include "fall_object.h"
 #include "game_setup.h"
@@ -141,7 +141,7 @@ lab_5df1:
     }
 lab_5e1c:
     scroll_speed = 0x4;                                    /* check_vsync != 0 */
-    update_alley_movement();                               /* update_animation (auditoria T70-T73) */
+    update_animation();                               /* update_animation (T74) */
 }
 
 /* show_title_screen (L55-156). Bloqueante como el original; ui_wait_hook presenta/bombea en cada vuelta. */
