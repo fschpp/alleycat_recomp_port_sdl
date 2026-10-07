@@ -5,6 +5,7 @@
 #include "jump_gravity.h"
 #include "enemy.h"
 #include "gen/enemy_verified_sprites.h"
+#include "gen/ds_pool.h"
 #include <stdint.h>
 #include <stdbool.h>
 #include <time.h>
@@ -145,6 +146,27 @@ void apply_cat_gravity(void) {
     }
 }
 
+/* draw_fish_line — lab_1a9a..lab_1ae6 de level_physics.asm (T77): cada tick del arco el original
+ * dibuja UNA scanline de 4 words en (jump_x, jump_draw_y) con `rep movsw` (copia opaca, no
+ * transparente). La fila es jump_draw_y - jump_y (0..14):
+ *   - subida (jump_anim_counter > 0xe): con [0x418] (force_level7) != 0 copia la fila de
+ *     jump_land_sprite_data (DS 0x15e0, paso 8 bytes); si no, `rep stosw` con 0 (borra la linea);
+ *   - bajada (<= 0xe): copia la fila de jump_land_sprites (DS 0x2681, paso 10 bytes: se leen 8). */
+#define DS_JUMP_LAND_SPRITE_DATA 0x15e0u
+#define DS_JUMP_LAND_SPRITES     0x2681u
+void draw_fish_line(void) {
+    size_t addr = calc_cga_addr(jump_draw_y, jump_x, NULL);
+    uint8_t row = (uint8_t)(jump_draw_y - jump_y);
+    static const uint8_t zeros[8] = {0};
+    const uint8_t *src;
+    if (jump_anim_counter > 0x0e) {
+        src = (force_level7 != 0) ? &ds_pool[DS_JUMP_LAND_SPRITE_DATA + (size_t)row * 8u] : zeros;
+    } else {
+        src = &ds_pool[DS_JUMP_LAND_SPRITES + (size_t)row * 10u];
+    }
+    blit_to_cga(src, addr, 4, 1);
+}
+
 /* update_cat_jump — literal port of the main per-tick dispatcher: spawns
  * the jumping fish (randomly, more often when the cat is idle too long),
  * animates its jump arc, and on landing near the cat, arms a gravity
@@ -165,12 +187,12 @@ void update_cat_jump(void) {
         if ((uint8_t)cat_y > 0x60) return;
         idle_aggro_flag = 0;
 
-        if (game_mode == 1 /* && byte[0x418]==0, unidentified flag, treated as 0 */) {
+        /* level_physics.asm L406-415: game_mode == 1 && [0x418] (force_level7) == 0 -> si han pasado
+         * >= 0x48 ticks desde [0x556] (mode_start_tick, lo escribe check_level_collision al pasar
+         * game_mode a 1), el gato esta "ocioso" y el pez salta con mas frecuencia. */
+        if (game_mode == 1 && force_level7 == 0) {
             uint16_t now = read_bios_tick();
-            /* [0x556] unidentified tick-reference; treated as 0, so this
-             * always measures "time since our own clock start" rather
-             * than a real reference point — a documented simplification. */
-            if (now >= 0x48) idle_aggro_flag = 1;
+            if ((uint16_t)(now - mode_start_tick) >= 0x48) idle_aggro_flag = 1;
         }
 
         uint8_t r = rnd_byte();
@@ -209,7 +231,7 @@ void update_cat_jump(void) {
         if (dt < jump_toss_delay) goto animate_arc;
         if (jump_toss_remaining == 0) return;
         if (gravity_y != 0) return;
-        /* byte[0x418] unidentified flag, treated as 0 */
+        if (force_level7 != 0) return;      /* cmp byte [0x418],0 / jnz lab_1a75: escena de amor forzada */
 
         jump_toss_remaining--;
         deduct_life = 1;
@@ -240,11 +262,6 @@ animate_arc:
             dl = (uint8_t)(dl + jump_anim_counter - 0x0e);
         }
         jump_draw_y = dl;
-        /* original then draws via a jump_land_sprite_data lookup for the
-         * landing effect and otherwise a normal sprite blit — not ported:
-         * this demo doesn't yet have the fish's own walking/jumping
-         * sprite bitmap extracted (a distinct sprite category from
-         * death/gravity/enemy/cycle), so the arc animates the underlying
-         * state correctly but has no visible sprite of its own yet. */
+        draw_fish_line();
     }
 }

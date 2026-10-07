@@ -9,6 +9,8 @@
 
 /* update_cat_jump — the main per-tick dispatcher. Call once per frame. */
 void update_cat_jump(void);
+/* T77: una scanline del arco del pez (level_physics.asm lab_1a9a..lab_1ae6); expuesta para tests. */
+void draw_fish_line(void);
 
 /* apply_cat_gravity — animates the thrown projectile's fall arc once
  * gravity_y != 0 (armed by update_cat_jump's toss). Call once per frame,
