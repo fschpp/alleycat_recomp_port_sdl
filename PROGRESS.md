@@ -4507,6 +4507,36 @@ Suggested commit: `T71: update_animation B (game_loop.asm L286-440): update_cat_
 
 Suggested commit: `T72 C1: update_animation L441-560 (lab_0bac..lab_0ce7) en animation_c.c: auto-entrada, at_platform, rebote, contadores de transicion; test-animation-c1`
 
+## 6bh. T72 C2 — `update_animation` C2: movimiento vertical, sprite y recortes (`src/animation_c.c`, `include/animation_c.h`; game_loop.asm L561-684)
+
+**Tabla de solo lectura (lab_XXXX -> C).** Todo este rango faltaba: C1 devolvía `AC_L0CE7`/`AC_L0D29` y nadie lo consumía.
+
+| ASM | Qué hace | C |
+|---|---|---|
+| `lab_0ce7`..`lab_0d06` | `in_level_mode != 1`: `al = cat_y_bottom - anim_counter`; con préstamo `al = 0`, modo 1, `anim_counter = 1` | `update_animation_c2` |
+| `lab_0d06`..`lab_0d22` | modo 1: `al += anim_counter` (8 bits, con vuelta); `<= 0xe6` pasa; nivel 7: `>= 0xf8` -> `al = 0xf8`, `cat_died = 1` | igual |
+| `lab_0d22`..`lab_0d4f` | tope: `al = 0xe6`, `game_mode = 0`; `lab_0d29`: modo 0, `auto_walk = 0`, `scroll_speed = 2`, timers a 0, `play_crash_sound` si `at_platform` | igual |
+| `lab_0d4f`..`lab_0d73` | `cat_y_bottom = al`; `cat_y = al - 0x32` saturado a 0; `cat_screen_pos`; `restore_alley_buffer` si `!sprite_hidden` | igual |
+| `lab_0d73`..`lab_0dc4` | `check_dog_collision` / `check_enemy_activate` con CF -> `sprite_hidden = 1`, ret | igual |
+| `lab_0d86`..`lab_0da8` | `auto_walk`: `recoil_frame += 2`, índice `& 0xe` en `recoil_sprite_ptrs`/`dims_tbl`; si no `vert_sprite_data/dims` | igual (`recoil_frame_at`) |
+| `lab_0dac`..`lab_0dca` | recorte superior si `cat_y_bottom < 0x32` (oculta si `bh <= al`) | igual |
+| `lab_0dde`..`lab_0e16` | recorte inferior: nivel 7 desde `cat_y >= 0xbb`; `game_mode == 2` desde `cat_y >= 0x5e`; `bh <= al` -> `lab_0e02` | igual |
+| `lab_0e02`..`lab_0e1f` | nivel 7: `cat_died = 1`; resto: `setup_alley` + `play_hiss_sound`; si no `draw_alley_foreground` | igual |
+
+**Diseño:** `update_animation_c2(ac_next_t from)` recibe lo que devolvió C1 (`AC_L0CE7` o `AC_L0D29`; con `AC_L0D29` entra en `lab_0d29` con `al = cat_y_bottom`). Cualquier otro valor no hace nada. Termina siempre en `ret`. Sin cablear hasta T74/T75.
+
+**Detalles que merece la pena conservar:**
+- `recoil_frame` (DS 0x0585, word) no existía: ahora es estado compartido en `cat_state`. `recoil_sprite_ptrs` (DS 0x0fc2) = `0xa2e,0xaca,0xbd2,0xb5a,0xa7c,0xb96,0xd5e,0xb12` y `recoil_sprite_dims_tbl` (0x0fd2) = `0xd03,0xc03,0xb03,0xa03,0xd03,0xa03,0xb03,0xc03`, verificados contra `/tmp/data_segment.bin`. Los índices 2 y 6 reutilizan `alley_walk_frames[0]` y `[6]`.
+- Particularidad del original (conservada): el recorte superior suma el offset a `vert_sprite_data` **aunque el sprite elegido sea el de retroceso** (`auto_walk`); las dims sí son las del retroceso.
+- `add al,[anim_counter]` es de 8 bits y `cmp al,0xe6 / jbe` va sin signo: `0xfc + 8` da la vuelta a 4 y pasa.
+- `sub bh,al / jz / jnc`: cero **o** préstamo (`bh <= al`) va a `lab_0dc4` (recorte superior) o `lab_0e02` (inferior).
+- El bucle `mov cx,0x168 / loop` es retardo puro: no hace nada en el port.
+- Con `vert_sprite` el `cat_sprite_data` (offset DS) no se guarda: el port usa puntero real (`cat_sprite_ptr`); sólo se escribe con `auto_walk`, donde el offset es conocido.
+
+**Verificación:** `make test-animation-c2` (esperados leídos del ASM): 8 casos de `anim_counter`/préstamo/vuelta, tope 0xe6, nivel 7, `lab_0d29` directo, `cat_y` saturado, `sprite_hidden`, enemigo, los 8 fotogramas de retroceso (dims y offsets), recortes superior e inferior (niveles != 7, `game_mode == 2` y nivel 7), `setup_alley`/`cat_died` al final. `make test`: todo verde, sin warnings.
+
+Suggested commit: `T72 C2: update_animation L561-684 (lab_0ce7..lab_0e1f) en animation_c.c: movimiento vertical, recoil_frame, recortes superior/inferior; test-animation-c2`
+
 ## 7. General lesson for this whole project
 
 **Never trust a same-file label as a data region's end boundary, and never

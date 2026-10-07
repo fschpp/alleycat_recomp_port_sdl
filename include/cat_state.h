@@ -64,6 +64,7 @@ extern uint8_t  transitioning;
 extern uint8_t  sprite_hidden;
 extern uint8_t  cat_died;
 extern uint8_t  auto_walk;
+extern uint16_t recoil_frame;             /* DS 0x0585 (word): indice*2 del ciclo de retroceso de auto_walk (T72 C2); inicial 0 */
 extern uint8_t  object_hit;
 extern uint16_t level_complete;
 extern uint8_t  cat_caught;

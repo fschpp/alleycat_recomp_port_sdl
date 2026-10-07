@@ -19,6 +19,12 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include "game_setup.h"
+#include "sound.h"
+#include "sprite.h"
+#include "gen/cat_gap1_sprites.h"
+#include "gen/cat_alley_walk_frames.h"
+#include <stdbool.h>
 
 ac_next_t update_animation_c1(void) {
     /* lab_0bac */
@@ -106,4 +112,148 @@ lab_0cd5:
 
 lab_0ce7:
     return AC_L0CE7;
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
+ * T72 C2 — game_loop.asm L561-684 (lab_0ce7 .. lab_0e1f), PROGRESS.md §6bh.
+ *
+ *   lab_0ce7..lab_0d06  in_level_mode != 1: al = cat_y_bottom - anim_counter (borrow -> al=0, modo 1, counter 1)
+ *   lab_0d06..lab_0d22  modo 1: al += anim_counter (8 bits, con vuelta); <=0xe6 ok; nivel 7: >=0xf8 -> cat_died
+ *   lab_0d22..lab_0d4f  tope 0xe6: game_mode = 0; lab_0d29: fin de transicion (+ crash si at_platform)
+ *   lab_0d4f..lab_0d73  cat_y_bottom/cat_y (-0x32, saturado a 0), cat_screen_pos, restore_alley_buffer
+ *   lab_0d73..lab_0dc4  check_dog_collision / check_enemy_activate -> sprite_hidden = 1, ret
+ *   lab_0d86..lab_0dac  sprite: auto_walk -> recoil[recoil_frame & 0xe]; si no vert_sprite
+ *   lab_0dac..lab_0dca  recorte por arriba si cat_y_bottom < 0x32; lab_0dde..lab_0e16 recorte por abajo
+ *   lab_0e1f            draw_alley_foreground
+ * ------------------------------------------------------------------------------------------------------------- */
+/* recoil_sprite_ptrs (DS 0x0fc2): verificados contra el segmento de datos resuelto. Las dims (0x0fd2) son
+ * (alto << 8) | 3 y salen del propio cat_walk_frame_t (0xd03,0xc03,0xb03,0xa03,0xd03,0xa03,0xb03,0xc03). */
+static const uint16_t recoil_ds_ptr[8] = { 0x0a2e, 0x0aca, 0x0bd2, 0x0b5a, 0x0a7c, 0x0b96, 0x0d5e, 0x0b12 };
+
+static const cat_walk_frame_t *recoil_frame_at(unsigned idx) {
+    /* los indices 2 y 6 reutilizan frames del ciclo del callejon (alley_walk_frames[0] = 0x0bd2, [6] = 0x0d5e) */
+    if (recoil_sprite[idx].data == NULL) return &alley_walk_frames[recoil_pool_b_frame_index[idx]];
+    return &recoil_sprite[idx];
+}
+
+void update_animation_c2(ac_next_t from) {
+    uint8_t al, bl, bh;
+    uint16_t ax_data = 0;                      /* `ax` de lab_0da8 como offset DS, cuando se conoce */
+    const uint8_t *ptr;
+
+    if (from != AC_L0CE7 && from != AC_L0D29) return;
+    al = cat_y_bottom;
+    if (from == AC_L0D29) goto lab_0d29;
+
+    /* lab_0ce7 */
+    if (in_level_mode == 0x1) goto lab_0d06;
+    {
+        uint8_t sub = anim_counter;
+        bool borrow = al < sub;
+        al = (uint8_t)(al - sub);
+        if (!borrow) goto lab_0d4f;                        /* jnc */
+        al = 0;                                            /* db 0x2a,0xc0: sub al,al */
+        in_level_mode = 0x1;
+        anim_counter = 0x1;
+        goto lab_0d4f;
+    }
+
+lab_0d06:
+    al = (uint8_t)(al + anim_counter);                     /* add al,[anim_counter]: sin acarreo a 16 bits */
+    if (al <= 0xe6) goto lab_0d4f;                         /* cmp al,0xe6 / jbe */
+    if (level_number != 0x7) goto lab_0d22;
+    if (al < 0xf8) goto lab_0d4f;                          /* cmp al,0xf8 / jc */
+    al = 0xf8;
+    cat_died = 0x1;
+    goto lab_0d4f;
+
+lab_0d22:
+    al = 0xe6;
+    game_mode = 0x0;
+
+lab_0d29:
+    in_level_mode = 0x0;
+    auto_walk = 0x0;
+    scroll_speed = 0x2;
+    transition_timer = 0x0;
+    transitioning = 0x0;
+    if (at_platform != 0x0) play_crash_sound();            /* push ax / call / pop ax: al se conserva */
+
+lab_0d4f:
+    cat_y_bottom = al;
+    cat_y = (al < 0x32) ? 0 : (uint8_t)(al - 0x32);        /* sub al,0x32 / jnc / sub al,al */
+    cat_screen_pos = (uint16_t)calc_cga_addr(cat_y, (uint16_t)cat_x, NULL);
+    if (sprite_hidden == 0x0) restore_alley_buffer();
+    if (check_dog_collision()) goto lab_0dc4;
+    if (check_enemy_activate()) goto lab_0dc4;
+    cat_draw_pos = cat_screen_pos;
+
+    if (auto_walk != 0x0) {
+        const cat_walk_frame_t *r;
+        recoil_frame = (uint16_t)(recoil_frame + 2);
+        r = recoil_frame_at((recoil_frame & 0xe) >> 1);
+        ptr = r->data;
+        ax_data = recoil_ds_ptr[(recoil_frame & 0xe) >> 1];
+        bl = r->width_words;
+        bh = r->height;
+    } else {
+        ptr = (vert_sprite != NULL) ? vert_sprite->data : NULL;
+        bl = (vert_sprite != NULL) ? vert_sprite->width_words : 0;
+        bh = (vert_sprite != NULL) ? vert_sprite->height : 0;
+    }
+    /* lab_0da8 */
+    cat_sprite_ptr = ptr;
+    if (auto_walk != 0x0) cat_sprite_data = ax_data;       /* con vert_sprite el offset DS no existe en el port (puntero real) */
+    cat_sprite_dims = (uint16_t)((bh << 8) | bl);
+
+    al = (uint8_t)(0x32 - cat_y_bottom);
+    if (cat_y_bottom >= 0x32) goto lab_0dde;               /* jz / jc */
+    /* El ASM gasta 0x168 vueltas de `loop` aqui: retardo puro, sin efecto en el port. */
+    {
+        bool cf_or_zero = (bh <= al);                      /* sub bh,al / jz lab_0dc4 / jnc lab_0dca */
+        if (cf_or_zero) goto lab_0dc4;
+        bh = (uint8_t)(bh - al);
+        cat_sprite_dims = (uint16_t)((bh << 8) | bl);
+        /* mul ah con ah = 2*bl: filas recortadas * bytes por fila. El ASM suma el offset a vert_sprite_data AUNQUE el
+         * sprite elegido sea el de retroceso (auto_walk); se conserva esa particularidad del original. */
+        {
+            const uint8_t *base = (vert_sprite != NULL) ? vert_sprite->data : NULL;
+            cat_sprite_ptr = (base != NULL) ? base + (unsigned)al * (2u * bl) : NULL;
+        }
+        goto lab_0e1f;
+    }
+
+lab_0dde:
+    if (level_number != 0x7) goto lab_0dee;
+    if (cat_y < 0xbb) goto lab_0e1f;                       /* sub al,0xbb / jc */
+    al = (uint8_t)(cat_y - 0xbb);
+    goto lab_0dfc;
+
+lab_0dee:
+    if (game_mode != 0x2) goto lab_0e1f;
+    if (cat_y < 0x5e) goto lab_0e1f;
+    al = (uint8_t)(cat_y - 0x5e);
+
+lab_0dfc:
+    if (bh <= al) goto lab_0e02;                           /* sub bh,al: cero o prestamo -> lab_0e02 */
+    bh = (uint8_t)(bh - al);                               /* lab_0e16 */
+    cat_sprite_dims = (uint16_t)((bh << 8) | bl);
+    anim_counter = 0x2;
+    goto lab_0e1f;
+
+lab_0e02:
+    if (level_number != 0x7) goto lab_0e0f;
+    cat_died = 0x1;
+    return;
+lab_0e0f:
+    setup_alley();
+    play_hiss_sound();
+    return;
+
+lab_0dc4:
+    sprite_hidden = 0x1;
+    return;
+
+lab_0e1f:
+    draw_alley_foreground();
 }
