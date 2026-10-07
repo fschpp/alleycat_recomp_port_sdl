@@ -8,3 +8,6 @@
 /* Respaldo debil de input_process_keys (input.c usa SDL y no esta en TEST_SRC): con input.c
  * enlazado gana su definicion fuerte; los tests sin SDL usan este no-op o definen la suya. */
 __attribute__((weak)) void input_process_keys(void) { }
+
+/* Respaldo debil de input_poll (input.c usa SDL): poll_joystick (joystick.c) lo llama sin joystick. */
+__attribute__((weak)) void input_poll(void) { }

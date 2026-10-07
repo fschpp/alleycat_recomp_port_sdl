@@ -101,7 +101,7 @@ int main(int argc, char **argv) {
         if (reboot_requested) running = false;     /* T51: Ctrl+Alt+Del (reinicio en caliente en el original) */
         if (!running) break;
 
-        input_poll();                              /* read_keyboard_dirs (port: SDL) */
+        if (!use_joystick) input_poll();           /* read_keyboard_dirs (port: SDL); con joystick lo pisaria poll_joystick (T60) */
         gf_next_t next;
         if (in_level) {
             /* one pass of the level loop (entry.asm lab_027e/lab_02c5/lab_0319, T42) */
