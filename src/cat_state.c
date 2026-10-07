@@ -36,6 +36,7 @@ uint8_t  game_mode = 0;
 uint8_t  at_platform = 0;
 uint8_t  transitioning = 0;
 uint8_t  sprite_hidden = 0;
+uint16_t recoil_frame = 0;
 uint8_t  cat_died = 0;
 uint8_t  auto_walk = 0;
 uint8_t  object_hit = 0;

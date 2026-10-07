@@ -16,4 +16,11 @@ typedef enum {
  * rebote de update_scroll, contadores de anim_step/anim_counter y temporizador de transicion. */
 ac_next_t update_animation_c1(void);
 
+/* lab_0ce7 .. lab_0e1f (T72 C2, game_loop.asm L561-684): movimiento vertical de cat_y_bottom (+-anim_counter), limites
+ * 0xe6/0xf8, fin de transicion (lab_0d29), cat_y/cat_screen_pos, borrado, choque con perro/enemigo, eleccion del sprite
+ * (vert_sprite o ciclo de retroceso recoil si auto_walk), recorte por arriba/abajo y dibujo. Termina siempre en `ret`.
+ * `from` es lo que devolvio update_animation_c1: AC_L0CE7 (entra en lab_0ce7) o AC_L0D29 (entra en lab_0d29 con
+ * al = cat_y_bottom). Cualquier otro valor no hace nada. */
+void update_animation_c2(ac_next_t from);
+
 #endif
