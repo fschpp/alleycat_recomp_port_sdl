@@ -421,7 +421,7 @@ Estado compartido de los niveles 4 y 5: **los dos usan las variables `l5_obj_*`*
 - **Notas:** **Opcional**, igual que T59. Si se hace, mapear ejes SDL a `scroll_direction`/`in_level_mode` con la misma codificación −1/0/1.
 - **Verificar:** eje simulado a izquierda/derecha produce las direcciones esperadas.
 
-### T61 — Verificación de `read_keyboard_dirs` y `process_keyboard` [M · 104]
+### T61 — Verificación de `read_keyboard_dirs` y `process_keyboard` [M · 104] ✅ HECHO (PROGRESS.md §6bd; había diferencias: faltaban diagonales, `joy_button` nunca se refrescaba, Esc era salir en vez de pausa y S/R/M no exigían Ctrl; ahora `src/keyboard.c` literal + `input.c` hace de ISR; `test-keys`, `test-input-keys`)
 - **ASM:** `input.asm` L90–193.
 - **Destino:** `src/input.c` (solo corregir si hay diferencias).
 - **Qué hacer:** comparar línea por línea con `input_poll`/`input_process_keys`; anotar en PROGRESS.md qué teclas coinciden (la tabla de scancodes ya está recuperada en §1).

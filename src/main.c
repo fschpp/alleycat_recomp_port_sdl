@@ -82,7 +82,7 @@ int main(int argc, char **argv) {
     ui_wait_hook = ui_wait_pump;
 
     printf("Alley Cat C/SDL port - entry.asm flow (T40/T41).\n");
-    printf("Arrow keys walk the cat; S toggles sound; R restarts; ESC quits.\n");
+    printf("Arrows (and PgUp/PgDn/End/Home diagonals) walk the cat, Alt = fire, Esc = pause; Ctrl+S sound, Ctrl+R restart, Ctrl+M demo, Ctrl+Y quit.\n");
     printf("%s\n", have_audio ? "Audio device opened OK." : "NO audio device - running silent.");
 
     /* entry.asm L27-143: init, title (T52 stub), attract (T54 stub), new game, alley setup.
@@ -95,10 +95,8 @@ int main(int argc, char **argv) {
         SDL_Event ev;
         while (SDL_PollEvent(&ev)) {
             if (ev.type == SDL_QUIT) running = false;
-            if (ev.type == SDL_KEYDOWN && ev.key.keysym.scancode == SDL_SCANCODE_ESCAPE)
-                running = false;
         }
-        if (reboot_requested) running = false;     /* T51: Ctrl+Alt+Del (reinicio en caliente en el original) */
+        if (reboot_requested || quit_requested) running = false;   /* T51: Ctrl+Alt+Del (reinicio en caliente); T61: Ctrl+Y (salir al DOS) */
         if (!running) break;
 
         if (!use_joystick) input_poll();           /* read_keyboard_dirs (port: SDL); con joystick lo pisaria poll_joystick (T60) */
