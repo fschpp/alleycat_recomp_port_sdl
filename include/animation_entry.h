@@ -22,4 +22,10 @@ extern uint16_t ua_anim_tick_delay;   /* DS 0x057f (lo escribe lab_0926) */
 /* Devuelve a que etiqueta del ASM sigue el control. */
 ua_next_t update_animation_entry(void);
 
+/* update_animation_l2_path (T71) — camino completo de update_animation para el nivel 2 (L158-440):
+ * entrada (T70) -> update_cat_movement (UA_L09F6) o update_cat_dive (UA_L0A86) -> update_cat_frame.
+ * UA_RET no hace nada; UA_L0BAC (niveles != 2) sigue en lab_0bac y es de T72, aqui no hace nada.
+ * Sin cablear hasta T74/T75. */
+void update_animation_l2_path(void);
+
 #endif

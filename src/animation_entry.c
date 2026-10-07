@@ -14,6 +14,7 @@
 #include "level2.h"
 #include "level6.h"
 #include "movement.h"
+#include "animation.h"
 #include "sound.h"
 #include "gen/ds_pool.h"
 
@@ -129,4 +130,14 @@ lab_09f6:
     l2_border_color = bl;                               /* mov ah,0xb / int 0x10 */
     }
     return UA_L09F6;
+}
+
+void update_animation_l2_path(void) {
+    switch (update_animation_entry()) {
+    case UA_RET:    return;
+    case UA_L0BAC:  return;                     /* T72 */
+    case UA_L09F6:  update_cat_movement(); break;   /* lab_09f6 .. lab_0a86 (incluye update_cat_dive) */
+    case UA_L0A86:  update_cat_dive(); break;       /* lab_0a86 */
+    }
+    update_cat_frame();                         /* lab_0ace .. lab_0bab */
 }

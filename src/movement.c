@@ -1,7 +1,10 @@
 #include "movement.h"
 #include "cat_state.h"
 #include "gen/cat_alley_walk_frames.h"
+#include "gen/ds_pool.h"
 #include <stdint.h>
+
+static uint16_t mv_ds_word(unsigned off) { return (uint16_t)(ds_pool[off] | (ds_pool[off + 1] << 8)); }
 
 /* update_scroll — literal port of alley.asm's update_scroll. */
 bool update_scroll(void) {
@@ -41,7 +44,8 @@ bool update_scroll(void) {
  * Exportada (T70) porque la rama de muerte del nivel 2 salta directo a lab_0a86 sin pasar por el
  * bloque de scroll anterior. Cuerpo sin cambios respecto a update_cat_movement. */
 void update_cat_dive(void) {
-    uint8_t dive_cap = max_dive_depth[difficulty_level & 0x5];
+    /* `[si + max_dive_depth]` con si = difficulty_level, SIN mascara (T71: el `& 0x5` anterior mapeaba 2->0 y 3->1) */
+    uint8_t dive_cap = ds_pool[0x067c + (uint16_t)difficulty_level];
     uint8_t bl = anim_counter >> 4;
     if (bl > dive_cap) bl = dive_cap;
 
@@ -78,7 +82,9 @@ lab_0abd:
      * benefit). sound.asm isn't ported yet, so this is a faithful no-op stub —
      * anim_last_tick/level2_tick are updated for future use but nothing
      * currently reads level2_tick. */
-    if (cat_sprite_data == 0 /* placeholder: real check needs walk_sprite_ptrs[9] wired in */) {
+    /* `mov ax,[0x9b8] / cmp ax,[cat_sprite_data] / jnz`: 0x9b8 = walk_sprite_ptrs[9] (0x9a6 + 0x12), el puntero
+     * de la 2.a pose quieta; cat_sprite_data lo deja update_cat_frame() (animation.c) en el frame anterior. */
+    if (mv_ds_word(0x09b8) == cat_sprite_data) {
         level2_tick = anim_last_tick;
     }
     dl = 0x2;
@@ -121,7 +127,8 @@ lab_0a2e:
 
 lab_0a37: {
     uint16_t speed = speed_ramp >> 3;
-    uint16_t cap = max_swim_speed[difficulty_level & 0x5];
+    /* `shl bl,1 / [bx + max_swim_speed]`, sin mascara (T71) */
+    uint16_t cap = mv_ds_word(0x066c + (((uint16_t)difficulty_level << 1) & 0xff));
     if (speed > cap) speed = cap;
     scroll_speed = speed;
     update_scroll();
@@ -130,8 +137,10 @@ lab_0a37: {
     al = input_vertical;
     if (al != 0) goto lab_0a6a;
 
-    /* no vertical input: keep in_level_mode as-is, decay anim_counter */
-    if (anim_counter < 0x10) goto lab_0a86;
+    /* ASM L300-307: `not al` (al = 0 -> 0xFF) / `cmp [anim_counter],0x10 / jc lab_0a7e`. Por debajo del piso se
+     * fija in_level_mode = 0xFF (-1) y anim_counter = 0x20 (el C anterior saltaba a lab_0a86; bug T71). */
+    al = (int8_t)~al;
+    if (anim_counter < 0x10) goto lab_0a7e;
     anim_counter--;
     goto lab_0a86;
 

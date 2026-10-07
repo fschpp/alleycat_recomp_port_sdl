@@ -436,7 +436,7 @@ Estado compartido de los niveles 4 y 5: **los dos usan las variables `l5_obj_*`*
 - **Qué hacer:** (1) **solo lectura**: tabla `lab_XXXX → función C` y lista de ramas sin portar; (2) portar las que falten (muerte por ahogamiento, `play_death_melody`, `play_meow_sound`, bordes de color).
 - **Destino:** `src/movement.c`/`src/animation.c`. **Verificar:** test por rama; comparar con los tests de §5b/§5e.
 
-### T71 — Auditoría de `update_animation` B [L · 155]
+### T71 — Auditoría de `update_animation` B [L · 155] ✅ HECHO (PROGRESS.md §6bf; `update_cat_frame` y `update_animation_l2_path` nuevas; 3 fixes en `update_cat_movement`/`update_cat_dive`; `select_cat_sprite` verificada sin cambios; sin cablear hasta T74/T75; `test-animation-b`)
 - **ASM:** `game_loop.asm` L286–440 (`lab_0a2e` a `lab_0bab`).
 - **Mismo método que T70.** Atención a `walk_frame`/`scroll_speed`/`anim_accumulator`.
 
