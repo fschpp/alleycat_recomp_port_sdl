@@ -192,10 +192,7 @@ bool check_enemy_activate(void) {
     if (enemy_active != 0) return false;
     if (enemy_chasing == 0 && enemy_approach_timer == 0 && enemy_exit_timer == 0) return false;
     if ((uint8_t)cat_y < 0xa3) return false;
-    /* original also checks byte [0x558] (an unnamed flag — likely
-     * "cat is mid-jump/airborne" or similar; not yet identified/ported,
-     * treated as always 0/false here, matching this port's existing
-     * simplifications elsewhere for unidentified single-byte flags). */
+    if (entry_steps != 0) return false;           /* cmp byte [0x558],0 / jnz lab_2134: [0x558] = entry_steps (T77) */
 
     uint16_t ax = (uint16_t)(enemy_x + 0x20);
     if (ax < (uint16_t)cat_x) return false;
@@ -220,9 +217,9 @@ bool check_enemy_activate(void) {
  * - `check_vsync` (busy-wait for vertical retrace) has no meaningful
  *   equivalent in this port's render loop, which is already externally
  *   paced by SDL_Delay — treated as always "ready."
- * - byte [0x558] (an unidentified single-byte flag checked in several
- *   spawn/chase gates) is treated as always 0, consistent with this
- *   port's existing handling of other not-yet-identified flags. */
+ * - byte [0x558] es `entry_steps` (DS 0x558, contador del paso de entrada de update_animation);
+ *   T77 lo cablea en los 4 sitios donde el ASM lo lee por direccion cruda (spawn, persecucion,
+ *   salida y check_enemy_activate): mientras el gato esta entrando el perro no aparece/ataca. */
 void update_enemies(void) {
     uint16_t ax = 0; /* shared across the movement-application tail
                        * (lab_1fab through lab_1fef), matching how the
@@ -288,7 +285,7 @@ lab_1f0c:
     if (enemy_approach_timer != 0) goto lab_1f57;
     if (fall_hit != 0) goto lab_1f3d;
     if ((uint8_t)cat_y < 0xb4) goto lab_1f3c; /* jc */
-    /* flag [0x558] == 0 always */
+    if (entry_steps != 0) goto lab_1f3c;          /* cmp byte [0x558],0 / jnz lab_1f3c */
     {
         uint8_t r = enemy_random_byte();
         if (r < enemy_spawn_chance[difficulty_level & 7]) goto lab_1f3d; /* jc */
@@ -318,7 +315,7 @@ lab_1f75:
     fall_hit = 0;
     ax = enemy_x;
     if ((uint8_t)cat_y < 0xb4) goto lab_1fab;
-    /* flag [0x558] == 0 always */
+    if (entry_steps != 0) goto lab_1fab;          /* cmp byte [0x558],0 / jnz lab_1fab */
     {
         uint8_t r = enemy_random_byte();
         if (r > enemy_chase_chance[difficulty_level & 7]) goto lab_1fab; /* ja */
@@ -344,8 +341,7 @@ lab_1fbb:
 
 lab_1fcc:
     if ((uint8_t)cat_y < 0xb4) goto lab_1fda;
-    /* flag [0x558] == 0 -> jz taken -> lab_1fef */
-    goto lab_1fef;
+    if (entry_steps == 0) goto lab_1fef;          /* cmp byte [0x558],0 / jz lab_1fef; si no, cae a lab_1fda */
 
 lab_1fda:
     enemy_exit_timer = 4;

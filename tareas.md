@@ -462,7 +462,7 @@ Estado compartido de los niveles 4 y 5: **los dos usan las variables `l5_obj_*`*
 - **Destino:** `src/enemy.c`. Portar el "reveal" gradual en lugar de mostrar el frame completo (§5p).
 - **Verificar:** PPM de la secuencia de aproximación en 5 ticks.
 
-### T77 — Fidelidad: sprite del salto del pez y flags sin nombre [M]
+### T77 — Fidelidad: sprite del salto del pez y flags sin nombre [M] ✅ HECHO (PROGRESS.md §6bo; `tests/test_fish_flags.c`)
 - **ASM:** `level_physics.asm` (`update_cat_jump`, rama que dibuja al pez) y las lecturas de `[0x418]`, `[0x556]`, `[0x558]`, `[0x552]`, `[0x553]`, `[0x410]`.
 - **Qué hacer:** extraer el sprite del pez (método §3/§4) y buscar, con `grep` en todo el ASM, **quién escribe** cada flag; reemplazar los "siempre 0" por el valor real.
 - **Verificar:** el pez se ve durante el salto; cada flag documentado con su escritor.
