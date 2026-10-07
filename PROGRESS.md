@@ -4595,6 +4595,33 @@ Se reemplazaron las 10 llamadas a `update_alley_movement()` (8 en `game_flow.c`,
 
 Suggested commit: `T74: update_animation() cablea T70-T73 en lugar de update_alley_movement; test-update-animation; make soak (hallazgo abierto)`
 
+## 6bk. T74 (cont.) — por qué el soak no avanzaba: reloj BIOS, alias DS 0x551 y CGA fuera de ventana
+
+**Causas del hallazgo abierto de §6bj** (la gata "clavada" y ningun nivel alcanzado):
+1. **Reloj duplicado.** ~16 copias estaticas de `read_bios_tick()` leian el reloj real; el soak solo simulaba el tiempo en algunas.
+   `update_enemies` (reloj real) hacia avanzar al perro 1 paso por 55 ms reales y `update_animation_c1` retorna mientras
+   `enemy_active != 0` (lab_0bb2). Ahora hay un unico `bios_clock_read()` (`src/bios_clock.c`, `include/bios_clock.h`) con
+   `bios_clock_hook` para tests; las copias delegan en el. Sin hook el comportamiento es el mismo (ms/55). Los overrides propios
+   (`ua_tick_override`, `l5/l6/l2`) se conservan.
+2. **DS 0x551 = `cat_died`.** `enemy.asm:36` (check_fish_collision) y `level_physics.asm:129` lo escriben por direccion cruda. El port
+   lo tenia duplicado como `door_hit_flag`, que nadie leia: el loop del callejon (`cat_died` -> `game_death_handler` -> selector)
+   nunca disparaba. `door_hit_flag` es ahora `#define door_hit_flag cat_died`.
+3. **`check_level_platform`** (level_physics.asm L112-139): el choque con el rectangulo de entrada hace `[0x551]=1; clc` (el port
+   devolvia `true` y no marcaba nada); `l3_platform_id=0` al entrar; la valla del nivel 3 va DESPUES de la entrada y pone `at_platform=1`.
+4. **Desbordamiento en `cga_mem`** (detectado con UBSan + backtrace): `check_cycle_cat_collision` hace `di = obj_draw_pos[slot]; di -= 4`
+   (16 bits) y con `obj_draw_pos == 0` (objeto aun sin dibujar) da 0xFFFE. En el PC real cae fuera de la ventana CGA de 16 KB; ahora
+   `cga.c` descarta las escrituras fuera de ventana y las lecturas dan 0 (`cga_store`/`cga_load`). Decision de fidelidad: no se
+   modela lo que habia en esa direccion del PC; si importara, habria que mirar el valor real de `obj_draw_pos` inicial en el ASM.
+
+**Verificacion.** `make test` limpio (45 tests, sin warnings), incl. nuevo `test-t74-fixes`. `make soak`: 200k frames -> 42 game over y
+1 entrada/salida de nivel (antes 0); 4M frames x6 corridas con UBSan en modo trap: sin fallos, niveles vistos 1, 4 y 5.
+
+**T74 sigue 🔶 PARCIAL:** faltan (a) cubrir los niveles 0-7 en el soak (la entrada aleatoria llega a pocos; fijar semilla y forzar entradas),
+(b) mover el bucle de frames de `main.c` a `game_run()`, (c) algunas corridas de 4M frames tardan >40 s (esperas en tiempo real, p. ej.
+retrace del nivel 2 y `speaker`): no es un cuelgue comprobado, pero no se investigo.
+
+Suggested commit: `T74: reloj BIOS unico, door_hit_flag = cat_died (DS 0x551), check_level_platform segun ASM, CGA descarta accesos fuera de ventana; test-t74-fixes`
+
 ## 7. General lesson for this whole project
 
 **Never trust a same-file label as a data region's end boundary, and never

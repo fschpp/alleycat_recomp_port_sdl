@@ -1,3 +1,4 @@
+#include "bios_clock.h"
 #include "cat_state.h"
 #include "cga.h"
 #include "level_collision.h"
@@ -12,10 +13,7 @@ static uint8_t rnd_byte(void) {
 }
 
 static uint16_t read_bios_tick(void) {
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    uint64_t ms = (uint64_t)ts.tv_sec * 1000 + (uint64_t)(ts.tv_nsec / 1000000);
-    return (uint16_t)(ms / 55);
+    return bios_clock_read();
 }
 
 /* reset_jump — literal port. */

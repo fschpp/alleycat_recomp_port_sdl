@@ -1,3 +1,4 @@
+#include "bios_clock.h"
 #include "throw.h"
 #include "cat_state.h"
 #include "cga.h"
@@ -37,10 +38,7 @@ uint16_t throw_last_tick = 0;
 /* int 0x1a AH=0 -> DX (palabra baja del contador BIOS, 18.2 Hz); mismo patrón
  * que alley.c / level7_epilogue.c. */
 static uint16_t read_bios_tick(void) {
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    uint64_t ms = (uint64_t)ts.tv_sec * 1000 + (uint64_t)(ts.tv_nsec / 1000000);
-    return (uint16_t)(ms / 55);
+    return bios_clock_read();
 }
 
 static uint16_t ds_word_t(uint16_t ofs) {

@@ -1,4 +1,5 @@
 /* level5.c — nivel 5, helpers A (T25). Ver include/level5.h y PROGRESS.md §6v. */
+#include "bios_clock.h"
 #include "level5.h"
 #include "level_collision.h"
 #include "cat_state.h"
@@ -141,10 +142,7 @@ static uint16_t read_bios_tick(void) {
         l5_tick_override += l5_tick_advance;
         return t;
     }
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    uint64_t ms = (uint64_t)ts.tv_sec * 1000 + (uint64_t)(ts.tv_nsec / 1000000);
-    return (uint16_t)(ms / 55);
+    return bios_clock_read();
 }
 
 /* Offsets DS (tools/asm_label.sh). Extensiones confirmadas por cómo se indexan (no por el label):

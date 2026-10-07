@@ -1,3 +1,4 @@
+#include "bios_clock.h"
 #include "cat_state.h"
 #include "sound.h"
 #include "cga.h"
@@ -23,10 +24,7 @@ static uint8_t enemy_random_byte(void) {
  * substitute a host monotonic clock read converted to the same units,
  * matching the pattern already used for cga.c's RNG seeding. */
 static uint16_t read_bios_tick(void) {
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    uint64_t ms = (uint64_t)ts.tv_sec * 1000 + (uint64_t)(ts.tv_nsec / 1000000);
-    return (uint16_t)(ms / 55); /* ~18.2 ticks/sec */
+    return bios_clock_read();
 }
 
 /* init_sound is NOT a sound.asm function despite the name — it lives in

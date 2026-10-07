@@ -8,6 +8,7 @@
  *   lab_09d6..lab_09f6          nivel 2: color del borde         -> aqui
  *   lab_09f6..lab_0a1a          nivel 2: prev_*, speed_ramp      -> update_cat_movement() (movement.c)
  */
+#include "bios_clock.h"
 #include "animation_entry.h"
 #include "cat_state.h"
 #include "cga.h"
@@ -42,10 +43,7 @@ static uint16_t ds_word(unsigned off) { return (uint16_t)(ds_pool[off] | (ds_poo
 
 static uint16_t ua_read_tick(void) {                 /* sub ah,ah / int 0x1a -> dx */
     if (ua_tick_override >= 0) return (uint16_t)ua_tick_override;
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    uint64_t ms = (uint64_t)ts.tv_sec * 1000 + (uint64_t)(ts.tv_nsec / 1000000);
-    return (uint16_t)(ms / 55);
+    return bios_clock_read();
 }
 
 ua_next_t update_animation_entry(void) {
