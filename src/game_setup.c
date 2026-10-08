@@ -1,3 +1,4 @@
+#include "bios_clock.h"
 #include "cat_state.h"
 #include "alley.h"
 #include "cga.h"
@@ -143,11 +144,10 @@ void setup_level(void) {
     if (level_number == 2) {
         anim_counter = 0x10;
         speed_ramp = 0x10;
-        /* original reads the BIOS tick count (int 0x1a) here to seed
-         * level2_tick with real elapsed-time entropy; we substitute 0
-         * since there's no BIOS timer to read — level2_tick isn't
-         * consumed anywhere yet (see movement.c's footstep-sync stub). */
-        level2_tick = 0;
+        /* game_loop.asm L246-248: `sub ah,ah / int 0x1a / mov [level2_tick],dx`. Antes era un stub (= 0): con el reloj
+         * real (grande) `anim_last_tick - level2_tick` superaba level2_death_ticks al primer frame, se ponia
+         * object_hit y el nivel 2 (pecera) volvia al callejon sin mostrarse (T81). */
+        level2_tick = bios_clock_read();
         immune_flag = 0;
         level2_rise = 0x5;
         meow_timer = 0x1;
