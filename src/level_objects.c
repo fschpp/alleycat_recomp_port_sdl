@@ -3,6 +3,9 @@
 #include "cga.h"
 #include "level_collision.h"
 #include "level_objects.h"
+#include "level5.h"
+#include "level6.h"
+#include "game_setup.h"
 #include "enemy.h"
 #include "gen/ds_pool.h"
 #include <stdint.h>
@@ -72,22 +75,21 @@ static uint8_t  l1_bias_y;          /* dat_32ee */
  * faithful equivalent — a documented simplification, see PROGRESS.md. */
 static uint16_t l1_level_start_tick;
 
+/* check_thrown_cat_hit (level_objects.asm L33B9-3402). Devuelve CF. Antes los tres saltos estaban como "simplificaciones"
+ * (sin start_auto_walk, sin check_thrown_near_cat): al tocar al gato la escoba se quedaba pegada (volvia a chocar en cada
+ * tick) y el gato nunca iniciaba el auto-walk (T82). */
 static bool check_thrown_cat_hit(void) {
-    if (enemy_active != 0) return false;
+    if (enemy_active != 0) return false;                       /* cmp [enemy_active],0 / jnz -> clc */
 
-    /* level_number==6 special case (check_thrown_near_cat, gated on the
-     * unported dat_44bd flag) always takes the normal path below since
-     * that flag can never be set yet — documented simplification. */
+    /* cmp [level_number],6 / jnz / cmp [dat_44bd],0 / jz: con el rastreador del nivel 6 activo se usa la caja ampliada */
+    if (level_number == 6 && l6_dat_44bd != 0) return check_thrown_near_cat();
 
     bool hit = check_rect_collision((int16_t)thrown_obj_x, thrown_obj_y, 0x10, 0x1e,
                                      cat_x, cat_y, 0x18, 0x0e);
     if (!hit) return false;
 
-    /* level==4 with an active door-open animation skips the auto-walk
-     * trigger; l3_door_anim_frame belongs to the unported level-3/4 door
-     * subsystem so it defaults to 0 (never skips) — documented
-     * simplification. start_auto_walk (game_loop.asm) isn't ported
-     * either; both are no-ops here. */
+    /* nivel 4 con la animacion de puerta en curso: no arma el auto-walk (pero si cuenta como golpe) */
+    if (!(level_number == 4 && l3_door_anim_frame != 0)) start_auto_walk();
     return true;
 }
 

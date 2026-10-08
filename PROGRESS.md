@@ -14,7 +14,7 @@ graphics assets, so it is not meant to be published or redistributed.
 
 ## 0. Current focus / todo / blockers
 
-**Current focus:** T80 (ventanas del callejón, §6br) hecho; falta confirmarlo en PC real y probar los minijuegos. `tareas.md` está hecho hasta **T79** (ver abajo). Todo el flujo real corre en `main.c` -> `game_run()`
+**Current focus:** T81 (la pecera / nivel 2 volvía al callejón, §6bs) hecho; falta confirmarlo en PC real. T80 (ventanas del callejón, §6br) hecho. `tareas.md` está hecho hasta **T79** (ver abajo). Todo el flujo real corre en `main.c` -> `game_run()`
 (título -> callejón -> niveles 0-7 -> resultado), con `update_animation()` real. Lo único que queda son las tareas abiertas de
 "Todo". Estado de verificación: `make` y `make test` limpios, sin warnings (`-Wall -Wextra`); `make test-soak-levels` entra y sale
 de los 8 niveles; resultados por nivel en `docs/NIVELES.md`.
@@ -31,10 +31,11 @@ de los 8 niveles; resultados por nivel en `docs/NIVELES.md`.
 
 ### Blockers
 
-Ninguno. Descubrimiento reciente (§6br): `update_cat_jump` tenía dos ramas invertidas y por eso las ventanas no se abrían; si aparece otro comportamiento "muerto" en el callejón, sospechar de más saltos condicionales invertidos en funciones portadas antes de T24 y sin test de ciclo completo. (El hallazgo de §6bj sobre el soak quedó resuelto en §6bk. En §6bq se comprobó que T77 no empeora la tasa de entrada a niveles.)
+Ninguno. Descubrimiento reciente (§6bs): los tests con reloj simulado que parte de ~0 ocultan stubs `= 0` de lecturas del reloj BIOS; hay que probar también con un reloj que parta de un valor grande y cerca del desborde de 16 bits. Anterior (§6br): `update_cat_jump` tenía dos ramas invertidas y por eso las ventanas no se abrían; si aparece otro comportamiento "muerto" en el callejón, sospechar de más saltos condicionales invertidos en funciones portadas antes de T24 y sin test de ciclo completo. (El hallazgo de §6bj sobre el soak quedó resuelto en §6bk. En §6bq se comprobó que T77 no empeora la tasa de entrada a niveles.)
 
 ### Completed
 
+- [x] T81 — nivel 2 (pecera): `setup_level` leía `level2_tick = 0` (stub) en vez del tick BIOS; `test-level2-clock` (§6bs)
 - [x] T80 — ventanas del callejón: `update_cat_jump` corregido, `test-window-open` (§6br)
 
 
@@ -4721,6 +4722,20 @@ Los tres "siempre 0" eran falsos: `[0x558]` no era un flag desconocido sino `ent
 
 Suggested commit: `T79: resultados por nivel en NIVELES.md, PROGRESS.md reordenado (5x-5z antes de §6, §0 al día)`
 
+## 6bt. T82 — escoba pegada y nivel 6 sin perros ni platos (`src/level_objects.c`, `src/level_background.c`)
+
+**Síntomas (PC real, tras T80/T81):** (1) en el nivel de la escoba, al tocar al gato la escoba se detenía (sin moverse ni cambiar de frame) y el gato no iniciaba la animación de salto; (2) en el minijuego de las dos sillas (nivel 6) no se dibujaban los perros ni los platos de comida.
+
+**Causas (ambas eran "simplificaciones" documentadas como pendientes que ya no lo eran):**
+1. `check_thrown_cat_hit` (level_objects.asm L33B9-3402) no llamaba a `start_auto_walk` (ya portado en T18) ni a `check_thrown_near_cat` (portado en T30; rama de nivel 6 con `l6_dat_44bd != 0`), y tampoco respetaba la excepción del nivel 4 con `l3_door_anim_frame != 0`. Sin `auto_walk` el gato no se aparta, la colisión se repite en cada tick y `tick_thrown_objects` retorna siempre antes de mover/dibujar la escoba: de ahí que se vea congelada.
+2. `draw_level_background` (nivel 6) tenía un `return` con la llamada a `init_level6_objects` pendiente ("queda para T75"); el ASM la hace al final de la rama del nivel 6 (score.asm L218, lab_283e). Sin ella no se siembran los perros (`l6_obj_flag`) ni se dibujan los platos (`draw_l6_tile`) y el estado del nivel 6 queda sin inicializar.
+
+**Cambios.** `check_thrown_cat_hit` literal del ASM (near_cat en nivel 6 con rastreador, `start_auto_walk` salvo nivel 4 con puerta animándose, CF=1 en golpe). `draw_level_background`: `init_level6_objects()` al final del nivel 6.
+
+**Verificación.** `make test-t82` (`tests/test_t82.c`): nivel 6 -> perros sembrados y `l6_dat_44d6 == 0xc`; nivel 1 con la escoba sobre el gato -> `auto_walk` se arma, el gato se mueve y la escoba vuelve a moverse. Sin los cambios el test falla (5 comprobaciones). `make test` completo limpio, 0 warnings. Volcado del nivel 6: sillas, lámpara, 7 perros y platos. **Pendiente:** confirmar en PC real; si en el nivel 6 los perros no reaccionan, revisar `update_level6_*` (se cableó solo la inicialización).
+
+Suggested commit: `T82: check_thrown_cat_hit arma start_auto_walk (escoba ya no se queda pegada); init_level6_objects desde el fondo del nivel 6; test-t82`
+
 ## 6br. T80 — las ventanas del callejón no se abrían (`src/jump_gravity.c`; level_physics.asm L386-547)
 
 **Síntoma (PC real):** ninguna ventana del callejón se abría, así que no se podía entrar a los minijuegos (la entrada es saltar contra una ventana abierta: `check_fish_collision` marca `cat_died` = DS 0x551 con `in_level_mode == 1`, `transitioning == 0`, `cat_y < 0x60` y `jump_anim_counter` en 5..0x18; luego `game_death_handler` -> `select_next_level`).
@@ -4740,6 +4755,20 @@ Suggested commit: `T79: resultados por nivel en NIVELES.md, PROGRESS.md reordena
 **Verificación.** `make test-window-open` (`tests/test_window_open.c`, reloj BIOS simulado): rama sin/con patrullero (param 0 -> `obj_x[1]`, param 4 -> `obj_x[2]`), lanzamiento único en el vértice y pausa hasta `dt >= delay`, `gravity_cur_dims` según el sprite elegido, entrada al nivel (salta + contador 5..0x18 -> `cat_died`; recién abierta o sin saltar no), y 200 000 llamadas: 433 aperturas completas / 433 lanzamientos / ~12 100 líneas (antes: 1 apertura y contador clavado). Mutaciones (trashcan, pausa, `gravity_cur_dims`) hacen fallar el test. `make test` completo limpio. Captura: ventana en `x=264,y=24` abriéndose (interior negro) y otra abierta tras el lanzamiento. **Pendiente:** confirmarlo en el PC real con la ventana SDL.
 
 Suggested commit: `T80: update_cat_jump — ramas trashcan/pausa invertidas, gravity_cur_dims, re-sorteo; las ventanas del callejon se abren; test-window-open`
+
+## 6bs. T81 — la pecera (nivel 2) volvía al callejón (`src/game_setup.c`; game_loop.asm L246-248)
+
+**Síntoma (PC real):** al entrar a la pecera desde el nivel de la escoba (nivel 1 -> `level_complete` -> `level2_init`) no se veía el interior (peces y anguilas) y se volvía al callejón.
+
+**Causa:** `setup_level` tenía un stub en la rama `level_number == 2`: `level2_tick = 0` (comentario antiguo: "no hay BIOS timer"). El ASM hace `sub ah,ah / int 0x1a / mov [level2_tick],dx`. `update_animation_entry` (lab_0953) calcula `anim_last_tick - level2_tick` y lo compara con `level2_phase1_ticks`/`level2_death_ticks`; con el reloj real (`bios_clock_read`, ~18,2 Hz desde el arranque del sistema, valor grande) la diferencia ya superaba `level2_death_ticks` en el primer frame, así que `object_hit = 1` y el loop del nivel 2 (`object_hit | cat_caught | show_attract | restart_game`) salía a `game_level_exit` -> callejón. El tick BIOS real en DOS tampoco parte de 0, así que el ASM depende de esta lectura.
+
+**Por qué no lo vio nada:** todos los tests/soak usan `bios_clock_hook` o `game_tick_fn` con reloj simulado que empieza cerca de 0, donde `anim_last_tick - 0` es pequeño.
+
+**Cambio:** `level2_tick = bios_clock_read();` (mismo reloj que usa `update_animation_entry`, `ua_read_tick`). El otro punto que escribe `level2_tick` (lab_0abd, `movement.c`) ya estaba portado.
+
+**Verificación.** `make test-level2-clock` (`tests/test_level2_clock.c`): nivel 1 -> `level_complete = 1` -> 400 frames en el nivel 2 con relojes que parten de 0, 40000 y 65500 (cerca del desborde); comprueba que no sale, que `level_number == 2` y que la pantalla es la pecera (>20 000 px de color 1). Sin el fix falla con 40000 y 65500 (`object_hit` en el frame 1). `make test` completo limpio, 0 warnings. Volcado de pantalla del nivel 2: peces, gato arriba y olas, sin callejón. **Pendiente:** confirmarlo en el PC real con la ventana SDL.
+
+Suggested commit: `T81: setup_level lee el tick BIOS en level2_tick (stub = 0); la pecera ya no vuelve al callejon; test-level2-clock`
 
 ## 7. General lesson for this whole project
 

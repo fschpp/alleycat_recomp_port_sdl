@@ -345,6 +345,15 @@ build/test_fish_flags: tests/test_fish_flags.c $(TEST_SRC) include/*.h
 test-fish-flags: build/test_fish_flags
 	./build/test_fish_flags
 
+build/test_t82: tests/test_t82.c $(TEST_SRC) include/*.h
+	@mkdir -p build
+	$(CC) $(CFLAGS) -Wl,--wrap=speaker_spin_cycles,--wrap=read_bios_tick tests/test_t82.c $(TEST_SRC) -o $@
+
+test-t82: build/test_t82
+	./build/test_t82
+
+test: test-t82
+
 build/test_window_open: tests/test_window_open.c $(TEST_SRC) include/*.h
 	@mkdir -p build
 	$(CC) $(CFLAGS) tests/test_window_open.c $(TEST_SRC) -o $@
@@ -359,7 +368,7 @@ build/test_explosion_border: tests/test_explosion_border.c $(TEST_SRC) include/*
 test-explosion-border: build/test_explosion_border
 	./build/test_explosion_border
 
-test: test-alley test-l3doors test-level4 test-level4-state test-level5 test-level5-anim test-level5-objects test-level6 test-level6b test-level6c test-level6d test-level2 test-level2b test-level2c test-level2d test-level7 test-level7b test-level7c test-game-flow test-game-flow-loop test-game-level test-palette test-transition test-wipe test-result test-level-complete test-score-bar-a test-score-bar-b test-ui-text test-hardware test-title test-attract test-pause test-cupid test-cupid-draw test-outro test-joystick test-keys test-input-keys test-animation-entry test-animation-b test-animation-c1 test-animation-c2 test-animation-d test-update-animation test-t74-fixes test-soak-levels test-enemy-reveal test-fish-flags test-explosion-border test-window-open
+test: test-alley test-l3doors test-level4 test-level4-state test-level5 test-level5-anim test-level5-objects test-level6 test-level6b test-level6c test-level6d test-level2 test-level2b test-level2c test-level2d test-level7 test-level7b test-level7c test-game-flow test-game-flow-loop test-game-level test-palette test-transition test-wipe test-result test-level-complete test-score-bar-a test-score-bar-b test-ui-text test-hardware test-title test-attract test-pause test-cupid test-cupid-draw test-outro test-joystick test-keys test-input-keys test-animation-entry test-animation-b test-animation-c1 test-animation-c2 test-animation-d test-update-animation test-t74-fixes test-soak-levels test-enemy-reveal test-fish-flags test-explosion-border test-window-open test-level2-clock
 
 .PHONY: test-window-open test-explosion-border test-fish-flags test-enemy-reveal test-t74-fixes all run clean test test-alley test-l3doors test-level4 test-level4-state test-level5 test-level5-anim test-level5-objects test-level6 test-level6b test-level6c test-level6d test-level2 test-level2b test-level2c test-level2d test-level7 test-level7b test-level7c test-game-flow test-game-flow-loop test-game-level test-palette test-transition test-wipe test-result test-level-complete test-score-bar-a test-score-bar-b test-ui-text test-hardware test-title test-attract test-pause test-cupid test-cupid-draw test-outro test-joystick test-keys test-input-keys test-animation-entry test-animation-b test-animation-c1 test-animation-c2 test-animation-d test-update-animation
 
@@ -388,3 +397,10 @@ build/test_t74_fixes: tests/test_t74_fixes.c $(TEST_SRC) include/*.h
 
 test-t74-fixes: build/test_t74_fixes
 	./build/test_t74_fixes
+
+build/test_level2_clock: tests/test_level2_clock.c $(TEST_SRC) include/*.h
+	@mkdir -p build
+	$(CC) $(CFLAGS) -Wl,--wrap=speaker_spin_cycles,--wrap=read_bios_tick tests/test_level2_clock.c $(TEST_SRC) -o $@
+
+test-level2-clock: build/test_level2_clock
+	./build/test_level2_clock
