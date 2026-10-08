@@ -40,7 +40,10 @@ static int icon_rows_match(void) {
     return ok;
 }
 static int count_nz(void) { return icon_rows_match(); }
+static int last_total;
+static int total_nz(void) { int c = 0; for (size_t i = 0; i < CGA_MEM_SIZE; i++) c += cga_mem[i] != 0; return c; }
 static void hook(void) {
+    last_total = total_nz();
     if (calls < MAXS) nz[calls] = count_nz();
     calls++;
     uint32_t h = hash_screen();
@@ -66,6 +69,9 @@ int main(void) {
     CHECK(nseen >= 5, "la cinematica no se anima: solo %d cuadros distintos presentados", nseen);
 
     CHECK(calls > 8, "pocas presentaciones (%d)", calls);
+    /* T84d: las oleadas (init_victory_wave) dibujan los 8 corazones tras la primera pasada (l7_cupid_active se pone
+     * a 0 en cada pasada, lab_520c) y llenan la pantalla; con solo el lider quedaban ~4700 bytes, ahora ~7800. */
+    CHECK(last_total > 6500, "las oleadas de corazones no llenan la pantalla (%d bytes dibujados en el ultimo cuadro)", last_total);
     CHECK(nz[0] == 13, "el gato del primer paso no coincide con dat_4a82 4x13 (%d/13 filas)", nz[0]);
 
     printf(fails ? "test-t84: %d FALLOS\n" : "test-t84: OK\n", fails);
