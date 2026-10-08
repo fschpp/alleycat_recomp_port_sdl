@@ -12,6 +12,7 @@
 #include "level2.h"
 #include "level6.h"
 #include "movement.h"
+#include "palette.h"
 #include "gen/ds_pool.h"
 
 int8_t input_horizontal, input_vertical; bool input_fire;
@@ -63,6 +64,7 @@ int main(void) {
         reset(); l2_at(col[i].t);
         CHECK(update_animation_entry() == UA_L09F6 && l2_border_color == col[i].bl && object_hit == 0,
               "nivel 2 t=%u -> borde %u (obtuvo %u)", col[i].t, col[i].bl, l2_border_color);
+        CHECK((cga_color_select & 0xf) == col[i].bl, "nivel 2 t=%u: el color de fondo/borde (indice 0) sigue a l2_border_color", col[i].t);
     }
 
     /* 4) nivel 2: fase de muerte (>=192), maullido y object_hit (>=264) */

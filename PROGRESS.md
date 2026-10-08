@@ -4770,6 +4770,20 @@ Suggested commit: `T80: update_cat_jump — ramas trashcan/pausa invertidas, gra
 
 Suggested commit: `T81: setup_level lee el tick BIOS en level2_tick (stub = 0); la pecera ya no vuelve al callejon; test-level2-clock`
 
+## 6bu. T83 — ratones, color del gato en la pecera, gata del nivel 7, fondo del perro y tendederos
+
+Cinco bugs reportados en PC real, arreglados contra el ASM. Se cierra T78b (el color de fondo/borde ahora se aplica a la paleta).
+
+1. **Ratones del callejon** (`cycle_objects.c`, `check_cycle_cat_collision`): la rama de `at_platform` estaba invertida (el golpe con puntos y tono es con `at_platform == 0`); `add_score` era un stub vacio; con el raton ya golpeado o `cat_y_bottom < 0x26` el ASM devuelve CF=1 (ya manejado) y el port devolvia false.
+2. **Color del gato en la pecera** (`animation_entry.c`, `level2.c`): `l2_border_color` se calculaba pero no llegaba a la paleta; el gato se dibuja con el indice 0 (ese color). Ahora `bios_color_select(0, bl)`.
+3. **Gata superior del nivel 7** (`level7_epilogue.c`, slot 6): `setup_l7_sprite` tenia invertida la condicion de `l7_cat_delay` (las gatas que caminaban dibujaban siempre los frames de pausa 0xc/0xe). Ademas, con `dir == 0` el ASM salta directo al calculo de direccion CGA sin avanzar la animacion.
+4. **Fondo sucio al morder el perro** (`enemy.c`, `draw_enemy`): faltaba el camino `enemy_active != 0` ([es:0x1cbd] = `enemy_draw_addr`): guarda el fondo con `save_from_cga` y dibuja el sprite opaco.
+5. **Tendederos quietos** (`throw.c`): `throw_timer` cuenta llamadas, no ticks. Recarga dividida por `THROW_TIMER_DIV = 32` (minimo 1), desviacion consciente como T80b; es la unica constante a tocar si la velocidad no convence.
+
+Tests: `test-t83` (nuevo; falla sin los arreglos en los bugs 1, 2 y 5) y `test-animation-entry` (el color de fondo sigue a `l2_border_color`). El check del perro (bug 4) no tiene test automatico. Los conteos de pixeles de `test-level2*` no cambiaron.
+
+Suggested commit: `T83: raton del callejon puntua (at_platform invertido, add_score real); color del gato en la pecera; gata nivel 7 camina; draw_enemy con enemy_active; tendederos con THROW_TIMER_DIV; test-t83`
+
 ## 7. General lesson for this whole project
 
 **Never trust a same-file label as a data region's end boundary, and never
