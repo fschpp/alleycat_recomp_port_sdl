@@ -15,6 +15,7 @@
 #include "level2.h"
 #include "level6.h"
 #include "movement.h"
+#include "palette.h"
 #include "animation.h"
 #include "sound.h"
 #include "gen/ds_pool.h"
@@ -113,6 +114,7 @@ lab_09b9:
     immune_flag = 0x1;
     anim_counter = 0x20;
     l2_border_color = 0x0;                              /* sub bx,bx / mov ah,0xb / int 0x10 */
+    bios_color_select(0x0, 0x0);                        /* el gato usa el indice 0: el color de fondo SI se ve */
     return UA_L0A86;
 
 lab_09d6: {
@@ -126,6 +128,7 @@ lab_09d6: {
     bl--;
 lab_09f6:
     l2_border_color = bl;                               /* mov ah,0xb / int 0x10 */
+    bios_color_select(0x0, bl);                         /* aplicar a la paleta (T78b): el gato cambia de color con el aire */
     }
     return UA_L09F6;
 }

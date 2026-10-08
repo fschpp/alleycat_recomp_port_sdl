@@ -6,6 +6,7 @@
 #include "level_collision.h"
 #include "sound.h"
 #include "alley.h"
+#include "palette.h"
 #include <time.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -130,7 +131,7 @@ static bool l2_vsync_active(void) {
     return (us % 16667u) >= 15267u;
 }
 
-static void l2_set_border(uint8_t color) { l2_border_color = color; }   /* int 0x10 ah=0xb: stub con nombre, sin borde en SDL */
+static void l2_set_border(uint8_t color) { l2_border_color = color; bios_color_select(0x0, color); }   /* int 0x10 ah=0xb: ahora se aplica a la paleta */
 
 /* Devuelve el carry: 1 si se atrapo algo y se llamo reset_caught_objects; 0 en otro caso (y tras el golpe fatal). */
 bool check_level_objects(void) {

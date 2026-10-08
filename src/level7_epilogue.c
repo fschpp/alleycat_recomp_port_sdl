@@ -143,7 +143,8 @@ static void setup_l7_sprite(void) {
 
     if (l7_cat_dir != 0) {
         uint16_t bx = l7_cat_anim_idx;
-        if (l7_cat_delay == 0) {
+        if (l7_cat_delay != 0) {
+            /* pausa (tras un golpe): frames 0xc/0xe. Caminando (delay == 0) usa los frames 0..5. */
             bx = (uint16_t)((bx & 2) + 0xc);
         }
         if (l7_cat_dir == 0xff) bx = (uint16_t)(bx + 0x10);
@@ -546,6 +547,7 @@ movement:
             if (r <= 0x10) {
                 l7_cat_dir = (r & 1) ? 1 : 0xff;
             }
+            goto cga_addr;   /* dir == 0: el ASM salta directo al calculo de direccion CGA, sin avanzar la animacion */
         } else if (l7_cat_dir == 1) {
             ax += l7_heart_speed;
             if (ax >= 0x10b) {
@@ -575,6 +577,7 @@ anim:
         if (r <= 8) l7_cat_dir = 0;
     }
 
+cga_addr:
     l7_heart_cga_addr = (uint16_t)calc_cga_addr(l7_cat_y, (uint16_t)l7_cat_x, NULL);
 
     if (check_l7_cupid()) return;

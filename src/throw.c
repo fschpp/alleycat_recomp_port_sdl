@@ -29,6 +29,12 @@
 #define DS_THROW_DELAY        0x0532u
 #define DS_THROW_CHANCE       0x2abau
 
+/* Desviacion consciente (bug 5, misma idea que JUMP_TICK_RELOAD de T80b): throw_timer cuenta LLAMADAS, no ticks, y
+ * el valor de throw_delay esta calibrado para el lazo sin retardo del original. En el port (~7,5 llamadas/s) los
+ * tendederos tardaban ~13 s entre pasos. La recarga se divide por THROW_TIMER_DIV (minimo 1). Es la unica
+ * constante a tocar si la velocidad no convence en el PC real. */
+#define THROW_TIMER_DIV 32u
+
 uint8_t throw_obj_buf[64] = {0};
 uint8_t throw_bits = 0;
 uint8_t in_throw_range = 0;
@@ -175,6 +181,8 @@ void update_thrown_objects(void) {
         al >>= 1;
     }
     /* lab_04df */
+    al = (uint8_t)(al / THROW_TIMER_DIV);            /* desviacion: ver THROW_TIMER_DIV */
+    if (al == 0) al = 1;
     throw_timer = al;
     bx = current_floor;
     if (check_throw_range(bx)) goto lab_050c;        /* jz lab_050c (ZF=1) */

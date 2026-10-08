@@ -102,17 +102,32 @@ static void update_enemy_viewport(uint8_t al, int8_t ah_dir_flag) {
     enemy_cropped = true;
 }
 
-/* draw_enemy — the enemy_active==0 (normal walk/chase) path is ported
- * for real, using the now-fixed blit_transparent (with its restored
- * background-save side effect, §5p) and the extracted enemy sprite
- * bitmaps (§5p). The enemy_active!=0 ("caught the cat") path is NOT
- * ported — it saves/overwrites a hardcoded screen region ([es:0x1cbd])
- * not yet identified in this port, and is a fairly rare celebratory
- * state; documented rather than guessed. */
+/* draw_enemy — ambos caminos portados.
+ *  - enemy_active == 0 (andar/perseguir): sprite transparente, el fondo se guarda como efecto lateral de
+ *    blit_transparent (§5p).
+ *  - enemy_active != 0 (el perro muerde al gato): el ASM guarda el fondo del rectangulo con save_from_cga
+ *    (destino [es:0x1cbd] = enemy_draw_addr) y dibuja el sprite opaco. Sin este camino, erase_enemy restauraba
+ *    un buffer viejo sobre la posicion nueva y el fondo quedaba sucio (bug 4). */
 static void draw_enemy(void) {
     enemy_erase_dims = enemy_sprite_dims;
     if (enemy_active != 0) {
-        /* TODO: "caught the cat" draw path — needs [0x1cbd] identified */
+        const uint8_t *src;
+        uint8_t w, h;
+        if (enemy_cropped) {
+            src = enemy_crop_buf;
+            w = (uint8_t)(enemy_sprite_dims & 0xff);
+            h = (uint8_t)(enemy_sprite_dims >> 8);
+        } else {
+            uint8_t idx = (uint8_t)(enemy_sprite_ptr / 2);
+            if (idx > 7) idx = 7;
+            const cat_walk_frame_t *frame = &enemy_sprite_frames[idx];
+            src = frame->data;
+            w = frame->width_words;
+            h = frame->height;
+            enemy_erase_dims = (uint16_t)((h << 8) | w);
+        }
+        save_from_cga((uint8_t *)enemy_save_buf, enemy_draw_addr, w, h);
+        blit_to_cga(src, enemy_draw_addr, w, h);
         return;
     }
     if (enemy_cropped) {

@@ -2,6 +2,7 @@
 #include "cat_state.h"
 #include "alley.h"
 #include "sound.h"
+#include "score.h"
 #include "cga.h"
 #include "level_collision.h"
 #include "cycle_objects.h"
@@ -21,10 +22,10 @@ static uint8_t cycle_random_byte(void) {
     return (uint8_t)(cga_random() & 0xFF);
 }
 
-/* Stubs — score.asm/sound.asm not ported yet. Named distinctly from any
+/* score.asm/sound.asm are ported (score.c/sound.c); thin wrappers. Named distinctly from any
  * other file's stubs (no shared static-shadowing risk, see PROGRESS.md
  * §5q for why that matters). */
-static void cycle_add_score(uint8_t points) { (void)points; /* TODO: score.asm */ }
+static void cycle_add_score(uint8_t points) { add_score(points); }
 /* sound.asm is ported now (src/sound.c), so these forward to the real
  * thing. Kept as distinctly-named wrappers rather than renaming every call
  * site, so the §5q shadowing hazard stays impossible here.
@@ -91,9 +92,13 @@ static bool check_cycle_cat_collision(void) {
                                      (uint16_t)cat_x, cat_y, 0x18, 0x0e);
     if (!hit) return false;
 
-    if (obj_hit[slot] == 0 && cat_y_bottom >= 0x26) {
-        if (at_platform != 0) {
-            /* lab_260e: knockback + score + tone */
+    /* objects.asm: ya golpeado, o gato demasiado alto (cat_y_bottom < 0x26)
+     * -> CF=1 ("ya manejado"), no se sigue procesando este slot. */
+    if (obj_hit[slot] != 0 || cat_y_bottom < 0x26) return true;
+
+    {
+        if (at_platform == 0) {
+            /* lab_260e: knockback + score + tone (solo con at_platform == 0) */
             uint16_t tick = read_bios_tick();
             obj_hit[slot] = 1;
             obj_dir[slot] = 1;
@@ -107,7 +112,7 @@ static bool check_cycle_cat_collision(void) {
             cycle_start_tone(0x3e8, 0x2ee);
             return true;
         } else {
-            /* lab_25cf: not at a platform -> arm the level-2 climb-entry
+            /* lab_25cf: at_platform != 0 -> arm the level-2 climb-entry
              * transition and draw the "collision" splash sprite. */
             at_platform = 0;
             transition_timer = 0x11;
@@ -134,7 +139,6 @@ static bool check_cycle_cat_collision(void) {
             return true;
         }
     }
-    return false;
 }
 
 /* cycle_animations — literal, label-for-label port of objects.asm's
