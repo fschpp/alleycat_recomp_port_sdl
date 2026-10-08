@@ -11,6 +11,13 @@
 #include <time.h>
 #include <stddef.h>
 
+/* Divisor de update_cat_jump. El ASM recarga 0x0d: solo actua 1 de cada 13 llamadas, calibrado para el lazo del original (sin
+ * retardo, cientos de iteraciones por segundo). Este port corre el callejon a ~30 Hz y sin enemigo la fisica solo cada 4.o
+ * cuadro (~7,5 llamadas/s), asi que 13 llamadas eran ~1,7 s POR LINEA de la ventana (T81). Los demas subsistemas de esa mitad
+ * (throw, gravedad, cycle_objects) ya van por ticks BIOS; este era el unico que dependia del conteo de llamadas. Con 1 actua
+ * en cada llamada: ~0,13 s por linea (arco de 29 lineas ~ 4 s; ~1 s con enemigo activo, que quita el throttle). */
+#define JUMP_TICK_RELOAD 1
+
 /* random() substitute — same convention as movement.c/enemy.c: low byte
  * of the shared 16-bit LFSR. */
 static uint8_t rnd_byte(void) {
@@ -174,7 +181,7 @@ void draw_fish_line(void) {
 void update_cat_jump(void) {
     jump_tick_delay--;
     if (jump_tick_delay != 0) return;
-    jump_tick_delay = 0x0d;
+    jump_tick_delay = JUMP_TICK_RELOAD;
     /* check_vsync: always "ready" in this port, see enemy.c's convention */
 
     if (jump_anim_counter != 0) {
@@ -195,18 +202,21 @@ void update_cat_jump(void) {
             if ((uint16_t)(now - mode_start_tick) >= 0x48) idle_aggro_flag = 1;
         }
 
-        uint8_t r = rnd_byte();
-        uint8_t roll;
-        if (idle_aggro_flag != 0) {
-            roll = (uint8_t)(r & 0x3);
-        } else {
-            roll = (uint8_t)(r & 0xf);
-            if (roll >= 0xc) return;
+        /* lab_198a: `call random` ... `jc lab_198a` -> si la ventana elegida choca con el gato se vuelve a tirar el dado
+         * en el acto (el original no sale del tick). Salir con roll >= 0xc (jnc lab_193c) si. */
+        for (;;) {
+            uint8_t r = rnd_byte();
+            uint8_t roll;
+            if (idle_aggro_flag != 0) {
+                roll = (uint8_t)(r & 0x3);
+            } else {
+                roll = (uint8_t)(r & 0xf);
+                if (roll >= 0xc) return;
+            }
+            jump_spawn_param = roll;
+            decode_enemy_params(roll, &jump_x, &jump_y);
+            if (!check_fish_collision()) break;
         }
-
-        jump_spawn_param = roll;
-        decode_enemy_params(roll, &jump_x, &jump_y);
-        if (check_fish_collision()) return; /* spawn position blocked, try again next tick */
 
         jump_anim_counter = 0x1d;
         jump_toss_delay = jump_pause_by_diff[difficulty_level & 7];
@@ -216,8 +226,15 @@ void update_cat_jump(void) {
     if (check_fish_collision()) return;
 
     cycle_active = 0;
-    if (!check_trashcan_near()) return;
-    cycle_active = 1;
+    /* level_physics.asm L441-447: `call check_trashcan_near / jnc lab_19e1 / inc [cycle_active] / lab_19e0: ret`.
+     * Con carry (el pez cae junto a un patrullero del suelo) solo marca cycle_active y SALE; la rama que sigue
+     * (temporizador de lanzamiento + animacion del arco) es la de SIN carry. El port tenia la condicion invertida:
+     * con la ventana lejos de los patrulleros (siempre, para jump_spawn_param >= 8) retornaba aqui y jump_anim_counter
+     * se quedaba en 0x1d para siempre: la ventana nunca se abria ni lanzaba nada. */
+    if (check_trashcan_near()) {
+        cycle_active = 1;
+        return;
+    }
 
     if (jump_anim_counter == 0x10) {
         jump_toss_tick = read_bios_tick();
@@ -228,7 +245,7 @@ void update_cat_jump(void) {
     {
         uint16_t now = read_bios_tick();
         uint16_t dt = (uint16_t)(now - jump_toss_tick);
-        if (dt < jump_toss_delay) goto animate_arc;
+        if (dt >= jump_toss_delay) goto animate_arc;   /* jnc lab_1a76: pasada la pausa (dx >= delay) sigue el arco */
         if (jump_toss_remaining == 0) return;
         if (gravity_y != 0) return;
         if (force_level7 != 0) return;      /* cmp byte [0x418],0 / jnz lab_1a75: escena de amor forzada */
@@ -245,6 +262,7 @@ void update_cat_jump(void) {
         r = rnd_byte();
         uint8_t bx = (uint8_t)(r & 0x6);
         gravity_cur_sprite = &gravity_sprite[bx >> 1];
+        gravity_cur_dims = (uint16_t)((gravity_sprite[bx >> 1].height << 8) | gravity_sprite[bx >> 1].width_words);   /* gravity_sprite_dims_tbl: 02 09 / 02 06 / 02 0c / 02 0c */
         gravity_target_height = gravity_height_table[bx >> 1];
         gravity_h_speed = 0x20;
         gravity_frame = 1;
