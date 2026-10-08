@@ -26,16 +26,20 @@ static uint32_t hash_screen(void) {
     return h;
 }
 static int nz[MAXS];
-/* bytes distintos de cero en las 8 primeras filas del primer corazon con flecha (x=0x84, y=0x1c, 17 bytes de ancho:
- * 28 px de sprite + flecha). Los pasos siguientes (y+8, y+16...) no las tapan, asi que tras el paso 2 deben estar
- * restauradas al fondo (0 en este test). */
-static size_t row_off(int y) { return (size_t)((y >> 1) * 80 + (y & 1) * 0x2000); }
-static int count_nz(void) {
-    int c = 0;
-    for (int y = 0x1c; y < 0x1c + 8; y++)
-        for (int b = 0x84 / 4; b < 0x84 / 4 + 17; b++) c += cga_mem[row_off(y) + (size_t)b] != 0;
-    return c;
+/* T84c: el segundo sprite de position_victory_cat (dat_4a82) es un gato de 4 words x 13 filas (mov cx,0xd04), no
+ * 13x4. Tras el primer paso (x=0x84, y=0x1c) las 13 filas en addr+0xf3 deben ser exactamente esos bytes (blit
+ * opaco), y la fila 14 (debajo) no debe ser del gato. nz[] guarda cuantas filas coinciden. */
+static int icon_rows_match(void) {
+    extern const uint8_t ds_pool[];
+    size_t a = (size_t)calc_cga_addr(0x1c, 0x84, NULL) + 0xf3;
+    int ok = 0;
+    for (int r = 0; r < 13; r++) {
+        if (memcmp(&cga_mem[a], &ds_pool[0x4a82 + (size_t)r * 8], 8) == 0) ok++;
+        a ^= 0x2000; if ((a & 0x2000) == 0) a += 0x50;
+    }
+    return ok;
 }
+static int count_nz(void) { return icon_rows_match(); }
 static void hook(void) {
     if (calls < MAXS) nz[calls] = count_nz();
     calls++;
@@ -61,11 +65,8 @@ int main(void) {
     CHECK(calls >= 10, "la cinematica presento el video solo %d veces", calls);
     CHECK(nseen >= 5, "la cinematica no se anima: solo %d cuadros distintos presentados", nseen);
 
-    /* T84b: el corazon con flecha que baja (position_victory_cat) debe borrarse en cada paso. El cuadro 3 es aun el
-     * primer paso (hay 3 presentaciones de espera); del 4 en adelante son los pasos 2..n. */
-    CHECK(calls > 8 && nz[0] > 0, "el primer corazon no se dibujo (nz=%d)", calls > 0 ? nz[0] : -1);
-    for (int i = 4; i < 8 && i < calls; i++)
-        CHECK(nz[i] == 0, "cuadro %d: el corazon del primer paso no se borro (%d bytes sin restaurar)", i, nz[i]);
+    CHECK(calls > 8, "pocas presentaciones (%d)", calls);
+    CHECK(nz[0] == 13, "el gato del primer paso no coincide con dat_4a82 4x13 (%d/13 filas)", nz[0]);
 
     printf(fails ? "test-t84: %d FALLOS\n" : "test-t84: OK\n", fails);
     return fails != 0;

@@ -647,7 +647,7 @@ cga_addr:
 #define L7_CUPID_SAVE_TBL    0x4dc2
 /* position_victory_cat's own two sprites. */
 #define L7_POSITION_SPRITE 0x4b8a /* dat_4b8a, 7 words x 32 rows */
-#define L7_POSITION_ICON   0x4a82 /* dat_4a82, 13 words x 4 rows */
+#define L7_POSITION_ICON   0x4a82 /* dat_4a82, gato 4 words x 13 filas (cx=0xd04) */
 
 static int16_t  l7_cupid_x[8];      /* real scratch, all-zero in .data */
 static int16_t  l7_cupid_y[8];
@@ -768,12 +768,24 @@ static void animate_victory_pairs(void) {
  * cupid-carries-cat sprite pair at each step and pacing each step by
  * `l7_cupid_tick` BIOS ticks (10 for the first step, 2 thereafter). */
 static uint16_t pos_sprite_save[7 * 32];   /* T84b: fondo bajo el sprite del paso anterior */
-static uint16_t pos_icon_save[13 * 4];     /* T84b: fondo bajo la flecha del paso anterior */
+
+/* T84c: el ASM (level_objects.asm L3534-3620) NO borra el corazon de pasos anteriores: pasa bp=0xe a
+ * blit_transparent solo como buffer basura y nunca restaura. 0 = fiel al original (estela de corazones con gato
+ * mientras baja). 1 = restaurar el fondo de cada paso (desviacion de T84b, por si en pantalla real se prefiere). */
+#ifndef L7_POS_ERASE_TRAIL
+#define L7_POS_ERASE_TRAIL 0
+#endif
+
+#if L7_POS_ERASE_TRAIL
+static uint16_t pos_icon_save[4 * 13];     /* fondo bajo el gato del paso anterior */
 static uint16_t pos_addr;
 static bool     pos_drawn;
+#endif
 
 static void position_victory_cat(void) {
+#if L7_POS_ERASE_TRAIL
     pos_drawn = false;
+#endif
     int32_t ax = cat_x;
     if (ax >= 0x117) ax = 0x116;
     ax -= 0x10;
@@ -809,19 +821,23 @@ static void position_victory_cat(void) {
 
         cat_y = (uint8_t)(cat_y + 8);
         uint16_t addr = (uint16_t)calc_cga_addr(cat_y, (uint16_t)(cat_x + 4), NULL);
-        /* T84b: el corazon con flecha (sprite 7x32 + flecha 13x4) baja de 8 en 8 filas y mide 32: sin restaurar el
-         * fondo de cada paso se apilaba en una estela de corazones y flechas (la flecha se sale 52 px a la derecha).
-         * Se guarda el fondo al dibujar y se restaura al paso siguiente (primero la flecha, luego el sprite, orden
-         * inverso al de dibujo). El ultimo paso queda en pantalla: de ahi salen las oleadas. */
+        /* El segundo sprite es un gato de 4 words x 13 filas (mov cx,0xd04: cl=ancho, ch=alto), a (x+12, y+6).
+         * T84c: se pasaba (13, 4) invertido y se dibujaba ruido (las "flechas" de las capturas). */
+#if L7_POS_ERASE_TRAIL
         if (pos_drawn) {
-            blit_to_cga((const uint8_t *)pos_icon_save, (size_t)(pos_addr + 0xf3), 13, 4);
+            blit_to_cga((const uint8_t *)pos_icon_save, (size_t)(pos_addr + 0xf3), 4, 13);
             blit_to_cga((const uint8_t *)pos_sprite_save, pos_addr, 7, 32);
         }
+#endif
         blit_transparent(&ds_pool[L7_POSITION_SPRITE], addr, 7, 32, pos_sprite_save);
-        save_from_cga((uint8_t *)pos_icon_save, (size_t)(addr + 0xf3), 13, 4);
-        blit_to_cga(&ds_pool[L7_POSITION_ICON], (size_t)(addr + 0xf3), 13, 4);
+#if L7_POS_ERASE_TRAIL
+        save_from_cga((uint8_t *)pos_icon_save, (size_t)(addr + 0xf3), 4, 13);
+#endif
+        blit_to_cga(&ds_pool[L7_POSITION_ICON], (size_t)(addr + 0xf3), 4, 13);
+#if L7_POS_ERASE_TRAIL
         pos_addr = addr;
         pos_drawn = true;
+#endif
         l7_present();   /* un cuadro por paso, sin depender de cuanto dure la espera */
 
         if (l7_cupid_tick == 0xa) {
