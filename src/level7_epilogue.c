@@ -740,8 +740,12 @@ static void init_victory_wave(void) {
             play_victory_note_stub();
             l7_sleep_ms(5);
         } while ((uint16_t)(read_bios_tick() - wave_start) < l7_cupid_save_ptr);
+        /* T84d: el ASM (lab_520c) pone l7_cupid_active = 0 al final de CADA pasada de espera, no al terminar la
+         * oleada. Asi solo la primera pasada dibuja unicamente el slot lider (cx == 8) y las siguientes dibujan los
+         * 8 corazones, que salen en 8 direcciones y van llenando la pantalla. Antes el port solo dibujaba el lider
+         * hasta el final de la oleada. */
+        l7_cupid_active = 0;
     } while (l7_cupid_bounce_cnt == 0);
-    l7_cupid_active = 0;
 }
 
 /* animate_victory_pairs — literal port: runs 3 waves back to back, each
