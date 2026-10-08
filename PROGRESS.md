@@ -14,7 +14,7 @@ graphics assets, so it is not meant to be published or redistributed.
 
 ## 0. Current focus / todo / blockers
 
-**Current focus:** `tareas.md` está hecho hasta **T79** (ver abajo). Todo el flujo real corre en `main.c` -> `game_run()`
+**Current focus:** T80 (ventanas del callejón, §6br) hecho; falta confirmarlo en PC real y probar los minijuegos. `tareas.md` está hecho hasta **T79** (ver abajo). Todo el flujo real corre en `main.c` -> `game_run()`
 (título -> callejón -> niveles 0-7 -> resultado), con `update_animation()` real. Lo único que queda son las tareas abiertas de
 "Todo". Estado de verificación: `make` y `make test` limpios, sin warnings (`-Wall -Wextra`); `make test-soak-levels` entra y sale
 de los 8 niveles; resultados por nivel en `docs/NIVELES.md`.
@@ -31,9 +31,11 @@ de los 8 niveles; resultados por nivel en `docs/NIVELES.md`.
 
 ### Blockers
 
-Ninguno. (El hallazgo de §6bj sobre el soak quedó resuelto en §6bk. En §6bq se comprobó que T77 no empeora la tasa de entrada a niveles.)
+Ninguno. Descubrimiento reciente (§6br): `update_cat_jump` tenía dos ramas invertidas y por eso las ventanas no se abrían; si aparece otro comportamiento "muerto" en el callejón, sospechar de más saltos condicionales invertidos en funciones portadas antes de T24 y sin test de ciclo completo. (El hallazgo de §6bj sobre el soak quedó resuelto en §6bk. En §6bq se comprobó que T77 no empeora la tasa de entrada a niveles.)
 
 ### Completed
+
+- [x] T80 — ventanas del callejón: `update_cat_jump` corregido, `test-window-open` (§6br)
 
 
 - [x] `sound.asm` — full port, wired into every previously-stubbed call site (§6e)
@@ -4718,6 +4720,26 @@ Los tres "siempre 0" eran falsos: `[0x558]` no era un flag desconocido sino `ent
 **Verificación.** `make` (sin SDL aquí: se compila con el mismo `CFLAGS` y `LDFLAGS=` los `.c` que no dependen de SDL) y `make test` limpios, 0 warnings. `video.c` comprobado con `-fsyntax-only` contra un stub de SDL (en T78).
 
 Suggested commit: `T79: resultados por nivel en NIVELES.md, PROGRESS.md reordenado (5x-5z antes de §6, §0 al día)`
+
+## 6br. T80 — las ventanas del callejón no se abrían (`src/jump_gravity.c`; level_physics.asm L386-547)
+
+**Síntoma (PC real):** ninguna ventana del callejón se abría, así que no se podía entrar a los minijuegos (la entrada es saltar contra una ventana abierta: `check_fish_collision` marca `cat_died` = DS 0x551 con `in_level_mode == 1`, `transitioning == 0`, `cat_y < 0x60` y `jump_anim_counter` en 5..0x18; luego `game_death_handler` -> `select_next_level`).
+
+**Causa:** `update_cat_jump` tenía saltos condicionales invertidos respecto al ASM (desde el merge de T23, `20c4bea`):
+1. L441-447: `call check_trashcan_near / jnc lab_19e1 / inc [cycle_active] / ret`. CON carry solo marca `cycle_active` y sale; SIN carry sigue con lanzamiento y arco. El port hacía lo contrario: con la ventana lejos de los patrulleros (siempre para `jump_spawn_param >= 8`) retornaba y `jump_anim_counter` quedaba en 0x1d para siempre.
+2. L455-459: `cmp dx,[jump_toss_delay] / jnc lab_1a76`: con `dt >= delay` sigue el arco; con `dt < delay` lanza el proyectil una vez y espera en 0xf. El port tenía el `<` al revés.
+3. L486-488: `mov [gravity_cur_dims],ax` (tabla `gravity_sprite_dims_tbl`: 02 09 / 02 06 / 02 0c / 02 0c) no se hacía: el proyectil se guardaba/restauraba con dims 0 y `check_dog_collision` usaba alto 0.
+4. L416-418 (`jc lab_198a`): si la ventana sorteada choca con el gato se vuelve a tirar el dado en el acto; el port salía del tick. Ahora es un bucle.
+
+**Notas de uso:** las ventanas solo se abren con `cat_y <= 0x60` (`ja lab_193c`): el gato tiene que estar arriba (tendederos), no en el suelo. Es fiel al original.
+
+**Velocidad (T80b, reporte en PC real: ~2 s por línea de ventana).** El ASM recarga `jump_tick_delay = 0x0d` (actúa 1 de cada 13 llamadas), calibrado para el lazo del original sin retardo. En el port el callejón corre a ~30 Hz y sin enemigo la física solo cada 4.º cuadro (`frame_counter & 3`, ~7,5 llamadas/s): 13 llamadas = ~1,7 s por línea. Es el único subsistema de esa mitad del lazo que dependía del conteo de llamadas (throw, gravedad y cycle_objects van por ticks BIOS). Se introdujo `JUMP_TICK_RELOAD = 1` (desviación consciente y documentada en `jump_gravity.c`): ~0,13 s por línea (arco de 29 líneas ~4 s; ~1 s con enemigo activo). Si sigue lento/rápido en el PC real, es la única constante a tocar.
+
+**Por qué no lo vio nada antes:** ningún test ejercitaba el arco completo; `make soak` rara vez llega ahí.
+
+**Verificación.** `make test-window-open` (`tests/test_window_open.c`, reloj BIOS simulado): rama sin/con patrullero (param 0 -> `obj_x[1]`, param 4 -> `obj_x[2]`), lanzamiento único en el vértice y pausa hasta `dt >= delay`, `gravity_cur_dims` según el sprite elegido, entrada al nivel (salta + contador 5..0x18 -> `cat_died`; recién abierta o sin saltar no), y 200 000 llamadas: 433 aperturas completas / 433 lanzamientos / ~12 100 líneas (antes: 1 apertura y contador clavado). Mutaciones (trashcan, pausa, `gravity_cur_dims`) hacen fallar el test. `make test` completo limpio. Captura: ventana en `x=264,y=24` abriéndose (interior negro) y otra abierta tras el lanzamiento. **Pendiente:** confirmarlo en el PC real con la ventana SDL.
+
+Suggested commit: `T80: update_cat_jump — ramas trashcan/pausa invertidas, gravity_cur_dims, re-sorteo; las ventanas del callejon se abren; test-window-open`
 
 ## 7. General lesson for this whole project
 
