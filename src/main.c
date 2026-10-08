@@ -32,6 +32,12 @@ static void wipe_present_step(void) {
     SDL_Delay(25);
 }
 
+/* T84: la cinematica del nivel 7 (corazones, marcha) bloquea y dibuja en cga_mem: hay que presentar durante sus esperas. */
+static void l7_present_step(void) {
+    SDL_PumpEvents();
+    video_present();
+}
+
 /* T50: las esperas bloqueantes de ui.asm (wait_for_input) necesitan bombear SDL, contar pulsaciones (lo que hacia la
  * ISR de INT 9 con keyboard_counter) y presentar. */
 static void ui_wait_pump(void) {
@@ -94,6 +100,7 @@ int main(int argc, char **argv) {
      * "the speaker exists". If no device can be opened the game just runs silent. */
     if (!audio_init()) fprintf(stderr, "NO audio device - running silent.\n");
     wipe_step_hook = wipe_present_step;
+    l7_step_hook = l7_present_step;
     ui_wait_hook = ui_wait_pump;
     game_poll_hook = frame_poll;
     game_present_hook = frame_present;

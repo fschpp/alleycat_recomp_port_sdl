@@ -359,7 +359,14 @@ build/test_t83: tests/test_t83.c $(TEST_SRC) include/*.h
 test-t83: build/test_t83
 	./build/test_t83
 
-test: test-t82 test-t83
+build/test_t84: tests/test_t84.c $(TEST_SRC) include/*.h
+	@mkdir -p build
+	$(CC) $(CFLAGS) tests/test_t84.c $(TEST_SRC) -o $@
+
+test-t84: build/test_t84
+	./build/test_t84
+
+test: test-t82 test-t83 test-t84
 
 build/test_window_open: tests/test_window_open.c $(TEST_SRC) include/*.h
 	@mkdir -p build
