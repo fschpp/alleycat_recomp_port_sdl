@@ -52,6 +52,10 @@ extern uint8_t  l7_obj_cur_y;         /* DS 0x2e98 */
  * once when the epilogue finishes, not from the per-frame update loop. */
 void run_victory_sequence(void);
 
+/* T84: gancho de presentacion para las esperas bloqueantes de la cinematica (run_victory_sequence/
+ * play_victory_march). main.c lo apunta a SDL_PumpEvents + video_present; NULL = nada. */
+extern void (*l7_step_hook)(void);
+
 /* play_victory_march — the level-7 completion transition's marching
  * background/music, called once right after run_victory_sequence.
  * Also blocking, same reasoning — see level7_epilogue.c. */

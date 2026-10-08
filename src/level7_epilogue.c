@@ -29,9 +29,23 @@ static uint16_t read_bios_tick(void) {
  * *deliberately real, blocking* busy-wait loops — see the long comment
  * above run_victory_sequence for why blocking is the right call here,
  * unlike everywhere else in this port. */
+/* T84: la cinematica bloquea (como el original) y dibuja directo en cga_mem; sin presentar el video durante las
+ * esperas, la animacion de los corazones nunca llegaba a verse (solo el barrido final). main.c apunta
+ * l7_step_hook a "bombear eventos SDL + video_present" (como wipe_step_hook, T45); NULL = nada (tests). Se llama
+ * como mucho cada ~15 ms de espera acumulada. */
+void (*l7_step_hook)(void) = NULL;
+static int l7_slept_ms = 0;
+
+static void l7_present(void) {
+    l7_slept_ms = 0;
+    if (l7_step_hook) l7_step_hook();
+}
+
 static void l7_sleep_ms(int ms) {
     struct timespec ts = { .tv_sec = ms / 1000, .tv_nsec = (long)(ms % 1000) * 1000000L };
     nanosleep(&ts, NULL);
+    l7_slept_ms += ms;
+    if (l7_slept_ms >= 15) l7_present();
 }
 
 static uint16_t ds_word(uint16_t ofs) {
@@ -753,7 +767,13 @@ static void animate_victory_pairs(void) {
  * center while lowering it down the screen in 8px steps, drawing the
  * cupid-carries-cat sprite pair at each step and pacing each step by
  * `l7_cupid_tick` BIOS ticks (10 for the first step, 2 thereafter). */
+static uint16_t pos_sprite_save[7 * 32];   /* T84b: fondo bajo el sprite del paso anterior */
+static uint16_t pos_icon_save[13 * 4];     /* T84b: fondo bajo la flecha del paso anterior */
+static uint16_t pos_addr;
+static bool     pos_drawn;
+
 static void position_victory_cat(void) {
+    pos_drawn = false;
     int32_t ax = cat_x;
     if (ax >= 0x117) ax = 0x116;
     ax -= 0x10;
@@ -789,8 +809,20 @@ static void position_victory_cat(void) {
 
         cat_y = (uint8_t)(cat_y + 8);
         uint16_t addr = (uint16_t)calc_cga_addr(cat_y, (uint16_t)(cat_x + 4), NULL);
-        blit_transparent(&ds_pool[L7_POSITION_SPRITE], addr, 7, 32, NULL);
+        /* T84b: el corazon con flecha (sprite 7x32 + flecha 13x4) baja de 8 en 8 filas y mide 32: sin restaurar el
+         * fondo de cada paso se apilaba en una estela de corazones y flechas (la flecha se sale 52 px a la derecha).
+         * Se guarda el fondo al dibujar y se restaura al paso siguiente (primero la flecha, luego el sprite, orden
+         * inverso al de dibujo). El ultimo paso queda en pantalla: de ahi salen las oleadas. */
+        if (pos_drawn) {
+            blit_to_cga((const uint8_t *)pos_icon_save, (size_t)(pos_addr + 0xf3), 13, 4);
+            blit_to_cga((const uint8_t *)pos_sprite_save, pos_addr, 7, 32);
+        }
+        blit_transparent(&ds_pool[L7_POSITION_SPRITE], addr, 7, 32, pos_sprite_save);
+        save_from_cga((uint8_t *)pos_icon_save, (size_t)(addr + 0xf3), 13, 4);
         blit_to_cga(&ds_pool[L7_POSITION_ICON], (size_t)(addr + 0xf3), 13, 4);
+        pos_addr = addr;
+        pos_drawn = true;
+        l7_present();   /* un cuadro por paso, sin depender de cuanto dure la espera */
 
         if (l7_cupid_tick == 0xa) {
             play_swoop_sound_stub();
@@ -822,6 +854,7 @@ void run_victory_sequence(void) {
     position_victory_cat();
     animate_victory_pairs();
     play_full_victory_stub();
+    l7_present();
 
     if (lives_count < 9) lives_count++;
     if (difficulty_level < 7) difficulty_level++;

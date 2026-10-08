@@ -4784,6 +4784,16 @@ Tests: `test-t83` (nuevo; falla sin los arreglos en los bugs 1, 2 y 5) y `test-a
 
 Suggested commit: `T83: raton del callejon puntua (at_platform invertido, add_score real); color del gato en la pecera; gata nivel 7 camina; draw_enemy con enemy_active; tendederos con THROW_TIMER_DIV; test-t83`
 
+## 6bv. T84 — la cinematica de victoria del nivel 7 no se veia (`src/level7_epilogue.c`, `src/main.c`)
+
+Al llegar a la gata del nivel 7 no aparecia la animacion de los corazones. `run_victory_sequence` (y `play_victory_march`) bloquean a proposito, como el original, y dibujan directo en `cga_mem`, pero durante sus esperas (`l7_sleep_ms`) nunca se presentaba el video: solo se veia el barrido posterior (el barrido si presenta, via `wipe_step_hook`, T45). Fix: `l7_step_hook` (mismo patron que `wipe_step_hook`); `l7_sleep_ms` lo llama cada ~15 ms de espera acumulada y `run_victory_sequence` una vez al final. `main.c` lo apunta a `SDL_PumpEvents + video_present`; NULL en los tests.
+
+Test: `test-t84` corre `run_victory_sequence` con reloj falso y exige >= 10 presentaciones y >= 5 cuadros distintos (animacion real, no un cuadro fijo). No pude verlo en pantalla real (sin SDL2 en el entorno). Si tras esto los corazones se ven demasiado rapidos/lentos, el ritmo es el del ASM (ticks BIOS), no del hook.
+
+**T84b (incremental).** Con la cinematica ya visible se vio una estela de corazones y flechas en diagonal. Era `position_victory_cat`: el corazon con flecha (sprite 7x32 en `dat_4b8a` + flecha 13x4 en `dat_4a82`, esta a (x+12, y+6)) baja 8 filas por paso pero mide 32, y se dibujaba con `blit_transparent(..., NULL)` / `blit_to_cga` sin guardar el fondo, asi que cada paso se apilaba sobre el anterior (y la flecha, de 52 px, se sale por la derecha). Ahora cada paso guarda el fondo (`pos_sprite_save`, `pos_icon_save`) y restaura el del paso anterior antes de dibujar (primero la flecha, luego el sprite); el ultimo corazon queda en pantalla (de ahi nacen las oleadas, `x_init/y_init` = 0x98/0x60). Ademas se presenta un cuadro por paso. `test-t84` comprueba que el corazon del primer paso se borra. Las oleadas de corazones que rebotan (`init_victory_wave`) siguen dejando estela a proposito: el ASM solo dibuja el slot lider y no borra (ver el comentario de esa funcion); si tambien eso es incorrecto en pantalla real, es el siguiente punto a mirar.
+
+Suggested commit: `T84: presentar el video durante la cinematica de victoria del nivel 7 (l7_step_hook); corazon con flecha del paso de posicion se borra en cada paso; test-t84`
+
 ## 7. General lesson for this whole project
 
 **Never trust a same-file label as a data region's end boundary, and never
