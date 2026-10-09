@@ -12,4 +12,15 @@
 extern uint16_t (*bios_clock_hook)(void);
 uint16_t bios_clock_read(void);
 
+/* Modelo del retrazo vertical (check_vsync = bit 3 del puerto 0x3DA, `and al,8`). El original solo avanza ciertas rutinas
+ * cuando el retrazo esta (o no esta) activo; el port no tiene CGA real y las trata como "listas".
+ *   vsync_gate(sitio, necesita_retrazo) -> true = continuar. Sin gancho siempre continua (comportamiento por defecto).
+ *   necesita_retrazo = true : el original sigue solo si hay retrazo   (`call check_vsync / jz ret`)
+ *   necesita_retrazo = false: el original sigue solo si NO hay retrazo (`call check_vsync / jnz ret`)
+ * Con gancho (tools/parity/iter_diff.c) se prueba cada resultado posible para explicar los pares de iteraciones del
+ * original en los que una rutina no avanzo porque el retrazo no estaba en ese instante. */
+#include <stdbool.h>
+extern bool (*vsync_hook)(const char *site, bool need_retrace);
+bool vsync_gate(const char *site, bool need_retrace);
+
 #endif

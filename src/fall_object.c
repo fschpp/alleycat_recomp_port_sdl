@@ -85,7 +85,8 @@ static void erase_jump_sprite(void) {
 void animate_falling(void) {
     uint16_t now = read_bios_tick();
     if (now == fall_last_tick) return;
-    /* check_vsync: always "ready" in this port, see enemy.c's convention */
+    /* call check_vsync / jz lab_2220: solo sigue con retrazo (vsync_gate: por defecto siempre sigue) */
+    if (!vsync_gate("animate_falling", true)) return;
     fall_last_tick = now;
 
     if (check_jump_collision()) return;

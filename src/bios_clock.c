@@ -4,6 +4,12 @@
 
 uint16_t (*bios_clock_hook)(void) = NULL;
 
+bool (*vsync_hook)(const char *site, bool need_retrace) = NULL;
+
+bool vsync_gate(const char *site, bool need_retrace) {
+    return vsync_hook ? vsync_hook(site, need_retrace) : true;
+}
+
 uint16_t bios_clock_read(void) {
     if (bios_clock_hook) return bios_clock_hook();
     struct timespec ts;

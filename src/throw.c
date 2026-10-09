@@ -167,7 +167,8 @@ void update_thrown_objects(void) {
     if (throw_timer != 0) return;                    /* jz lab_04a7 / lab_04a6: ret */
     /* lab_04a7 */
     throw_timer++;                                   /* inc byte [throw_timer] */
-    /* call check_vsync; jnz lab_04a6  -> ZF=1 siempre, no salta */
+    /* call check_vsync; jnz lab_04a6: con retrazo vuelve (vsync_gate: por defecto siempre sigue) */
+    if (!vsync_gate("update_thrown_objects", false)) return;
     if (transitioning != 0) return;                  /* jnz lab_04a6 */
     if (gravity_y != 0) return;                      /* jnz lab_04a6 */
     {

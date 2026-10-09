@@ -18,3 +18,12 @@ Flujo (el `cat.exe` y los volcados NO se versionan):
 * `compare.py` corta en el primer tick con perro activo (`enemy_active != 0`) en cualquiera de los dos lados: el azar del
   original (`random` se llama en cada iteracion) no se puede alinear con el del arnes por tick.
 * Para comparar el comportamiento del perro hace falta el diferencial por iteracion (ver PLAN §9, "Siguiente").
+
+## Diferencial por iteración (`iter_diff`)
+
+    python3 tools/orig_state/build_dump_exe.py cat.exe /tmp/dos/catiter.exe --iter 40     # 40 ticks BIOS desde la iteración previa al perro
+    tools/parity/orig_run.sh catiter.exe i 160 0.25 "space@6 n@14 k@22 space@30"           # deja STATE.BIN (registro completo + deltas)
+    tools/parity/build_iter_diff.sh /tmp/dos/cat.lst
+    build/iter_diff /tmp/dos/STATE.BIN --from 5 --ignore keyboard_prev,keyboard_counter,input_horizontal,joy_last_tick,throw_timer,enemy_sprite_ptr,enemy_save_buf,fall_save_buf,alley_save_buf,obj_save_buf
+
+Carga cada registro del original en el port, ejecuta UNA pasada y compara con el registro siguiente (EXACTO / RETRAZO / DIVERGE). Ver plan §9.

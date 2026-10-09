@@ -69,7 +69,9 @@ lab_090c:
 lab_091d:
     /* push dx/ax; call check_vsync; pop ax/dx; jz lab_08fc. check_vsync devuelve ZF=1 = FUERA de retrace
      * (hardware.asm L38), y aqui jz = volver. Sin CGA real se trata como "en retrace" (ZF=0): seguir,
-     * si no el nivel 2 y el estado quieto nunca avanzarian (mismo criterio que level6.h/level2.h). */
+     * si no el nivel 2 y el estado quieto nunca avanzarian (mismo criterio que level6.h/level2.h).
+     * vsync_gate (bios_clock.h): por defecto siempre sigue; el diferencial por iteracion lo usa para modelar el retrazo. */
+    if (!vsync_gate("update_animation", true)) goto lab_08fc;
 lab_0926:
     anim_last_tick = dx;
     ua_anim_tick_delay = ax;                             /* mov [anim_tick_delay],ax */

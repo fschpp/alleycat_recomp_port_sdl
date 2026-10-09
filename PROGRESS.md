@@ -14,13 +14,14 @@ graphics assets, so it is not meant to be published or redistributed.
 
 ## 0. Current focus / todo / blockers
 
-**Current focus:** T81 (la pecera / nivel 2 volvía al callejón, §6bs) hecho; falta confirmarlo en PC real. T80 (ventanas del callejón, §6br) hecho. `tareas.md` está hecho hasta **T79** (ver abajo). Todo el flujo real corre en `main.c` -> `game_run()`
+**Current focus:** Plan de paridad 1 a 1 (`docs/PLAN_PARIDAD_1A1.md`): diferencial por iteración del callejón hecho (0 divergencias, §6bt); siguiente: B4 con teclas (saltos/ventanas) y vídeo (N4). Antes: T81 (la pecera / nivel 2 volvía al callejón, §6bs) hecho; falta confirmarlo en PC real. T80 (ventanas del callejón, §6br) hecho. `tareas.md` está hecho hasta **T79** (ver abajo). Todo el flujo real corre en `main.c` -> `game_run()`
 (título -> callejón -> niveles 0-7 -> resultado), con `update_animation()` real. Lo único que queda son las tareas abiertas de
 "Todo". Estado de verificación: `make` y `make test` limpios, sin warnings (`-Wall -Wextra`); `make test-soak-levels` entra y sale
 de los 8 niveles; resultados por nivel en `docs/NIVELES.md`.
 
 ### Todo (abierto)
 
+- [ ] Paridad: diferencial por iteración con entrada (B4.12/13), RAM de vídeo en el registro (N4), bucles interiores, aclarar `current_floor` (§6bt)
 - [ ] T75b — decidir D1: quitar `immune_flag = 0` de `game_alley_frame` (hay que actualizar E4 de `tests/test_game_flow_loop.c`; ver `docs/NIVELES.md` D1)
 - [ ] T78b — flash de borde del nivel 2 (`l2_set_border`/`l2_border_color` siguen siendo un stub con nombre; cablear a `bios_color_select` mueve el fondo del nivel completo y puede cambiar los conteos de píxeles de `test-level2*`) (§6bp)
 - [ ] T78c — PCjr (`rom_id == 0xfd`): el borde cambia pero los píxeles de índice 0 no (el borde de la PCjr es un registro aparte) (§6bp)
@@ -4803,6 +4804,20 @@ Uso: `python3 tools/parity_b1.py /ruta/cat.exe --asm /ruta/alleycat-disassembly/
 ## 6bx. Paridad 1 a 1 — volcado del estado del `cat.exe` original (`tools/orig_state/`)
 
 Para comparar variables del original con las del port (plan de paridad, §3.3) sin depurador: `build_dump_exe.py` parchea una copia del `cat.exe` (enganche en el `call update_animation` del bucle del callejon, `cs:0179`; cueva de 152 bytes anadida al final del `.exe`, cabecera MZ ajustada) que, una vez por tick BIOS, anade a `STATE.BIN` el segmento de datos `DS:0000-1FFF` (registro: contador, tick, 8 KB). `read_state.py` lee los registros por nombre de variable usando el listado de NASM del desensamblado (`gmegidish/alleycat-disassembly`; direcciones `DS` como `cat_x=0x579`, `lives_count=0x1f80`). Verificado con 241 ticks (~13 s) de juego: ticks consecutivos y variables coherentes (vidas 3->2, `cat_x` 0->296, `current_floor`, `frame_counter`). El bucle principal del original da ~100 iteraciones por tick en DOSBox, dato util para calibrar los temporizadores por llamadas (`throw_timer`, `jump_tick_delay`). El `.exe` y los volcados no se versionan.
+
+## 6bt. Paridad 1 a 1: diferencial por iteración del bucle del callejón (`tools/parity/iter_diff.c`; plan `docs/PLAN_PARIDAD_1A1.md` §9)
+
+Método: el original (DOSBox, `catiter.exe` = `build_dump_exe.py --iter`) vuelca el estado por iteración; `build/iter_diff` carga cada registro en el
+port, ejecuta una pasada de `game_alley_frame` y compara con el registro siguiente (194 variables, incluidos `rng_seed` y los ticks).
+Resultado (perro activo, 6 106 pares): **5 187 exactos + 919 explicados por retrazo vertical + 0 divergencias** (ver el plan, §9, para la lista de
+variables ignoradas y por qué). No se encontró ningún bug de lógica en `update_enemies`, `play_sound` (sirena), `update_cat_jump`, `animate_falling`,
+`update_thrown_objects`.
+
+Cambios de código (sin efecto por defecto): `vsync_gate()` en `include/bios_clock.h`/`bios_clock.c`, llamado desde `update_animation`,
+`update_enemies`, `animate_falling`, `update_cat_jump` (sin gancho siempre deja pasar, como antes); el estado de sonido de `sound.c` pasa de `static` a
+global (el arnés lo carga). Fallos del arnés corregidos: `read_state.build_map` (tamaño 0 de `sound_enabled`) y el reloj del arnés.
+Desviaciones conocidas que el diferencial vuelve a mostrar: `THROW_TIMER_DIV=32` (§6bq/§6br) y `enemy_sprite_ptr` (índice vs puntero DS).
+Pendiente: entrada/teclas en el diferencial (B4.12/13), RAM de vídeo en el registro (N4), bucles interiores, `current_floor`.
 
 ## 7. General lesson for this whole project
 
