@@ -1,8 +1,8 @@
 ; Cueva de volcado de estado (tools/state_dump): se engancha donde el juego llama a update_animation.
-; Por cada tick BIOS distinto, anade a STATE.BIN: [contador:2][tick:2][DS:0000..DUMP_LEN-1].
+; Por cada tick BIOS distinto, anade a STATE.BIN: [contador:2][tick:2][DS:0000..DUMP_LEN-1 (0x2c00: cubre rng_seed en 0x2ae5)].
 bits 16
 org CAVE_ORG
-DUMP_LEN equ 0x2000
+DUMP_LEN equ 0x2c00
 cave:
     pushf
     push ax

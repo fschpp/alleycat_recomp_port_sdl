@@ -5,10 +5,11 @@ Mapa de variables: se obtiene del listado de NASM del desensamblado (gmegidish/a
     nasm -f bin -l cat.lst -o cat_rebuilt.exe cat.asm     # nasm reciente da 3 errores de tamano de operando; el listado se genera igual (cat_rebuilt.exe queda vacio)
     python3 tools/orig_state/read_state.py STATE.BIN cat.lst cat_x cat_y lives_count
 
-Cada registro: [contador:2][tick:2][DS:0000..1FFF]. Las variables viven en DS:0000-1FFF (p. ej. lives_count=0x1f80)."""
+Cada registro: [contador:2][tick:2][DS:0000..1FFF]. Las variables viven en DS:0000-2BFF (p. ej. lives_count=0x1f80)."""
 import json, re, sys
 
-REC = 4 + 0x2000
+DUMP_LEN = 0x2c00                         # debe coincidir con cave.asm
+REC = 4 + DUMP_LEN
 
 
 def build_map(lst_path):

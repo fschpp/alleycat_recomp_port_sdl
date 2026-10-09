@@ -188,3 +188,34 @@ Herramienta: `tools/parity_b1.py` (parche `parity_b1.patch`). Lo siguiente en el
 - Dato de ritmo: en DOSBox el bucle del callejón itera ~100 veces por tick (`frame_counter` salta ~107 por tick); relevante para `throw_timer` y `jump_tick_delay`, que cuentan llamadas.
 - Pendiente: el enganche solo cubre el bucle del callejón; para niveles interiores hay que añadir un enganche en su bucle (misma cueva, otro punto de llamada).
 - Lo siguiente en el plan: alinear una traza del original con una del port (§3.4/§3.5) y empezar B4 (movimiento y salto).
+
+### 2026-10-09 — §3.4/§3.5 (traza por tick + comparador) y primer tramo de B4 (andar y subir)
+
+Herramientas nuevas (`tools/parity/`): `orig_run.sh` (DOSBox sin pantalla con teclas `down:`/`up:`), `port_trace.c` (+ `build_port_trace.sh`,
+traza del port por tick BIOS simulado, sin SDL), `compare.py` (compara columnas por tick y genera el guion de entrada del port a partir de la
+propia traza del original). `tools/orig_state/`: la ventana del volcado pasa de 0x2000 a 0x2c00 bytes (`rng_seed` vive en `DS:0x2ae5`).
+
+| Escena (n = tick de registro; entrada = la que registro el original) | Comparado | Resultado |
+|---|---|---|
+| Arranque del juego (entrada del gato desde la izquierda) | `cat_x`, `scroll_direction` n=1..9 | **Igual** (`cat_x`=8 y `scroll_direction` 1→0 en n=9) |
+| Andar a la derecha desde reposo (aceleracion de `scroll_speed` 2→8) | `cat_x`, `cat_y`, `scroll_speed`, `scroll_direction`, `in_level_mode`, hasta el primer perro | **Igual** (127/127 ticks; 7 de ellos andando: 12,16,22,28,36,44 y `scroll_speed` 2,3,3,4,4,5) |
+| Subir (Arriba mantenida: `in_level_mode` 255→1, `cat_y` 173,162,155,150,…,161) | `cat_x`, `cat_y`, `scroll_speed`, `in_level_mode`, `at_platform` | **Igual** (128/128 ticks, semillas 1234 y 999) |
+| Perro | `enemy_*` | **No comparable por tick** (ver abajo) |
+
+Hallazgos de metodo (no son fallos del port):
+* **El azar no se alinea por tick.** En el original `rng_seed` cambia en cada iteracion del bucle (cientos de cambios por tick), y el perro
+  aparece en reposo (p. ej. n=76 en una corrida de 476 ticks quieta) o justo al andar (n=122/134 en otras dos). El port con `PIT_SEED` fijo
+  tambien genera perro en reposo (22 de 40 semillas en 300 ticks), asi que *no hay evidencia de diferencia* en la tasa de aparicion, pero
+  tampoco de igualdad: se necesita el diferencial por iteracion.
+* **Al andar el original da 2 o 3 pasos de `scroll_speed` por tick** segun el reparto de iteraciones (se vio 12→19 y 196→220 en una corrida);
+  el port da exactamente 2. Es cuantizacion de ritmo (N5), no de estado; en las comparaciones de arriba la entrada coincide y no se nota
+  porque el tramo andando es corto.
+* `cga_init()` siembra `rng_seed` con el reloj real (`cga.c:25`): cualquier arnes que no lo pise no es reproducible (lo hacen `port_trace` y,
+  con otra via, `test_soak`).
+* Registro de variables del original: `current_floor` (`DS:0x52f`) cambia 0/1/2 sin que el gato cambie de piso en la traza del original, asi
+  que el nombre no describe su uso real; no se usa para comparar hasta aclararlo.
+
+Siguiente (por orden): (1) **diferencial por iteracion**: cueva que registre cada llamada a `update_animation` (ventana corta alrededor del
+perro) y un arnes del port que cargue el registro *k*, ejecute **una** pasada y compare con el registro *k+1*; es la unica forma de validar
+`update_enemies`/`check_enemy_activate` sin depender del azar ni del ritmo; (2) saltos en arco y ventanas (B4.12/13) con el mismo metodo
+por tick; (3) aclarar `current_floor`.
