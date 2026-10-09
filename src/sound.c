@@ -66,33 +66,35 @@ static uint16_t ds_word(uint16_t ofs) {
 #define DS_EXTRALIFE_TEXT_POS    0x60e4  /* 3 used words */
 
 /* --- sound-engine state (DS variables in the original) --- */
-static uint16_t title_music_pos, title_music_tick;
-static uint8_t  chase_intro_ticks, chase_tick_div;
-static uint16_t chase_toggle, chase_sweep_freq, chase_freq_mask, chase_last_tick;
-static uint8_t  tone_duration;
-static uint16_t tone_freq, tone_last_tick;
-static uint16_t ambient_last_tick, ambient_duration;
-static uint8_t  ambient_rhythm, ambient_note_pos, ambient_pitch_acc;
-static uint8_t  ambient_direction, ambient_ornament;
-static uint16_t walk_seq_index;
-static uint8_t  post_explode_ticks;
-static uint16_t explode_start_tick, explode_counter;
-static uint8_t  explode_speed_shift;
-static uint16_t buzz_phase;
-static uint16_t swoop_freq;
-static uint8_t  noise_counter;
-static uint16_t noise_period;
-static uint16_t result_melody_pos, result_melody_tick;
-static uint16_t level_melody_pos, level_note_tick;
-static uint8_t  level_note_toggle;
-static uint16_t wipe_note_index;
-static uint16_t meow_pitch_offset;
-static uint16_t hiss_start_tick, hiss_phase;
-static uint16_t fall_snd_pit_prev, fall_snd_wobble_idx;
-static uint16_t rand_noise_tick;
-static uint16_t crash_base_freq, crash_start_tick, crash_pit_prev;
-static uint16_t victory_melody_pos, victory_last_tick, victory_prev_freq;
-static uint16_t extralife_tick, extralife_anim_step;
+/* Estado de sonido = variables del DS del original (DS:5900..5B1F). Son globales (no static) para que tools/parity/iter_diff.c
+ * las cargue desde el registro del original. */
+uint16_t title_music_pos, title_music_tick;
+uint8_t  chase_intro_ticks, chase_tick_div;
+uint16_t chase_toggle, chase_sweep_freq, chase_freq_mask, chase_last_tick;
+uint8_t  tone_duration;
+uint16_t tone_freq, tone_last_tick;
+uint16_t ambient_last_tick, ambient_duration;
+uint8_t  ambient_rhythm, ambient_note_pos, ambient_pitch_acc;
+uint8_t  ambient_direction, ambient_ornament;
+uint16_t walk_seq_index;
+uint8_t  post_explode_ticks;
+uint16_t explode_start_tick, explode_counter;
+uint8_t  explode_speed_shift;
+uint16_t buzz_phase;
+uint16_t swoop_freq;
+uint8_t  noise_counter;
+uint16_t noise_period;
+uint16_t result_melody_pos, result_melody_tick;
+uint16_t level_melody_pos, level_note_tick;
+uint8_t  level_note_toggle;
+uint16_t wipe_note_index;
+uint16_t meow_pitch_offset;
+uint16_t hiss_start_tick, hiss_phase;
+uint16_t fall_snd_pit_prev, fall_snd_wobble_idx;
+uint16_t rand_noise_tick;
+uint16_t crash_base_freq, crash_start_tick, crash_pit_prev;
+uint16_t victory_melody_pos, victory_last_tick, victory_prev_freq;
+uint16_t extralife_tick, extralife_anim_step;
 
 /* Reset by alley.asm's window state machine (not ported), so not static.
  * walk_note_index is the same deal but already lives in cat_state.c — it is

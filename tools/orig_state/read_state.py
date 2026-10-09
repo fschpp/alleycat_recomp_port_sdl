@@ -23,7 +23,9 @@ def build_map(lst_path):
             if a < 0x7130: labels.append((pend, a))
             pend = None
     labels.sort(key=lambda x: x[1])
-    return {n: (a, (labels[i + 1][1] if i + 1 < len(labels) else 0x7130) - a) for i, (n, a) in enumerate(labels)}
+    addrs = sorted({a for _, a in labels})   # el tamano llega a la siguiente direccion DISTINTA (data_start y sound_enabled comparten DS:0000)
+    def nxt(a): return next((x for x in addrs if x > a), 0x7130)
+    return {n: (a, nxt(a) - a) for n, a in labels}
 
 
 def records(path):

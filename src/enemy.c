@@ -247,7 +247,8 @@ void update_enemies(void) {
     uint16_t threshold = (uint16_t)((enemy_tick_counter & 1) + 1);
     if (dx < threshold) return; /* jnc NOT taken: dx < threshold -> lab_1e7a (return) */
 
-    /* lab_1e7b: check_vsync always "ready" in this port */
+    /* lab_1e7b: call check_vsync / jz lab_1e7a -> solo sigue con retrazo (vsync_gate: por defecto siempre sigue) */
+    if (!vsync_gate("update_enemies", true)) return;
     enemy_last_tick = tick_now;
     enemy_tick_counter++;
 

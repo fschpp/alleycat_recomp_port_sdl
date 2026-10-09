@@ -182,7 +182,8 @@ void update_cat_jump(void) {
     jump_tick_delay--;
     if (jump_tick_delay != 0) return;
     jump_tick_delay = JUMP_TICK_RELOAD;
-    /* check_vsync: always "ready" in this port, see enemy.c's convention */
+    /* call check_vsync / jnz lab_193c: solo sigue SIN retrazo (vsync_gate: por defecto siempre sigue) */
+    if (!vsync_gate("update_cat_jump", false)) return;
 
     if (jump_anim_counter != 0) {
         check_fish_collision();

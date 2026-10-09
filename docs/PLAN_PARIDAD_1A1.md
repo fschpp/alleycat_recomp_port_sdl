@@ -219,3 +219,35 @@ Siguiente (por orden): (1) **diferencial por iteracion**: cueva que registre cad
 perro) y un arnes del port que cargue el registro *k*, ejecute **una** pasada y compare con el registro *k+1*; es la unica forma de validar
 `update_enemies`/`check_enemy_activate` sin depender del azar ni del ritmo; (2) saltos en arco y ventanas (B4.12/13) con el mismo metodo
 por tick; (3) aclarar `current_floor`.
+
+### 2026-10-09 (2) — Diferencial por iteración (N3 del bucle del callejón con perro)
+
+Herramientas: `tools/orig_state/cave_iter.asm` (+ `build_dump_exe.py --iter`, `read_iter.py`) vuelca el estado **por iteración** del bucle
+(registro completo + deltas por palabra, ventanas DS:0000-2BFF y DS:5900-5B1F); `tools/parity/iter_diff.c` (+ `build_iter_diff.sh`,
+`gen_iter_map.py`) carga el registro *k* en los globales del port (194 variables mapeadas por nombre), ejecuta **una** pasada de
+`game_alley_frame` y compara con el registro *k+1*. No depende del azar ni del ritmo. El retrazo vertical (puerto 0x3DA, no registrado) se
+modela con `vsync_gate()` (`include/bios_clock.h`): por defecto siempre deja pasar (comportamiento del port sin cambios).
+
+Corrida: 6 112 registros (≈40 ticks BIOS desde la iteración anterior a la aparición del perro), 6 106 pares comparados (desde k=5).
+
+| Resultado | Pares |
+|---|---|
+| EXACTO (el port, tal cual) | 5 187 |
+| RETRAZO (coincide con algún patrón de retrazo: `animate_falling`=769, `update_enemies`=545, `update_thrown_objects`=7) | 919 |
+| DIVERGE | **0** |
+
+Variables ignoradas (explicadas, no son fallos): `keyboard_*`, `input_horizontal`, `joy_last_tick` (entrada: `process_keyboard`/`poll_joystick`
+quedan fuera del arnés); `throw_timer` (43 pares: `THROW_TIMER_DIV=32`, recarga 100→3, desviación consciente); `enemy_sprite_ptr` (el port guarda el
+índice del frame, el original un puntero DS; `enemy.c:45-72`); `*_save_buf` (fondos guardados de la pantalla: la RAM de vídeo no está en el registro).
+
+Dos fallos **del arnés** encontrados y corregidos (habían inflado las divergencias a 1 401 pares):
+1. `read_state.build_map` daba tamaño 0 a `sound_enabled` (comparte DS:0000 con `data_start`): nunca se cargaba, el port tenía el sonido apagado y
+   no ejecutaba la sirena del perro (`chase_*`, `rng_seed`). Ahora el tamaño llega a la siguiente dirección distinta.
+2. `__wrap_read_bios_tick` del arnés devolvía un contador propio; ahora el tick del registro.
+
+Conclusión: **N3 igual** para perro (aparición, sirena, azar `rng_seed`), `update_enemies`, caída, salto y objetos lanzados en el callejón, con el
+azar del original incluido. Los portones de retrazo explican 15 % de los pares: tratar esos portones como "siempre listos" en el port es una
+simplificación (el original salta esas rutinas cuando el retrazo no coincide); es N5 (ritmo), no estado.
+Limitaciones: solo cubre el bucle del callejón con perro activo; la entrada se omite (hay que cubrirla con la traza por tick); sin vídeo (N4).
+Siguiente: (1) mismo método con teclas (saltos en arco, ventanas: B4.12/13) incluyendo `keyboard_*` en el registro; (2) añadir RAM de vídeo
+(0xB800) al registro para N4 y desbloquear `*_save_buf`; (3) cueva en bucles interiores; (4) aclarar `current_floor`.
