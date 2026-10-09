@@ -4794,6 +4794,16 @@ Test: `test-t84` corre `run_victory_sequence` con reloj falso y exige >= 10 pres
 
 Suggested commit: `T84: presentar el video durante la cinematica de victoria del nivel 7 (l7_step_hook); gato del paso de posicion con dimensiones 4x13 (no 13x4); test-t84`
 
+## 6bw. Paridad 1 a 1 — B1 (datos) contra el `cat.exe` original (`tools/parity_b1.py`)
+
+Primera ejecucion del plan `PLAN_PARIDAD_1A1.md` (fuera del repo): el script compara, sin ejecutar nada, el port con el `.exe` original (que no se versiona). Resultado con el `cat.exe` de 55067 bytes: (1) `ds_pool` es identico, byte a byte, al segmento de datos del `.exe` (offset de archivo 0x300; 28976 bytes, 0 diferencias; el MZ no tiene relocaciones dentro de ese segmento, asi que la imagen inicial es la que carga el juego); (2) las 61 tablas/sprites extraidos aparte (`src/gen_*.c`) aparecen como bloque contiguo en esos datos; (3) las dimensiones (ancho,alto) de las llamadas a blit del port con direccion y tamano resolubles estaticamente coinciden con `mov cx` del ASM (0 discrepancias, pero cobertura parcial: solo 11 de las 46 llamadas del port son comprobables, el resto usa direccion o tamano en variables). El punto 3 no sustituye a la comparacion de pantalla.
+
+Uso: `python3 tools/parity_b1.py /ruta/cat.exe --asm /ruta/alleycat-disassembly/src`.
+
+## 6bx. Paridad 1 a 1 — volcado del estado del `cat.exe` original (`tools/orig_state/`)
+
+Para comparar variables del original con las del port (plan de paridad, §3.3) sin depurador: `build_dump_exe.py` parchea una copia del `cat.exe` (enganche en el `call update_animation` del bucle del callejon, `cs:0179`; cueva de 152 bytes anadida al final del `.exe`, cabecera MZ ajustada) que, una vez por tick BIOS, anade a `STATE.BIN` el segmento de datos `DS:0000-1FFF` (registro: contador, tick, 8 KB). `read_state.py` lee los registros por nombre de variable usando el listado de NASM del desensamblado (`gmegidish/alleycat-disassembly`; direcciones `DS` como `cat_x=0x579`, `lives_count=0x1f80`). Verificado con 241 ticks (~13 s) de juego: ticks consecutivos y variables coherentes (vidas 3->2, `cat_x` 0->296, `current_floor`, `frame_counter`). El bucle principal del original da ~100 iteraciones por tick en DOSBox, dato util para calibrar los temporizadores por llamadas (`throw_timer`, `jump_tick_delay`). El `.exe` y los volcados no se versionan.
+
 ## 7. General lesson for this whole project
 
 **Never trust a same-file label as a data region's end boundary, and never
