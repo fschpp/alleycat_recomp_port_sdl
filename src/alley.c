@@ -64,7 +64,7 @@ void update_viewport(uint8_t al, uint8_t ah, const cat_walk_frame_t *frame) {
 }
 
 /* window_event_count (DS 0x056d) — the every-8th-attempt rate limiter. */
-static uint8_t window_event_count = 0;
+uint8_t window_event_count = 0;                  /* global (no static): el diferencial por iteracion lo carga del registro */
 
 /* bp = 0x000e in handle_cat_death: a DS scratch area the original blits the
  * death sprite's covered background into, then blits straight back out of.

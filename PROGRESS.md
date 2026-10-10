@@ -14,14 +14,14 @@ graphics assets, so it is not meant to be published or redistributed.
 
 ## 0. Current focus / todo / blockers
 
-**Current focus:** Plan de paridad 1 a 1 (`docs/PLAN_PARIDAD_1A1.md`): diferencial por iteración del callejón hecho (0 divergencias, §6bt); siguiente: B4 con teclas (saltos/ventanas) y vídeo (N4). Antes: T81 (la pecera / nivel 2 volvía al callejón, §6bs) hecho; falta confirmarlo en PC real. T80 (ventanas del callejón, §6br) hecho. `tareas.md` está hecho hasta **T79** (ver abajo). Todo el flujo real corre en `main.c` -> `game_run()`
+**Current focus:** Plan de paridad 1 a 1 (`docs/PLAN_PARIDAD_1A1.md`): diferencial por iteración del callejón hecho **también con teclas** (saltos, ventanas, muerte; 3 grabaciones de 60 000 iteraciones, 0/1/2 pares sin explicar, §6by; 3 bugs de lógica corregidos); siguiente: RAM de vídeo en el registro (N4), bucles interiores, `current_floor`. Antes: T81 (la pecera / nivel 2 volvía al callejón, §6bs) hecho; falta confirmarlo en PC real. T80 (ventanas del callejón, §6br) hecho. `tareas.md` está hecho hasta **T79** (ver abajo). Todo el flujo real corre en `main.c` -> `game_run()`
 (título -> callejón -> niveles 0-7 -> resultado), con `update_animation()` real. Lo único que queda son las tareas abiertas de
 "Todo". Estado de verificación: `make` y `make test` limpios, sin warnings (`-Wall -Wextra`); `make test-soak-levels` entra y sale
 de los 8 niveles; resultados por nivel en `docs/NIVELES.md`.
 
 ### Todo (abierto)
 
-- [ ] Paridad: diferencial por iteración con entrada (B4.12/13), RAM de vídeo en el registro (N4), bucles interiores, aclarar `current_floor` (§6bt)
+- [ ] Paridad: RAM de vídeo en el registro (N4; desbloquea los `*_save_buf`), bucles interiores (cueva en niveles 1-7), aclarar `current_floor`, reinicio tras game over fuera de `game_alley_frame` (§6by)
 - [ ] T75b — decidir D1: quitar `immune_flag = 0` de `game_alley_frame` (hay que actualizar E4 de `tests/test_game_flow_loop.c`; ver `docs/NIVELES.md` D1)
 - [ ] T78b — flash de borde del nivel 2 (`l2_set_border`/`l2_border_color` siguen siendo un stub con nombre; cablear a `bios_color_select` mueve el fondo del nivel completo y puede cambiar los conteos de píxeles de `test-level2*`) (§6bp)
 - [ ] T78c — PCjr (`rom_id == 0xfd`): el borde cambia pero los píxeles de índice 0 no (el borde de la PCjr es un registro aparte) (§6bp)
@@ -36,6 +36,7 @@ Ninguno. Descubrimiento reciente (§6bs): los tests con reloj simulado que parte
 
 ### Completed
 
+- [x] Paridad B4 con teclas: `apply_cat_gravity` aterrizaba antes y sin recortar el sprite, `activate_enemy_chase` dejaba `cat_x` invertido, `setup_alley` omitía `buffer_size`; `test-t85` (§6by)
 - [x] T81 — nivel 2 (pecera): `setup_level` leía `level2_tick = 0` (stub) en vez del tick BIOS; `test-level2-clock` (§6bs)
 - [x] T80 — ventanas del callejón: `update_cat_jump` corregido, `test-window-open` (§6br)
 
@@ -4818,6 +4819,32 @@ Cambios de código (sin efecto por defecto): `vsync_gate()` en `include/bios_clo
 global (el arnés lo carga). Fallos del arnés corregidos: `read_state.build_map` (tamaño 0 de `sound_enabled`) y el reloj del arnés.
 Desviaciones conocidas que el diferencial vuelve a mostrar: `THROW_TIMER_DIV=32` (§6bq/§6br) y `enemy_sprite_ptr` (índice vs puntero DS).
 Pendiente: entrada/teclas en el diferencial (B4.12/13), RAM de vídeo en el registro (N4), bucles interiores, `current_floor`.
+
+## 6by. Paridad 1 a 1: diferencial por iteración con teclas (saltos, ventanas, muerte; plan `docs/PLAN_PARIDAD_1A1.md` §9)
+
+Grabaciones del original (`build_dump_exe.py --iter TICKS MAXREC TRIG`, TRIG = `key_up`/`key_right`) con teclas reales de DOSBox; el arnés `iter_diff` carga cada
+registro y compara una pasada de `game_alley_frame` con el registro siguiente. Resultado (60 000 iteraciones cada una, variables ignoradas = entrada, buffers de
+fondo y sonido dependiente del reloj; ver el plan):
+
+| Grabación | EXACTO | RETRAZO | DIVERGE (todas explicadas) |
+|---|---|---|---|
+| f13 (andar/saltar) | 48 880 | 11 114 | 0 |
+| f11 (ventanas) | 49 905 | 10 088 | 1: `lives_count` 1→3, `cat_x`→0: el original reinicia la partida tras perder la última vida (flujo fuera de `game_alley_frame`) |
+| f12 (muerte por perro, caída de proyectil) | 49 005 | 10 987 | 2: `rng_seed` en los pasos con espera bloqueante (sonido de choque / siseo: consumen `random` según el tiempo real) |
+
+**Bugs del port encontrados y corregidos (los tres por diferencial, no por inspección):**
+1. `apply_cat_gravity` (`jump_gravity.c`, `level_physics.asm` lab_18b5..lab_18e1): el proyectil aterrizaba al llegar a `gravity_target_height`. El original lo va
+   hundiendo y recorta la altura del sprite (`bh -= al - target`, se guarda en `gravity_save_dims`); aterriza cuando `al - target >= bh`.
+2. `activate_enemy_chase` (`enemy.c`): `new_cat_x` estaba invertido (`jnc` con `cat_x >= 0xa0` deja 0; si no, 0x122) y faltaban `erase_enemy()` / `restore_alley_buffer()` (ya reales).
+3. `setup_alley` (`game_setup.c`): omitía `mov word [0x561],0xb03` (`buffer_size`, no un alias de `cat_screen_pos`); `window_event_count` pasa a global.
+
+**Fallos del arnés corregidos:** (a) `read_state.build_map` ignoraba toda etiqueta definida en un `%include` (líneas con `<1>` en el listado de NASM): ni `gravity_*`,
+`jump_*`, `obj_*`... se cargaban ni se comparaban; con el regex corregido y filtrando a etiquetas de datos (`db/dw/dd/times`) se pasa de 195 a 222 variables;
+(b) las esperas bloqueantes del port (`play_crash_sound`, bucle de `handle_cat_death`) colgaban el arnés: `read_pit_timer` falso y reloj BIOS que avanza con las esperas;
+(c) globales de solo lectura (`death_sprite`) y punteros (`gravity_cur_sprite`) no se cargan (`EXCLUDE` en `gen_iter_map.py`).
+`STATE_k2` (grabación antigua con otro formato de ventana B) se descarta.
+
+Tests: `make test-t85` (falla sin el arreglo 1; cubre también `buffer_size`). Suggested commit: `Paridad B4: diferencial con teclas; gravedad del proyectil con recorte de altura; activate_enemy_chase; buffer_size de setup_alley; test-t85`
 
 ## 7. General lesson for this whole project
 

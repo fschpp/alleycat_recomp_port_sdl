@@ -107,6 +107,7 @@ extern uint8_t  walk_anim_frame;          /* 0-5 walk-cycle phase used by update
 extern uint8_t l3_platform_id;
 extern uint8_t l3_door_anim_frame;        /* DS 0x39e1 (byte): fotograma de la animación de puerta del nivel 4 (T22, §6s) */
 extern uint8_t jump_hit;
+extern uint8_t window_event_count;       /* DS 0x056d: limitador de spawn_window_event (alley.c) */
 extern uint8_t joy_button;                /* DS 0x069a (byte): sin joystick (T60) solo lo escribe update_level4_state (=0x10) y lo leen sus guardas (T24, §6u) */
 
 /* --- newly ported for the dog enemy system (§5o) --- */

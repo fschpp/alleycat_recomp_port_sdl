@@ -25,7 +25,10 @@ def port_symbols(nm_path):
 # Globales que define el propio arnes (tools/parity/iter_diff.c) en lugar de src/ (input.c usa SDL y no se enlaza): se cargan
 # desde el registro igualmente (entrada ya procesada, sonido, banderas de reinicio/atraccion). Tamano 1.
 # Ventanas de DS que registra tools/orig_state/cave_iter.asm (A: juego; B: estado de sonido)
-A_LEN, B_BASE, B_LEN = 0x2c00, 0x5900, 0x220
+A_LEN, B_BASE, B_LEN = 0x2e40, 0x5900, 0x220
+# Globales del port que NO se pueden cargar bytes-a-bytes desde el registro: datos de solo lectura (escribirlos da SIGSEGV) y punteros
+# (el original guarda un offset DS de 16 bits; el port un puntero real).
+EXCLUDE = {'death_sprite', 'gravity_cur_sprite'}
 HARNESS = ['sound_enabled', 'input_horizontal', 'input_vertical', 'restart_game', 'show_attract']
 
 
@@ -36,7 +39,7 @@ def main():
     for h in HARNESS: ps.setdefault(h, 1)
     for name, (off, osz) in sorted(m.items(), key=lambda kv: kv[1][0]):
         if not (off < A_LEN or B_BASE <= off < B_BASE + B_LEN): continue   # fuera de las ventanas registradas
-        if name not in ps: unm.append(name); continue
+        if name not in ps or name in EXCLUDE: unm.append(name); continue
         n = min(osz, ps[name], (A_LEN - off) if off < A_LEN else (B_BASE + B_LEN - off))
         if n > 0: rows.append((name, off, n))
     with open(a[2], 'w') as o:

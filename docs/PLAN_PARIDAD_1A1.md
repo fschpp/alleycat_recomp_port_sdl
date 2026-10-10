@@ -251,3 +251,23 @@ simplificación (el original salta esas rutinas cuando el retrazo no coincide); 
 Limitaciones: solo cubre el bucle del callejón con perro activo; la entrada se omite (hay que cubrirla con la traza por tick); sin vídeo (N4).
 Siguiente: (1) mismo método con teclas (saltos en arco, ventanas: B4.12/13) incluyendo `keyboard_*` en el registro; (2) añadir RAM de vídeo
 (0xB800) al registro para N4 y desbloquear `*_save_buf`; (3) cueva en bucles interiores; (4) aclarar `current_floor`.
+
+### 2026-10-10 — Diferencial por iteración con teclas (B4.12/13: saltos, ventanas, muerte)
+
+Grabaciones con `build_dump_exe.py --iter TICKS MAXREC TRIG` (TRIG = `key_up` DS:0x6b8 / `key_right` DS:0x6b9: el registro empieza al primer valor != 0) y teclas
+reales; 60 000 iteraciones cada una. Lista de ignoradas: entrada (`keyboard_*`, `input_*`, `joy_last_tick`), `throw_timer`, `jump_tick_delay` (desviaciones
+conscientes de ritmo), `*_save_buf` y `enemy_sprite_ptr`, y estado de sonido que depende del reloj/PIT (`crash_*`, `fall_snd_*`, `fall_sound_*`, `hiss_phase`).
+
+| Grabación | EXACTO | RETRAZO | DIVERGE |
+|---|---|---|---|
+| f13 | 48 880 | 11 114 | **0** |
+| f11 | 49 905 | 10 088 | 1 (reinicio de partida tras perder la última vida: fuera de `game_alley_frame`) |
+| f12 | 49 005 | 10 987 | 2 (`rng_seed` en esperas bloqueantes de sonido) |
+
+Hallazgos (todos corregidos, §6by de PROGRESS.md): (1) `apply_cat_gravity` aterrizaba demasiado pronto y no recortaba la altura del sprite; (2) `activate_enemy_chase`
+con `cat_x` invertido; (3) `setup_alley` sin `buffer_size = 0xb03`. Hallazgos del arnés: `build_map` ignoraba las etiquetas de los `%include` (`<1>`): ocultaba
+`gravity_*`, `jump_*`, `obj_*`, `window_open_state`... (de 195 a 222 variables comparadas); las esperas bloqueantes colgaban el arnés.
+Nota de método: la primera pasada con 171 "divergencias" en f12 era casi toda el hueco del mapa (`gravity_y` sin cargar → el port elegía otra rama de la música ambiente);
+conviene sospechar del arnés antes que del port cuando un grupo de pares diverge en una variable de sonido o de otro módulo.
+Limitaciones: solo bucle del callejón; vídeo (N4) ausente; `*_save_buf` sin comparar. Siguiente: RAM de vídeo en el registro (N4), cueva en bucles interiores, `current_floor`.
+

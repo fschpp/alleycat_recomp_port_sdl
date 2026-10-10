@@ -125,16 +125,26 @@ void apply_cat_gravity(void) {
     uint8_t al = (uint8_t)(gravity_frame >> 1);
     al = (uint8_t)(al + gravity_y);
     uint8_t dl = al;
+    uint16_t bx = gravity_cur_dims;                     /* mov bx,[gravity_cur_dims] */
 
+    /* lab_18b5..lab_18e1: `sub al,[gravity_target_height] / jc lab_18e1 / sub bh,al / jz lab_18d3 / jnc lab_18e1`.
+     * El proyectil NO aterriza al llegar a target_height: se va hundiendo en el suelo y se le recorta la altura del
+     * sprite (bh -= al - target); aterriza cuando el recorte la agota (al - target >= bh). Antes se comparaba solo
+     * `al >= target` (aterrizaba antes y nunca recortaba): hallado por el diferencial por iteracion (PLAN §9, k=11113). */
     if (al >= gravity_target_height) {
-        gravity_y = 0;
-        deduct_life = 0;
-        restore_gravity_bg();
-        return;
+        uint8_t d  = (uint8_t)(al - gravity_target_height);
+        uint8_t bh = (uint8_t)(bx >> 8);
+        if (bh <= d) {                                  /* jz (bh == d) o borrow (bh < d) -> lab_18d3 */
+            gravity_y = 0;
+            deduct_life = 0;
+            restore_gravity_bg();
+            return;
+        }
+        bx = (uint16_t)((bx & 0x00ff) | ((uint16_t)(uint8_t)(bh - d) << 8));   /* sub bh,al: altura recortada */
     }
 
     gravity_y = dl;
-    gravity_save_dims = gravity_cur_dims;
+    gravity_save_dims = bx;                             /* lab_18e1: mov [gravity_save_dims],bx */
     gravity_cga_addr = (uint16_t)calc_cga_addr(gravity_y, gravity_x, NULL);
 
     if (gravity_frame != 2) {

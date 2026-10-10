@@ -192,9 +192,14 @@ void activate_enemy_chase(void) {
          * position right away; skipped — draw_enemy is a stub for now. */
     }
 
-    /* erase_enemy(); restore_alley_buffer(); -- both currently no-ops/stubs */
+    /* lab_21bd: call erase_enemy / call restore_alley_buffer (ambos ya son reales en el port). */
+    erase_enemy();
+    restore_alley_buffer();
 
-    uint16_t new_cat_x = (cat_x >= 0xa0) ? 0x122 : 0;
+    /* `mov ax,0 / cmp [cat_x],0xa0 / jnc lab_21d1 / mov ax,0x122`: con cat_x >= 0xa0 (jnc) el AX se queda en 0;
+     * con cat_x < 0xa0 pasa a 0x122. Estaba invertido (hallado por el diferencial por iteracion con teclas,
+     * PLAN_PARIDAD §9: el original lleva al gato del borde izquierdo al derecho, p. ej. cat_x 8 -> 0x122). */
+    uint16_t new_cat_x = ((uint16_t)cat_x >= 0xa0) ? 0 : 0x122;
     cat_x = (int16_t)new_cat_x;
 
     if (level_number == 0) {

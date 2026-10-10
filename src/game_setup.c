@@ -42,10 +42,10 @@ void setup_alley(void) {
     cat_y_bottom = 0xe6;
 
     cat_draw_pos = (uint16_t)calc_cga_addr(cat_y, (uint16_t)cat_x, NULL);
-    /* original also writes the same computed value to a second location
-     * (word [0x561]) via a hardcoded literal address — this is
-     * cat_screen_pos or an equivalent alias not yet given its own name in
-     * our port; skipped since nothing currently reads it under that name. */
+    /* `mov word [0x561],0xb03`: DS 0x561 es buffer_size (par de dims 3 words x 11 filas del gato), NO un alias de cat_screen_pos
+     * como se supuso. save_alley_buffer lo lee para el tamano de lo que guarda y spawn_window_event lo compara con 0xc02.
+     * Omitirlo dejaba el valor anterior (hallado por el diferencial por iteracion con teclas, PLAN_PARIDAD §9). */
+    buffer_size = 0xb03;
 
     save_alley_buffer();
 

@@ -27,3 +27,11 @@ Flujo (el `cat.exe` y los volcados NO se versionan):
     build/iter_diff /tmp/dos/STATE.BIN --from 5 --ignore keyboard_prev,keyboard_counter,input_horizontal,joy_last_tick,throw_timer,enemy_sprite_ptr,enemy_save_buf,fall_save_buf,alley_save_buf,obj_save_buf
 
 Carga cada registro del original en el port, ejecuta UNA pasada y compara con el registro siguiente (EXACTO / RETRAZO / DIVERGE). Ver plan §9.
+
+### Con teclas (saltos, ventanas, muerte)
+
+    python3 tools/orig_state/build_dump_exe.py cat.exe /tmp/dos/catk.exe --iter 40 60000 0x6b8    # TRIG: 0x6b8 key_up, 0x6b9 key_right (primer valor != 0)
+    tools/parity/orig_run.sh catk.exe k 200 0.25 "space@6 n@14 k@22 space@30 down:Up@50 up:Up@60 ..."
+    build/iter_diff /tmp/dos/STATE.BIN --from 5 --ignore keyboard_prev,keyboard_counter,input_horizontal,input_vertical,joy_last_tick,throw_timer,jump_tick_delay,enemy_sprite_ptr,enemy_save_buf,fall_save_buf,alley_save_buf,obj_save_buf,gravity_save_buf,crash_pit_prev,crash_base_freq,crash_start_tick,fall_snd_pit_prev,fall_snd_wobble_idx,fall_sound_x,fall_sound_y,hiss_phase
+
+Un recorrido de 60 000 registros tarda 1-3 min (`timeout`). Los pares con `rng_seed` distinto en pasos que bloquean (sonido de choque/siseo) son esperados.

@@ -1,11 +1,12 @@
 ; Cueva de volcado POR ITERACION (diferencial por iteracion, plan PARIDAD §9 "Siguiente" (1)).
+; El disparador (CAVE_TRIG) es la direccion DS de un byte: se empieza a registrar la primera vez que es != 0.
 ; Se engancha donde el bucle del callejon llama a update_animation (igual que cave.asm), pero mira CADA llamada
 ; (una por iteracion del bucle; en DOSBox son cientos por tick BIOS):
 ;   - mientras enemy_active == 0 mantiene en PREVBUF una copia de DS (la iteracion anterior);
 ;   - la primera vez que enemy_active != 0 escribe la iteracion anterior COMPLETA (registro 1) y, desde ahi, para cada
 ;     iteracion escribe solo las PALABRAS de DS que cambiaron respecto a la anterior (registros delta).
 ;   - se detiene cuando pasaron CAVE_TICKLIM ticks BIOS desde el primer registro, o tras CAVE_MAXREC registros.
-; Ventanas de DS: A = 0000..2BFF y B = 5900..5B1F (lo demas del segmento no se registra).
+; Ventanas de DS: A = 0000..2E3F y B = 5900..5B1F (lo demas del segmento no se registra).
 ; Formato de STATE.BIN: registros consecutivos
 ;   [contador:2][tick BIOS:2][nd:2]  y despues
 ;     nd == 0xFFFF : DUMP_LEN bytes = ventana A y despues ventana B completas (solo el registro 1)
@@ -14,13 +15,13 @@
 ; Lector: tools/orig_state/read_iter.py.
 bits 16
 org CAVE_ORG
-A_LEN        equ 0x2c00                 ; ventana A: DS:0000..2BFF (juego, enemigo, nivel actual)
+A_LEN        equ 0x2e40                 ; ventana A: DS:0000..2E3F (juego, enemigo, nivel actual, window_open_state hasta 0x2e1f)
 B_BASE       equ 0x5900                 ; ventana B: DS:5900..5B1F (estado de sonido: chase_*, tone_*, ambient_*, ...)
 B_LEN        equ 0x220
 DUMP_LEN     equ A_LEN+B_LEN            ; tamano del registro completo = ventana A seguida de ventana B
 MAXREC       equ CAVE_MAXREC
 TICKLIM      equ CAVE_TICKLIM
-ENEMY_ACTIVE equ 0x1cb8                 ; DS:enemy_active (cat.lst)
+ENEMY_ACTIVE equ CAVE_TRIG              ; DS:byte que dispara el registro (por defecto enemy_active=0x1cb8; key_up=0x6b8, ...; ver build_dump_exe.py --trig)
 cave:
     pushf
     push ax

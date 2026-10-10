@@ -29,10 +29,11 @@
 #include "animation_entry.h"
 #include "score.h"
 #include "bios_clock.h"
+#include "gen/ds_pool.h"
 #include "iter_map.h"
 
-/* ventanas de DS registradas por tools/orig_state/cave_iter.asm: A = 0000..2BFF, B = 5900..5B1F (estado de sonido) */
-#define A_LEN 0x2c00
+/* ventanas de DS registradas por tools/orig_state/cave_iter.asm: A = 0000..2E3F, B = 5900..5B1F (estado de sonido) */
+#define A_LEN 0x2e40
 #define B_BASE 0x5900
 #define B_LEN 0x220
 #define REC_LEN (A_LEN + B_LEN)                   /* bytes de un registro completo */
@@ -41,12 +42,29 @@
 
 int8_t input_horizontal, input_vertical; bool input_fire;
 uint8_t sound_enabled = 0; bool restart_game, show_attract, pause_requested;
-void __wrap_speaker_spin_cycles(uint32_t cycles) { (void)cycles; }
-static uint16_t cur_tick;                            /* tick BIOS del registro: lo ve todo el codigo (sonido, enemigos...) */
-uint16_t __wrap_read_bios_tick(void) { return cur_tick; }
+static long spins;                                  /* esperas activas del port (play_crash_sound...): hacen avanzar el reloj falso */
+void __wrap_speaker_spin_cycles(uint32_t cycles) { (void)cycles; spins++; }
+/* tick BIOS: el original lo lee varias veces por pasada (animacion, lanzados, objetos, sonido...) y DOSBox puede cambiarlo A MITAD de la pasada
+ * (cientos de iteraciones por tick): las primeras `sw` lecturas ven el tick `a` y las demas el tick `b` (sw grande = el tick no cambia). */
+typedef struct { uint16_t a, b; int sw; } tk_t;
+static tk_t cur_tk; static int nreads;
+/* PIT falso: cuenta hacia atras 0x300 por lectura (como el original, que lo lee en esperas activas) y cada lectura cuenta como una espera. */
+static uint16_t fake_pit;
+uint16_t __wrap_read_pit_timer(void) { spins++; fake_pit = (uint16_t)(fake_pit - 0x300); return fake_pit; }
+/* Una pasada normal casi no llama a speaker_spin_cycles; las esperas bloqueantes del original (crash de la muerte: espera 2 ticks BIOS)
+ * necesitan que el tiempo avance, o el arnes cuelga: 1 tick por cada 200 esperas. */
+static uint16_t tick_read(void) { return (uint16_t)((nreads++ < cur_tk.sw ? cur_tk.a : cur_tk.b) + spins / 200); }
+uint16_t __wrap_read_bios_tick(void) { return tick_read(); }
 void __wrap_poll_joystick(void) { }                 /* el registro ya trae el resultado de poll_joystick */
 
-static uint16_t clk(void) { return cur_tick; }
+/* diagnostico (ITER_DEBUG=1): traza las llamadas a spawn_window_event de cada intento */
+extern void __real_spawn_window_event(void);
+void __wrap_spawn_window_event(void) {
+    if (getenv("ITER_DEBUG")) fprintf(stderr, "  [spawn_window_event buffer_size=%x window_event_count=%u]\n", buffer_size, window_event_count);
+    __real_spawn_window_event();
+}
+
+static uint16_t clk(void) { return tick_read(); }
 static uint16_t pit_fn(void) { return 0x1234; }
 
 /* retrazo: el bit i de vs_mask dice si el porton i-esimo (en orden de llamada) deja pasar (1) o no (0) */
@@ -80,7 +98,15 @@ static void apply(uint8_t *img, const rec_t *r) {
     for (uint32_t k = 0; k < r->nd; k++) { const uint8_t *p = file + r->pos + 4 * k; uint16_t off = p[0] | p[1] << 8; img[off] = p[2]; img[off + 1] = p[3]; }
 }
 
-static void load_state(const uint8_t *img) { for (int v = 0; v < iter_nvars; v++) memcpy(iter_vars[v].addr, img + iter_vars[v].off, iter_vars[v].len); }
+/* vert_sprite (pose de subida/entrada/recoil): el original guarda vert_sprite_dims (DS 0x567) y vert_sprite_data (DS 0x569) como palabras; el port un
+ * puntero a cat_walk_frame_t que no esta en el registro. Se sintetiza uno con los mismos datos y dimensiones (los bytes de ds_pool son los del .exe, B1). */
+static cat_walk_frame_t vs_frame;
+static void load_state(const uint8_t *img) {
+    for (int v = 0; v < iter_nvars; v++) memcpy(iter_vars[v].addr, img + iter_vars[v].off, iter_vars[v].len);
+    uint16_t vdims = img[0x567] | img[0x568] << 8, vdata = img[0x569] | img[0x56a] << 8;
+    vs_frame.data = vdata < DS_POOL_SIZE ? &ds_pool[vdata] : ds_pool; vs_frame.width_words = (uint8_t)vdims; vs_frame.height = (uint8_t)(vdims >> 8);
+    vert_sprite = &vs_frame;
+}
 
 /* a: el original no cambio la variable y el port si; b: el original la cambio y el port no; c: ambos la cambiaron distinto */
 typedef struct { long bad, first_k, a, b, c; char o[40], p[40], pre[40]; bool ign; } stat_t;
@@ -88,17 +114,22 @@ static stat_t st[2048]; static unsigned char pair_cls[2048];
 
 static void hex(char *dst, const uint8_t *b, int n) { int m = n > 8 ? 8 : n; for (int i = 0; i < m; i++) sprintf(dst + 2 * i, "%02x", b[i]); if (n > 8) strcat(dst, ".."); }
 
+static long repr_hits;                              /* variables que difieren solo por representacion (ver attempt) */
 static int last_left;                               /* la pasada salio del callejon */
 /* una pasada desde img_k; devuelve cuantas variables (no ignoradas) difieren de img_n; si rep, acumula estadisticas */
-static int attempt(const uint8_t *img_k, const uint8_t *img_n, uint16_t tick, unsigned mask, bool hook, long k, bool rep) {
+static int attempt(const uint8_t *img_k, const uint8_t *img_n, tk_t tk, unsigned mask, bool hook, long k, bool rep) {
+    if (getenv("ITER_DEBUG") && rep == false && k == atol(getenv("ITER_DEBUG"))) fprintf(stderr, "intento mask=%x hook=%d tick=%u->%u sw=%d\n", mask, hook, tk.a, tk.b, tk.sw);
     vs_mask = mask; vs_idx = 0; vsync_hook = hook ? vs_hook : NULL;
-    load_state(img_k); cur_tick = tick;
+    load_state(img_k); cur_tk = tk; nreads = 0; spins = 0;
     gf_next_t nx = game_alley_frame(); last_left = nx != GF_STAY;
     int bad = 0;
     if (rep) memset(pair_cls, 0, sizeof pair_cls);
     for (int v = 0; v < iter_nvars; v++) {
         const iter_var_t *iv = &iter_vars[v];
         if (memcmp(iv->addr, img_n + iv->off, iv->len) == 0) continue;
+        /* representacion (no logica): con vert_sprite el original pone cat_sprite_data = vert_sprite_data (offset DS 0x569, p. ej. las poses de
+         * subida/entrada) y el port conserva el valor anterior porque guarda un puntero real en vert_sprite (animation_c.c:206). */
+        if (!strcmp(iv->name, "cat_sprite_data") && memcmp(img_n + iv->off, img_n + 0x569, 2) == 0 && memcmp(iv->addr, img_k + iv->off, 2) == 0) { repr_hits++; continue; }
         if (!st[v].ign) bad++;
         if (rep) {
             bool orig_chg = memcmp(img_k + iv->off, img_n + iv->off, iv->len) != 0;
@@ -108,6 +139,11 @@ static int attempt(const uint8_t *img_k, const uint8_t *img_n, uint16_t tick, un
             if (st[v].bad++ == 0) { st[v].first_k = k; hex(st[v].o, img_n + iv->off, iv->len); hex(st[v].p, iv->addr, iv->len); hex(st[v].pre, img_k + iv->off, iv->len); }
             if (cls == 1) st[v].a++; else if (cls == 2) st[v].b++; else st[v].c++;
         }
+    }
+    if (getenv("ITER_DEBUG") && !rep && k == atol(getenv("ITER_DEBUG"))) {
+        fprintf(stderr, "  -> %d variables distintas:", bad);
+        for (int v = 0; v < iter_nvars; v++) if (!st[v].ign && memcmp(iter_vars[v].addr, img_n + iter_vars[v].off, iter_vars[v].len)) fprintf(stderr, " %s", iter_vars[v].name);
+        fprintf(stderr, "\n");
     }
     return bad;
 }
@@ -142,7 +178,14 @@ int main(int argc, char **argv) {
         memcpy(nxt, img, DUMP_LEN); apply(nxt, &recs[k + 1]);
         if (k >= from) {
             pairs++;
-            uint16_t ticks[2] = { recs[k].tick, recs[k + 1].tick }; int nt = ticks[0] != ticks[1] ? 2 : 1;
+            /* tick BIOS: el original pudo leerlo en cualquier momento de la iteracion; si entre los dos registros pasaron varios ticks (la E/S de la
+             * cueva a veces se alarga) se prueban todos los intermedios (hasta 8). */
+            tk_t ticks[48]; int nt = 0; ticks[nt++] = (tk_t){ recs[k].tick, recs[k].tick, 0 };
+            if (recs[k + 1].tick != recs[k].tick) {
+                unsigned span = (uint16_t)(recs[k + 1].tick - recs[k].tick);
+                if (span == 1) for (int sw = 0; sw <= 24; sw++) ticks[nt++] = (tk_t){ recs[k].tick, recs[k + 1].tick, sw };   /* el tick cambia tras `sw` lecturas */
+                else { if (span > 8) span = 8; for (unsigned d = 1; d <= span; d++) ticks[nt++] = (tk_t){ (uint16_t)(recs[k].tick + d), (uint16_t)(recs[k].tick + d), 0 }; }
+            }
             int cls = 2;                              /* 0 exacto, 1 retrazo, 2 diverge */
             int best = 1 << 30; unsigned best_mask = 0; int best_t = 0; bool best_hook = false;
             for (int t = 0; t < nt && cls == 2; t++) {
@@ -166,14 +209,14 @@ int main(int argc, char **argv) {
                         } else if (bad < best) { best = bad; best_mask = m; best_t = t; best_hook = true; }
                     }
                 }
-            amb[nt - 1]++;                            /* amb[0]: tick sin ambiguedad; amb[1]: con ambiguedad */
+            amb[nt > 1]++;                            /* amb[0]: tick sin ambiguedad; amb[1]: con ambiguedad */
             if (cls == 0) exact++; else if (cls == 1) vsync++;
             else {
                 diverge++;
                 attempt(img, nxt, ticks[best_t], best_mask, best_hook, k, true);   /* informar el mejor intento */
                 left += last_left;
                 if (shown < show) {
-                    shown++; printf("par k=%ld (tick %u -> %u) diverge (mejor intento: tick %s, retrazo %s):", k, ticks[0], ticks[1], best_t ? "k+1" : "k", best_hook ? "con patron" : "sin modelo");
+                    shown++; printf("par k=%ld (tick %u -> %u) diverge (mejor intento: tick %s, retrazo %s):", k, recs[k].tick, recs[k + 1].tick, best_t ? "k+1/mitad" : "k", best_hook ? "con patron" : "sin modelo");
                     for (int v = 0; v < iter_nvars; v++) if (!st[v].ign && pair_cls[v]) { char a[40] = "", b[40] = "", c[40] = ""; hex(a, img + iter_vars[v].off, iter_vars[v].len); hex(b, nxt + iter_vars[v].off, iter_vars[v].len); hex(c, iter_vars[v].addr, iter_vars[v].len);
                         printf(" %s[%c %s>%s|port %s]", iter_vars[v].name, "-ABC"[pair_cls[v]], a, b, c); }
                     printf("\n");

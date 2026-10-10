@@ -15,12 +15,14 @@ REC = 4 + DUMP_LEN
 def build_map(lst_path):
     labels, pend = [], None
     for l in open(lst_path).read().split('\n'):
-        m = re.match(r'\s*\d+\s+([A-Za-z_]\w*):\s*$', l)
+        m = re.match(r'\s*\d+\s+(?:<\d+>\s+)?([A-Za-z_]\w*):\s*$', l)
         if m: pend = m.group(1); continue
         m = re.match(r'\s*\d+\s+([0-9A-F]{8})\s+[0-9A-F]', l)
         if m and pend:
             a = int(m.group(1), 16)
-            if a < 0x7130: labels.append((pend, a))
+            # etiquetas de DATOS: la primera linea tras la etiqueta es db/dw/dd/times (las de codigo empiezan con una instruccion).
+            # Los desensamblados con `%include` marcan las lineas con <n>: las etiquetas de datos tambien viven ahi (gravity_y...).
+            if a < 0x7130 and not pend.startswith('lab_') and re.search(r'(?:<\d+>\s+|\s)(?:db|dw|dd|times)\b', l): labels.append((pend, a))
             pend = None
     labels.sort(key=lambda x: x[1])
     addrs = sorted({a for _, a in labels})   # el tamano llega a la siguiente direccion DISTINTA (data_start y sound_enabled comparten DS:0000)

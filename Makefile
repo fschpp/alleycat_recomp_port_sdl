@@ -366,7 +366,14 @@ build/test_t84: tests/test_t84.c $(TEST_SRC) include/*.h
 test-t84: build/test_t84
 	./build/test_t84
 
-test: test-t82 test-t83 test-t84
+build/test_t85: tests/test_t85.c $(TEST_SRC) include/*.h
+	@mkdir -p build
+	$(CC) $(CFLAGS) -Wl,--wrap=speaker_spin_cycles,--wrap=read_bios_tick tests/test_t85.c $(TEST_SRC) -o $@
+
+test-t85: build/test_t85
+	./build/test_t85
+
+test: test-t82 test-t83 test-t84 test-t85
 
 build/test_window_open: tests/test_window_open.c $(TEST_SRC) include/*.h
 	@mkdir -p build

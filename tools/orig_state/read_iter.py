@@ -9,7 +9,7 @@ import struct, sys, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import read_state as rs
 
-A_LEN, B_BASE, B_LEN = 0x2c00, 0x5900, 0x220      # ventanas de DS (cave_iter.asm)
+A_LEN, B_BASE, B_LEN = 0x2e40, 0x5900, 0x220      # ventanas de DS (cave_iter.asm)
 IMG_LEN = B_BASE + B_LEN                           # la imagen se indexa por offset de DS (el hueco queda a 0)
 REC_LEN = A_LEN + B_LEN
 
