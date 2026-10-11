@@ -21,7 +21,7 @@ de los 8 niveles; resultados por nivel en `docs/NIVELES.md`.
 
 ### Todo (abierto)
 
-- [ ] Paridad: RAM de vídeo en el registro (N4; desbloquea los `*_save_buf`), bucles interiores (cueva en niveles 1-7), aclarar `current_floor`, reinicio tras game over fuera de `game_alley_frame` (§6by)
+- [ ] Paridad: RAM de vídeo en el registro (N4; desbloquea los `*_save_buf`), bucles interiores (cueva en niveles 1-7), reinicio tras game over fuera de `game_alley_frame` (§6by)
 - [ ] T75b — decidir D1: quitar `immune_flag = 0` de `game_alley_frame` (hay que actualizar E4 de `tests/test_game_flow_loop.c`; ver `docs/NIVELES.md` D1)
 - [ ] T78b — flash de borde del nivel 2 (`l2_set_border`/`l2_border_color` siguen siendo un stub con nombre; cablear a `bios_color_select` mueve el fondo del nivel completo y puede cambiar los conteos de píxeles de `test-level2*`) (§6bp)
 - [ ] T78c — PCjr (`rom_id == 0xfd`): el borde cambia pero los píxeles de índice 0 no (el borde de la PCjr es un registro aparte) (§6bp)
