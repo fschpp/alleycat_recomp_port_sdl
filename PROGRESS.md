@@ -14,14 +14,14 @@ graphics assets, so it is not meant to be published or redistributed.
 
 ## 0. Current focus / todo / blockers
 
-**Current focus:** Plan de paridad 1 a 1 (`docs/PLAN_PARIDAD_1A1.md`): diferencial por iteración del callejón hecho **también con teclas** (saltos, ventanas, muerte; 3 grabaciones de 60 000 iteraciones, 0/1/2 pares sin explicar, §6by; 3 bugs de lógica corregidos); siguiente: RAM de vídeo en el registro (N4), bucles interiores, `current_floor`. Antes: T81 (la pecera / nivel 2 volvía al callejón, §6bs) hecho; falta confirmarlo en PC real. T80 (ventanas del callejón, §6br) hecho. `tareas.md` está hecho hasta **T79** (ver abajo). Todo el flujo real corre en `main.c` -> `game_run()`
+**Current focus:** Plan de paridad 1 a 1 (`docs/PLAN_PARIDAD_1A1.md`): diferencial por iteración del callejón hecho **también con teclas** (saltos, ventanas, muerte; 3 grabaciones de 60 000 iteraciones, 0/1/2 pares sin explicar, §6by; 3 bugs de lógica corregidos); siguiente: RAM de vídeo en el registro (N4), bucles interiores. Antes: T81 (la pecera / nivel 2 volvía al callejón, §6bs) hecho; falta confirmarlo en PC real. T80 (ventanas del callejón, §6br) hecho. `tareas.md` está hecho hasta **T79** (ver abajo). Todo el flujo real corre en `main.c` -> `game_run()`
 (título -> callejón -> niveles 0-7 -> resultado), con `update_animation()` real. Lo único que queda son las tareas abiertas de
 "Todo". Estado de verificación: `make` y `make test` limpios, sin warnings (`-Wall -Wextra`); `make test-soak-levels` entra y sale
 de los 8 niveles; resultados por nivel en `docs/NIVELES.md`.
 
 ### Todo (abierto)
 
-- [ ] Paridad: RAM de vídeo en el registro (N4; desbloquea los `*_save_buf`), bucles interiores (cueva en niveles 1-7), aclarar `current_floor`, reinicio tras game over fuera de `game_alley_frame` (§6by)
+- [ ] Paridad: RAM de vídeo en el registro (N4; desbloquea los `*_save_buf`), bucles interiores (cueva en niveles 1-7), reinicio tras game over fuera de `game_alley_frame` (§6by)
 - [ ] T75b — decidir D1: quitar `immune_flag = 0` de `game_alley_frame` (hay que actualizar E4 de `tests/test_game_flow_loop.c`; ver `docs/NIVELES.md` D1)
 - [ ] T78b — flash de borde del nivel 2 (`l2_set_border`/`l2_border_color` siguen siendo un stub con nombre; cablear a `bios_color_select` mueve el fondo del nivel completo y puede cambiar los conteos de píxeles de `test-level2*`) (§6bp)
 - [ ] T78c — PCjr (`rom_id == 0xfd`): el borde cambia pero los píxeles de índice 0 no (el borde de la PCjr es un registro aparte) (§6bp)

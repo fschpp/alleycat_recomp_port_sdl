@@ -271,3 +271,8 @@ Nota de método: la primera pasada con 171 "divergencias" en f12 era casi toda e
 conviene sospechar del arnés antes que del port cuando un grupo de pares diverge en una variable de sonido o de otro módulo.
 Limitaciones: solo bucle del callejón; vídeo (N4) ausente; `*_save_buf` sin comparar. Siguiente: RAM de vídeo en el registro (N4), cueva en bucles interiores, `current_floor`.
 
+**`current_floor` aclarado (2026-10-10).** `DS:0x52f` no es el piso del gato: es la fila (0..2) de tendedero/ventanas por la que avanza la columna de objetos
+lanzados. `update_thrown_objects` (`throw.asm` L31-65, L188-212) la elige al azar (distinta de la anterior y `!= 3`) cuando `window_column` se agota;
+`init_alley_objects` (`alley_drawing.asm` L83) la pone a 0. Explica por qué cambia 0/1/2 con el gato quieto en la traza del original. El port ya la usaba
+así y el diferencial con teclas no mostró diferencias en ella (se compara desde 2026-10-10); solo se corrigió el comentario engañoso de `cat_state.h`.
+

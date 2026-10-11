@@ -229,11 +229,10 @@ extern uint8_t  window_open_state[126]; /* DS 0x2be2: 7 filas x 18 columnas de e
                                        * Inicial en el original: todo 0 */
 extern uint16_t mode_start_tick;      /* DS 0x0556 (word, sin label): tick BIOS en que game_mode
                                        * pasó a 1 (check_level_collision, lab_1630) */
-extern uint16_t current_floor; /* which floor row the cat is on; set by the
-                                 * unported window state machine — stays 0
-                                 * here, matching this port's existing
-                                 * simplification for other window-state
-                                 * fields (e.g. window_row_offset users) */
+extern uint16_t current_floor; /* DS 0x52f (word). NO es el piso del gato: es la fila (0..2) de tendedero/ventanas por la que va la columna de
+                                 * objetos lanzados. update_thrown_objects (throw.asm L31-65, L188-212) la elige al azar (distinta de la
+                                 * anterior y != 3) cuando window_column se agota; alley_drawing.asm L83 la pone a 0. Por eso cambia 0/1/2
+                                 * sin que el gato cambie de piso (aclarado en PLAN_PARIDAD §9, 2026-10-10). */
 extern uint8_t  gravity_y;     /* nonzero while a thrown projectile (fish/
                                  * object at the cat) is in flight — now
                                  * REAL, see update_cat_jump/apply_cat_gravity
