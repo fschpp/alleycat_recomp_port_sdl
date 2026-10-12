@@ -12,10 +12,11 @@ sleep 2
 cd "$DOSDIR" || exit 1
 sed "s/^cat.*exe/$1/" d.conf > d2.conf
 nohup dosbox -conf d2.conf >/tmp/dos.log 2>&1 &
-sleep 1.5
+sleep 3.5                                        # DOSBox tarda en abrir la ventana; con menos, a veces el titulo no recibe las teclas
 xdotool mousemove 400 300 click 1
 rm -f "$2"_*.png
 for i in $(seq 1 "$3"); do
+  [ "$i" -le 4 ] && xdotool mousemove 400 300 click 1   # foco: se repite los primeros cuadros
   import -window root "$2_$(printf %03d "$i").png"
   for kf in $5; do
     k=${kf%@*}; f=${kf#*@}

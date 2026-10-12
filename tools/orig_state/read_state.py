@@ -12,7 +12,9 @@ DUMP_LEN = 0x2c00                         # debe coincidir con cave.asm
 REC = 4 + DUMP_LEN
 
 
-def build_map(lst_path):
+def build_map(lst_path, merge_dat=False):
+    """merge_dat: el tamano de una etiqueta no termina en una etiqueta `dat_XXXX` (datos sin nombre que continuan el arreglo anterior,
+    p. ej. fall_save_buf = 20 B + dat_1d38 = 32 B). Cota superior: gen_iter_map la recorta con el tamano del global del port."""
     labels, pend = [], None
     for l in open(lst_path).read().split('\n'):
         m = re.match(r'\s*\d+\s+(?:<\d+>\s+)?([A-Za-z_]\w*):\s*$', l)
@@ -25,7 +27,7 @@ def build_map(lst_path):
             if a < 0x7130 and not pend.startswith('lab_') and re.search(r'(?:<\d+>\s+|\s)(?:db|dw|dd|times)\b', l): labels.append((pend, a))
             pend = None
     labels.sort(key=lambda x: x[1])
-    addrs = sorted({a for _, a in labels})   # el tamano llega a la siguiente direccion DISTINTA (data_start y sound_enabled comparten DS:0000)
+    addrs = sorted({a for n, a in labels if not (merge_dat and n.startswith('dat_'))})   # el tamano llega a la siguiente direccion DISTINTA (data_start y sound_enabled comparten DS:0000)
     def nxt(a): return next((x for x in addrs if x > a), 0x7130)
     return {n: (a, nxt(a) - a) for n, a in labels}
 

@@ -2,13 +2,15 @@
 """Genera una copia de cat.exe que vuelca el segmento de datos del juego a STATE.BIN (en el directorio
 actual de DOS) una vez por tick BIOS. Ver PLAN_PARIDAD_1A1.md §3.3.
 
-Uso: python3 tools/orig_state/build_dump_exe.py /ruta/cat.exe /ruta/salida/catdump.exe [--iter [TICKS [MAXREC [TRIG]]]]
+Uso: python3 tools/orig_state/build_dump_exe.py /ruta/cat.exe /ruta/salida/catdump.exe [--iter [TICKS [MAXREC [TRIG]]]] [--video]
   sin opcion : un registro por tick BIOS (cave.asm).
   --iter     : un registro (delta) por ITERACION del bucle desde la iteracion anterior a la aparicion del perro, durante
                TICKS ticks BIOS (por defecto 40) o MAXREC registros (por defecto 30000) (cave_iter.asm; se lee con
                read_iter.py; diferencial por iteracion, plan §9).
                TRIG = direccion DS (decimal o 0x..) del byte cuyo primer valor != 0 dispara el registro (por defecto 0x1cb8 =
                enemy_active; 0x6b8 = key_up, 0x6b9 = key_right: graba saltos/ventanas con teclas, plan §9 B4.12/13).
+  --video    : (solo con --iter) registra tambien la RAM de video CGA B800:0000..3FFF (N4: comparar imagenes, plan §9); el formato de
+               STATE.BIN cambia (ver cave_iter.asm) y se lee con read_iter.py --video / iter_diff --video.
 Requiere nasm. Sirve para el cat.exe de 55067 bytes. El .exe original NO se versiona."""
 import os, re, struct, subprocess, sys, tempfile
 
@@ -17,7 +19,7 @@ CS_FILE_BASE = 0x7430                    # offset de archivo de CS:0000 (header 
 SITE_PAT = re.compile(rb'\xe8..\xe8..\xe8..\x80\x3e..\x00\x75.\xfe\x06..\xf6\x06..\x03\x75', re.S)
 
 
-def main(src, dst, iter_mode=False, ticklim=40, maxrec=30000, trig=0x1cb8):
+def main(src, dst, iter_mode=False, ticklim=40, maxrec=30000, trig=0x1cb8, video=False):
     d = bytearray(open(src, 'rb').read())
     if len(d) != 55067: sys.exit(f'cat.exe inesperado ({len(d)} bytes, se esperaban 55067)')
     ms = list(SITE_PAT.finditer(bytes(d)))
@@ -28,6 +30,7 @@ def main(src, dst, iter_mode=False, ticklim=40, maxrec=30000, trig=0x1cb8):
     cave_cs = len(d) - CS_FILE_BASE
     asm = open(os.path.join(HERE, 'cave_iter.asm' if iter_mode else 'cave.asm')).read().replace('CAVE_ORG', hex(cave_cs)).replace('ORIG_TARGET', hex(target)).replace('CAVE_MAXREC', str(maxrec)).replace('CAVE_TICKLIM', str(ticklim)).replace('CAVE_TRIG', hex(trig))
     with tempfile.TemporaryDirectory() as t:
+        if video: asm = '%define VIDEO\n' + asm
         open(f'{t}/c.asm', 'w').write(asm)
         subprocess.check_call(['nasm', '-f', 'bin', f'{t}/c.asm', '-o', f'{t}/c.bin'])
         cave = open(f'{t}/c.bin', 'rb').read()
@@ -35,10 +38,12 @@ def main(src, dst, iter_mode=False, ticklim=40, maxrec=30000, trig=0x1cb8):
     d += cave
     d[2:4] = struct.pack('<H', len(d) % 512); d[4:6] = struct.pack('<H', (len(d) + 511) // 512)
     open(dst, 'wb').write(d)
-    print(f'{dst}: enganche cs:{site:04x} -> update_animation cs:{target:04x}; cueva cs:{cave_cs:04x} ({len(cave)} B)')
+    print(f'{dst}{" (con video)" if video else ""}: enganche cs:{site:04x} -> update_animation cs:{target:04x}; cueva cs:{cave_cs:04x} ({len(cave)} B)')
 
 
 if __name__ == '__main__':
     a = sys.argv[1:]
+    video = '--video' in a; a = [x for x in a if x != '--video']
+    if video and len(a) < 3: sys.exit('--video requiere --iter')
     if len(a) < 2 or (len(a) > 2 and a[2] != '--iter'): sys.exit(__doc__)
-    main(a[0], a[1], len(a) > 2, int(a[3]) if len(a) > 3 else 40, int(a[4]) if len(a) > 4 else 30000, int(a[5], 0) if len(a) > 5 else 0x1cb8)
+    main(a[0], a[1], len(a) > 2, int(a[3]) if len(a) > 3 else 40, int(a[4]) if len(a) > 4 else 30000, int(a[5], 0) if len(a) > 5 else 0x1cb8, video)

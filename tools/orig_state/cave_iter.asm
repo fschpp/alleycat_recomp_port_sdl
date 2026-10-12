@@ -13,7 +13,19 @@
 ;     si no        : nd pares [offset en DS:2][palabra nueva:2]
 ; Todos los registros son del mismo punto del bucle (tras process_keyboard y poll_joystick, antes de update_animation).
 ; Lector: tools/orig_state/read_iter.py.
+; Modo VIDEO (build_dump_exe.py --video, N4 del plan): ademas de DS se registra la RAM de video CGA (B800:0000..3FFF, 16 KB).
+;   Cada registro lleva DETRAS de la parte de DS una seccion de video:
+;     registro completo (nd == 0xFFFF): 0x4000 bytes de video
+;     registro delta                  : [nv:2] y nv pares [offset 0..3FFE:2][palabra nueva:2]
+;   La copia previa (VPREV) y el buffer de salida (VOUT) viven en un segmento DOS libre (VSEG), fuera de la imagen del .exe
+;   (el .exe pide toda la memoria: maxalloc=0xFFFF), porque en el segmento de codigo ya no caben 16 KB mas.
 bits 16
+%ifdef VIDEO
+VIDEO_SEG    equ 0xb800
+VIDEO_LEN    equ 0x4000
+VSEG         equ 0x3000                 ; VPREV = VSEG:0000..3FFF ; VOUT = VSEG:4000.. (hasta 8 KB palabras x 4 + 2)
+VOUT         equ 0x4000
+%endif
 org CAVE_ORG
 A_LEN        equ 0x2e40                 ; ventana A: DS:0000..2E3F (juego, enemigo, nivel actual, window_open_state hasta 0x2e1f)
 B_BASE       equ 0x5900                 ; ventana B: DS:5900..5B1F (estado de sonido: chase_*, tone_*, ambient_*, ...)
@@ -54,6 +66,18 @@ cave:
     mov si,B_BASE
     mov cx,B_LEN/2
     rep movsw
+%ifdef VIDEO
+    push ds
+    mov ax,VIDEO_SEG
+    mov ds,ax
+    mov ax,VSEG
+    mov es,ax
+    xor si,si
+    xor di,di
+    mov cx,VIDEO_LEN/2
+    rep movsw
+    pop ds
+%endif
     mov ax,[cs:cur_tick]
     mov [cs:prev_tick],ax
     mov word [cs:have_prev],1
@@ -76,6 +100,13 @@ cave:
     mov dx,prevbuf
     mov cx,DUMP_LEN
     call append
+%ifdef VIDEO
+    mov ax,VSEG
+    mov ds,ax
+    xor dx,dx
+    mov cx,VIDEO_LEN
+    call append
+%endif
     mov ds,[cs:gds]
     inc word [cs:nrec]
 .delta:
@@ -127,6 +158,40 @@ cave:
     sub cx,outbuf
     call append
     mov ds,[cs:gds]
+%ifdef VIDEO
+    ; delta de video: B800 contra VPREV (que queda = B800 actual); la seccion [nv][pares] se arma en VSEG:VOUT
+    mov ax,VSEG
+    mov es,ax
+    mov ax,VIDEO_SEG
+    mov ds,ax
+    xor si,si
+    xor bx,bx
+    mov di,VOUT+2
+    xor dx,dx
+    mov cx,VIDEO_LEN/2
+.vl:
+    lodsw
+    cmp ax,[es:bx]
+    je .vsame
+    mov [es:bx],ax
+    mov [es:di+2],ax
+    mov ax,si
+    sub ax,2
+    mov [es:di],ax
+    add di,4
+    inc dx
+.vsame:
+    add bx,2
+    loop .vl
+    mov [es:VOUT],dx
+    mov cx,di
+    sub cx,VOUT
+    mov ax,es
+    mov ds,ax
+    mov dx,VOUT
+    call append
+    mov ds,[cs:gds]
+%endif
     inc word [cs:nrec]
     cmp word [cs:nrec],MAXREC
     jb .out
