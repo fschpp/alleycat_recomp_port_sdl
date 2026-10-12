@@ -271,3 +271,15 @@ Nota de método: la primera pasada con 171 "divergencias" en f12 era casi toda e
 conviene sospechar del arnés antes que del port cuando un grupo de pares diverge en una variable de sonido o de otro módulo.
 Limitaciones: solo bucle del callejón; vídeo (N4) ausente; `*_save_buf` sin comparar. Siguiente: RAM de vídeo en el registro (N4), cueva en bucles interiores, `current_floor`.
 
+### 2026-10-12 — N4: vídeo CGA por iteración (callejón)
+
+`build_dump_exe.py --iter ... --video` registra B800:0000..3FFF; `iter_diff --video` compara `cga_mem` del port con el vídeo del registro siguiente. `cat.exe` original (md5 3e80bb5c...).
+
+| Grabación | Pares | EXACTO | RETRAZO | DIVERGE |
+|---|---|---|---|---|
+| corta | 2 599 | 1 667 | 932 | 0 |
+| k1 (andar/saltar/perro/caída/muerte) | 26 947 | 18 547 | 8 399 | 1 (reinicio tras la última vida, conocido) |
+| k2 | 27 640 | 18 903 | 8 737 | 0 |
+
+Veredicto N4 callejón: **idéntico** (≈57 000 pares; estado + vídeo). Las divergencias iniciales (46 y 97) eran del arnés: `obj_save_buf` (tabla de punteros en el original) y `fall_save_buf` (52 B, 32 bajo `dat_1d38`). Ver PROGRESS.md §6bz.
+Limitaciones: solo el bucle del callejón; la paleta no se compara (índices 0-3). Siguiente: cueva en bucles interiores (niveles 1-7) con vídeo, `current_floor`, reinicio tras game over.

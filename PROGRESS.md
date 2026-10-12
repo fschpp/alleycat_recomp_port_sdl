@@ -21,7 +21,7 @@ de los 8 niveles; resultados por nivel en `docs/NIVELES.md`.
 
 ### Todo (abierto)
 
-- [ ] Paridad: RAM de vídeo en el registro (N4; desbloquea los `*_save_buf`), bucles interiores (cueva en niveles 1-7), aclarar `current_floor`, reinicio tras game over fuera de `game_alley_frame` (§6by)
+- [ ] Paridad: bucles interiores (cueva en niveles 1-7), aclarar `current_floor`, reinicio tras game over fuera de `game_alley_frame` (§6by)
 - [ ] T75b — decidir D1: quitar `immune_flag = 0` de `game_alley_frame` (hay que actualizar E4 de `tests/test_game_flow_loop.c`; ver `docs/NIVELES.md` D1)
 - [ ] T78b — flash de borde del nivel 2 (`l2_set_border`/`l2_border_color` siguen siendo un stub con nombre; cablear a `bios_color_select` mueve el fondo del nivel completo y puede cambiar los conteos de píxeles de `test-level2*`) (§6bp)
 - [ ] T78c — PCjr (`rom_id == 0xfd`): el borde cambia pero los píxeles de índice 0 no (el borde de la PCjr es un registro aparte) (§6bp)
@@ -36,6 +36,7 @@ Ninguno. Descubrimiento reciente (§6bs): los tests con reloj simulado que parte
 
 ### Completed
 
+- [x] Paridad N4 (vídeo por iteración, callejón): 0 divergencias en ≈57 000 pares; 2 fallos del arnés corregidos (§6bz)
 - [x] Paridad B4 con teclas: `apply_cat_gravity` aterrizaba antes y sin recortar el sprite, `activate_enemy_chase` dejaba `cat_x` invertido, `setup_alley` omitía `buffer_size`; `test-t85` (§6by)
 - [x] T81 — nivel 2 (pecera): `setup_level` leía `level2_tick = 0` (stub) en vez del tick BIOS; `test-level2-clock` (§6bs)
 - [x] T80 — ventanas del callejón: `update_cat_jump` corregido, `test-window-open` (§6br)
@@ -4845,6 +4846,30 @@ fondo y sonido dependiente del reloj; ver el plan):
 `STATE_k2` (grabación antigua con otro formato de ventana B) se descarta.
 
 Tests: `make test-t85` (falla sin el arreglo 1; cubre también `buffer_size`). Suggested commit: `Paridad B4: diferencial con teclas; gravedad del proyectil con recorte de altura; activate_enemy_chase; buffer_size de setup_alley; test-t85`
+
+## 6bz. Paridad 1 a 1: N4, vídeo CGA comparado por iteración (plan `docs/PLAN_PARIDAD_1A1.md` §9, 2026-10-12)
+
+`build_dump_exe.py --iter ... --video` hace que la cueva registre también la RAM de vídeo B800:0000..3FFF (registro completo + deltas por palabra; formato en
+`cave_iter.asm`); `read_iter.py --video` la lee y `build/iter_diff --video` carga el vídeo del registro k en `cga_mem`, ejecuta UNA pasada de `game_alley_frame` y
+compara `cga_mem` con el vídeo del registro k+1 (un par con algún byte distinto cuenta como no coincidente). `ITER_VBOX=1` imprime la caja de diferencias.
+El `cat.exe` usado es el original subido (md5 3e80bb5c82acd6b6f7cf6d414b745a8e, idéntico al reconstruido desde el desensamblado).
+
+| Grabación (teclas reales, DOSBox) | Pares | EXACTO | RETRAZO | DIVERGE |
+|---|---|---|---|---|
+| corta (andar) | 2 599 | 1 667 | 932 | 0 |
+| k1 (andar/saltar/perro/caída/muerte) | 26 947 | 18 547 | 8 399 | 1 (reinicio de partida tras perder la última vida: `lives_count` 1→3, fuera de `game_alley_frame`; ya conocido, §6by) |
+| k2 (otra secuencia de teclas) | 27 640 | 18 903 | 8 737 | 0 |
+
+**No se encontró ningún bug del port en N4** (vídeo del callejón idéntico píxel a píxel en ≈57 000 pares con estado y vídeo). Las 46+97 divergencias iniciales eran
+dos fallos del arnés, ambos corregidos:
+1. `obj_save_buf` es en el original una tabla de 3 punteros (DS:1f59 -> buffers de 32 B en DS:1ed0..); el arnés copiaba esos 6 bytes sobre los píxeles guardados del slot 0
+   del port y al restaurar aparecía basura en la fila 0. Ahora `load_state` carga los 3 buffers reales (`obj_save_buf` queda en `EXCLUDE`).
+2. `fall_save_buf` (52 B) solo se cargaba 20 B: el resto está bajo la etiqueta sin nombre `dat_1d38`. `read_state.build_map(merge_dat=True)` (usado por `gen_iter_map.py`)
+   ya no corta el tamaño en etiquetas `dat_*` (acotado por el tamaño del global del port).
+Otros: `orig_run.sh` espera 3,5 s y repite el clic de foco los primeros cuadros (a veces el título no recibía las teclas iniciales, grabación vacía); con `--video` los
+`*_save_buf` ya no hay que ignorarlos. Notas de método: la cueva con vídeo ocupa 37 KB (cabe en CS); una grabación de ≈27 000 iteraciones pesa ≈0,9 MB; las grabaciones
+con `--iter 2000 60000` no produjeron nada en 2 intentos (no investigado; con `--iter 1000 30000` funciona).
+Pendiente: bucles interiores (cueva en niveles 1-7), `current_floor`, reinicio tras game over, y N4 en niveles/minijuegos (el vídeo ya se puede registrar allí).
 
 ## 7. General lesson for this whole project
 

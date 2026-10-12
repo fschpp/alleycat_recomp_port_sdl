@@ -35,3 +35,13 @@ Carga cada registro del original en el port, ejecuta UNA pasada y compara con el
     build/iter_diff /tmp/dos/STATE.BIN --from 5 --ignore keyboard_prev,keyboard_counter,input_horizontal,input_vertical,joy_last_tick,throw_timer,jump_tick_delay,enemy_sprite_ptr,enemy_save_buf,fall_save_buf,alley_save_buf,obj_save_buf,gravity_save_buf,crash_pit_prev,crash_base_freq,crash_start_tick,fall_snd_pit_prev,fall_snd_wobble_idx,fall_sound_x,fall_sound_y,hiss_phase
 
 Un recorrido de 60 000 registros tarda 1-3 min (`timeout`). Los pares con `rng_seed` distinto en pasos que bloquean (sonido de choque/siseo) son esperados.
+
+### Con vídeo (N4)
+
+    python3 tools/orig_state/build_dump_exe.py cat.exe /tmp/dos/catk.exe --iter 1000 30000 0x6b9 --video
+    tools/parity/orig_run.sh catk.exe k 190 0.25 "space@6 n@14 k@22 space@30 down:Right@36 ..."   # STATE.BIN con DS + B800
+    build/iter_diff /tmp/dos/STATE.BIN --video --from 5 --show 5 --ignore keyboard_prev,keyboard_counter,input_horizontal,input_vertical,joy_last_tick,throw_timer,jump_tick_delay,enemy_sprite_ptr,crash_pit_prev,crash_base_freq,crash_start_tick,fall_snd_pit_prev,fall_snd_wobble_idx,fall_sound_x,fall_sound_y,hiss_phase
+    ITER_VBOX=1 ...   # imprime la caja de bytes distintos [video k | original k+1 | port k+1]
+
+Con `--video` los `*_save_buf` ya no se ignoran. Si la grabacion sale vacia (sin STATE.BIN) el titulo no recibio las teclas: reintentar. `--iter 2000 60000` no grabo nada en dos intentos; usar `1000 30000`.
+

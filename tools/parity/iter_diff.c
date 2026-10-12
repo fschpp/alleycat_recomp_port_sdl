@@ -17,7 +17,11 @@
  * Clasificacion de cada par: EXACTO (el port, tal cual, da el estado k+1), RETRAZO (coincide con algun patron de retrazo),
  * DIVERGE (ningun intento coincide: se informa el intento con menos variables distintas).
  *
- * Uso: iter_diff STATE.BIN [--ignore a,b,c] [--from K] [--to K] [--show N] */
+ * Con --video (STATE.BIN de build_dump_exe.py --iter ... --video; plan N4) cada registro lleva tambien la RAM de video B800:0000..3FFF:
+ * se carga en cga_mem del port antes de la pasada y se compara cga_mem con el video del registro k+1 (un par con bytes de video distintos
+ * cuenta como no coincidente, igual que una variable). Los *_save_buf dejan de necesitar --ignore.
+ *
+ * Uso: iter_diff STATE.BIN [--video] [--ignore a,b,c] [--from K] [--to K] [--show N] */
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -75,7 +79,9 @@ static bool vs_hook(const char *site, bool need_retrace) {
     return open;
 }
 
-typedef struct { uint16_t n, tick; uint32_t pos, nd; } rec_t;
+typedef struct { uint16_t n, tick; uint32_t pos, nd, vpos; } rec_t;
+static bool use_video;                               /* --video: los registros llevan la RAM de video */
+#define VID_LEN 0x4000
 static uint8_t *file; static long flen; static rec_t *recs; static int nrecs;
 
 static int load_file(const char *p) {
@@ -86,13 +92,23 @@ static int load_file(const char *p) {
     long i = 0;
     while (i + 6 <= flen) {
         rec_t r; r.n = file[i] | file[i + 1] << 8; r.tick = file[i + 2] | file[i + 3] << 8; r.nd = file[i + 4] | file[i + 5] << 8; r.pos = (uint32_t)i + 6;
-        long len = r.nd == 0xFFFF ? REC_LEN : 4L * r.nd;
+        long len = r.nd == 0xFFFF ? REC_LEN : 4L * r.nd; r.vpos = 0;
+        if (use_video) {
+            long vp = i + 6 + len; long vl;
+            if (r.nd == 0xFFFF) vl = VID_LEN; else { if (vp + 2 > flen) break; vl = 2 + 4L * (file[vp] | file[vp + 1] << 8); }
+            r.vpos = (uint32_t)vp; len += vl;
+        }
         if (i + 6 + len > flen) break;
         recs[nrecs++] = r; i += 6 + len;
     }
     return nrecs ? 0 : -1;
 }
 
+static void apply_vid(uint8_t *v, const rec_t *r) {
+    if (r->nd == 0xFFFF) { memcpy(v, file + r->vpos, VID_LEN); return; }
+    uint32_t nv = file[r->vpos] | file[r->vpos + 1] << 8;
+    for (uint32_t k = 0; k < nv; k++) { const uint8_t *p = file + r->vpos + 2 + 4 * k; uint16_t off = p[0] | p[1] << 8; v[off] = p[2]; v[off + 1] = p[3]; }
+}
 static void apply(uint8_t *img, const rec_t *r) {
     if (r->nd == 0xFFFF) { memcpy(img, file + r->pos, A_LEN); memcpy(img + B_BASE, file + r->pos + A_LEN, B_LEN); return; }
     for (uint32_t k = 0; k < r->nd; k++) { const uint8_t *p = file + r->pos + 4 * k; uint16_t off = p[0] | p[1] << 8; img[off] = p[2]; img[off + 1] = p[3]; }
@@ -106,6 +122,8 @@ static void load_state(const uint8_t *img) {
     uint16_t vdims = img[0x567] | img[0x568] << 8, vdata = img[0x569] | img[0x56a] << 8;
     vs_frame.data = vdata < DS_POOL_SIZE ? &ds_pool[vdata] : ds_pool; vs_frame.width_words = (uint8_t)vdims; vs_frame.height = (uint8_t)(vdims >> 8);
     vert_sprite = &vs_frame;
+    /* obj_save_buf: tabla de 3 punteros DS (0x1f59) a buffers de 32 bytes (pixeles guardados de los objetos del callejon) */
+    for (int sl = 0; sl < 3; sl++) { uint16_t pt = img[0x1f59 + 2 * sl] | img[0x1f5a + 2 * sl] << 8; if (pt + 32u <= DUMP_LEN) memcpy(obj_save_buf[sl], img + pt, 32); }
 }
 
 /* a: el original no cambio la variable y el port si; b: el original la cambio y el port no; c: ambos la cambiaron distinto */
@@ -114,16 +132,27 @@ static stat_t st[2048]; static unsigned char pair_cls[2048];
 
 static void hex(char *dst, const uint8_t *b, int n) { int m = n > 8 ? 8 : n; for (int i = 0; i < m; i++) sprintf(dst + 2 * i, "%02x", b[i]); if (n > 8) strcat(dst, ".."); }
 
+static const uint8_t *vid_k, *vid_n;                 /* video del registro k y k+1 (NULL sin --video) */
+static long vdiff_pairs, vdiff_bytes_max, vdiff_first_k = -1; static int vdiff_off[64], vdiff_nshow;
 static long repr_hits;                              /* variables que difieren solo por representacion (ver attempt) */
 static int last_left;                               /* la pasada salio del callejon */
 /* una pasada desde img_k; devuelve cuantas variables (no ignoradas) difieren de img_n; si rep, acumula estadisticas */
 static int attempt(const uint8_t *img_k, const uint8_t *img_n, tk_t tk, unsigned mask, bool hook, long k, bool rep) {
     if (getenv("ITER_DEBUG") && rep == false && k == atol(getenv("ITER_DEBUG"))) fprintf(stderr, "intento mask=%x hook=%d tick=%u->%u sw=%d\n", mask, hook, tk.a, tk.b, tk.sw);
     vs_mask = mask; vs_idx = 0; vsync_hook = hook ? vs_hook : NULL;
+    if (vid_k) memcpy(cga_mem, vid_k, VID_LEN);
     load_state(img_k); cur_tk = tk; nreads = 0; spins = 0;
     gf_next_t nx = game_alley_frame(); last_left = nx != GF_STAY;
     int bad = 0;
     if (rep) memset(pair_cls, 0, sizeof pair_cls);
+    if (vid_n) {
+        long nb = 0; int first[64], nf = 0;
+        for (int o = 0; o < VID_LEN; o++) if (cga_mem[o] != vid_n[o]) { if (nf < 64) first[nf++] = o; nb++; }
+        if (nb) {
+            bad++;
+            if (rep) { if (vdiff_pairs++ == 0) vdiff_first_k = k; if (nb > vdiff_bytes_max) vdiff_bytes_max = nb; vdiff_nshow = nf; memcpy(vdiff_off, first, sizeof first); }
+        }
+    }
     for (int v = 0; v < iter_nvars; v++) {
         const iter_var_t *iv = &iter_vars[v];
         if (memcmp(iv->addr, img_n + iv->off, iv->len) == 0) continue;
@@ -158,6 +187,7 @@ int main(int argc, char **argv) {
         else if (!strcmp(argv[i], "--from") && i + 1 < argc) from = atol(argv[++i]);
         else if (!strcmp(argv[i], "--to") && i + 1 < argc) to = atol(argv[++i]);
         else if (!strcmp(argv[i], "--show") && i + 1 < argc) show = atoi(argv[++i]);
+        else if (!strcmp(argv[i], "--video")) use_video = true;
     }
     if (load_file(argv[1])) { fprintf(stderr, "no se pudo leer %s\n", argv[1]); return 2; }
     if (recs[0].nd != 0xFFFF) { fprintf(stderr, "el primer registro no es completo\n"); return 2; }
@@ -169,13 +199,14 @@ int main(int argc, char **argv) {
     cga_init();
     bios_clock_hook = clk; game_tick_fn = clk; pit_counter_fn = pit_fn; ua_tick_override = -1;
     game_flow_run(GF_LAB_00AE);                       /* nueva partida -> callejon listo (tablas y fondo inicializados) */
-    static uint8_t img[DUMP_LEN], nxt[DUMP_LEN];
-    apply(img, &recs[0]);
+    static uint8_t img[DUMP_LEN], nxt[DUMP_LEN], vimg[VID_LEN], vnxt[VID_LEN];
+    apply(img, &recs[0]); if (use_video) apply_vid(vimg, &recs[0]);
     long pairs = 0, exact = 0, vsync = 0, diverge = 0, amb[3] = {0, 0, 0}, left = 0; int shown = 0;
     long site_closed[NGATES * 4]; const char *site_name[NGATES * 4]; int nsite = 0; memset(site_closed, 0, sizeof site_closed);
     if (to < 0 || to > nrecs - 2) to = nrecs - 2;
     for (long k = 0; k <= to; k++) {
         memcpy(nxt, img, DUMP_LEN); apply(nxt, &recs[k + 1]);
+        if (use_video) { memcpy(vnxt, vimg, VID_LEN); apply_vid(vnxt, &recs[k + 1]); vid_k = vimg; vid_n = vnxt; }
         if (k >= from) {
             pairs++;
             /* tick BIOS: el original pudo leerlo en cualquier momento de la iteracion; si entre los dos registros pasaron varios ticks (la E/S de la
@@ -219,11 +250,21 @@ int main(int argc, char **argv) {
                     shown++; printf("par k=%ld (tick %u -> %u) diverge (mejor intento: tick %s, retrazo %s):", k, recs[k].tick, recs[k + 1].tick, best_t ? "k+1/mitad" : "k", best_hook ? "con patron" : "sin modelo");
                     for (int v = 0; v < iter_nvars; v++) if (!st[v].ign && pair_cls[v]) { char a[40] = "", b[40] = "", c[40] = ""; hex(a, img + iter_vars[v].off, iter_vars[v].len); hex(b, nxt + iter_vars[v].off, iter_vars[v].len); hex(c, iter_vars[v].addr, iter_vars[v].len);
                         printf(" %s[%c %s>%s|port %s]", iter_vars[v].name, "-ABC"[pair_cls[v]], a, b, c); }
+                    if (vid_n && vdiff_pairs) { printf(" VIDEO[primeros bytes distintos:"); for (int q = 0; q < vdiff_nshow; q++) printf(" %04x(orig %02x|port %02x)", vdiff_off[q], vnxt[vdiff_off[q]], cga_mem[vdiff_off[q]]); printf("]"); }
                     printf("\n");
+                    if (vid_n && getenv("ITER_VBOX")) {   /* caja de diferencias: filas x bytes de [video k | original k+1 | port k+1] */
+                        int r0 = 999, r1 = -1, c0 = 999, c1 = -1;
+                        for (int o = 0; o < VID_LEN; o++) if (cga_mem[o] != vnxt[o]) { int r = ((o & 0x1fff) / 80) * 2 + (o >= 0x2000), c = (o & 0x1fff) % 80; if (r < r0) r0 = r; if (r > r1) r1 = r; if (c < c0) c0 = c; if (c > c1) c1 = c; }
+                        if (r1 >= 0) { c0 = c0 > 1 ? c0 - 1 : 0; c1 = c1 < 78 ? c1 + 1 : 79; printf("  caja filas %d..%d, bytes %d..%d (x=%d..%d)\n  fila | video k | original k+1 | port k+1\n", r0, r1, c0, c1, c0 * 4, c1 * 4 + 3);
+                            for (int r = r0 > 0 ? r0 - 1 : 0; r <= r1 + 1 && r < 200; r++) { int base = (r & 1) * 0x2000 + (r >> 1) * 80;
+                                printf("  %3d |", r); for (int c = c0; c <= c1; c++) printf(" %02x", vimg[base + c]); printf(" |");
+                                for (int c = c0; c <= c1; c++) printf(" %02x", vnxt[base + c]); printf(" |");
+                                for (int c = c0; c <= c1; c++) printf(" %02x%s", cga_mem[base + c], cga_mem[base + c] != vnxt[base + c] ? "*" : " "); printf("\n"); } }
+                    }
                 }
             }
         }
-        memcpy(img, nxt, DUMP_LEN);
+        memcpy(img, nxt, DUMP_LEN); if (use_video) memcpy(vimg, vnxt, VID_LEN);
     }
     printf("registros: %d; pares comparados: %ld (con tick ambiguo: %ld)\n", nrecs, pairs, amb[1]);
     printf("  EXACTO  (el port, tal cual, da el estado siguiente): %ld\n", exact);
@@ -232,6 +273,7 @@ int main(int argc, char **argv) {
     if (nsite) { printf("  portones cerrados en los pares RETRAZO:"); for (int s = 0; s < nsite; s++) printf(" %s=%ld", site_name[s], site_closed[s]); printf("\n"); }
     if (left) printf("  pasadas que salieron del callejon (muerte/nivel): %ld\n", left);
     printf("variables mapeadas: %d\n", iter_nvars);
+    if (use_video) printf("video (N4): pares DIVERGE con video distinto (mejor intento): %ld; max bytes distintos en un par: %ld; primer k: %ld\n", vdiff_pairs, vdiff_bytes_max, vdiff_first_k);
     if (diverge) {
         printf("clases (solo pares DIVERGE): A = el original no cambio la variable y el port si; B = el original la cambio y el port no; C = ambos la cambiaron distinto\n");
         printf("%-24s %6s %5s %5s %5s %8s  %-18s %-18s %-18s\n", "variable", "pares", "A", "B", "C", "primer k", "antes(orig)", "despues(orig)", "despues(port)");

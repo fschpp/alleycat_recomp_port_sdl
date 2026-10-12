@@ -28,14 +28,16 @@ def port_symbols(nm_path):
 A_LEN, B_BASE, B_LEN = 0x2e40, 0x5900, 0x220
 # Globales del port que NO se pueden cargar bytes-a-bytes desde el registro: datos de solo lectura (escribirlos da SIGSEGV) y punteros
 # (el original guarda un offset DS de 16 bits; el port un puntero real).
-EXCLUDE = {'death_sprite', 'gravity_cur_sprite'}
+# obj_save_buf: en el original es una tabla de 3 PUNTEROS (DS:1f59) a buffers de 32 bytes en DS:1ed0..; el port tiene los pixeles en obj_save_buf[3][16].
+# load_state (iter_diff.c) los carga desde los buffers reales.
+EXCLUDE = {'death_sprite', 'gravity_cur_sprite', 'obj_save_buf'}
 HARNESS = ['sound_enabled', 'input_horizontal', 'input_vertical', 'restart_game', 'show_attract']
 
 
 def main():
     a = [x for x in sys.argv[1:] if not x.startswith('--')]
     if len(a) != 3: sys.exit(__doc__)
-    m = rs.build_map(a[0]); ps = port_symbols(a[1]); rows = []; unm = []
+    m = rs.build_map(a[0], merge_dat=True); ps = port_symbols(a[1]); rows = []; unm = []
     for h in HARNESS: ps.setdefault(h, 1)
     for name, (off, osz) in sorted(m.items(), key=lambda kv: kv[1][0]):
         if not (off < A_LEN or B_BASE <= off < B_BASE + B_LEN): continue   # fuera de las ventanas registradas
