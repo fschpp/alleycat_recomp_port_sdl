@@ -4,6 +4,7 @@
 #include "cat_state.h"
 #include "gen/ds_pool.h"
 
+bool tandy_mode = false;
 uint8_t cga_color_select = 0x30;   /* valor tras el modo 4 de la BIOS (IBM): paleta 1, intensidad alta; el
                                     * original lo deja en 0x20 en cuanto pasa por set_palette (T40 lo llama) */
 uint8_t ega_palette_reg[16] = { 0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0xa, 0xb, 0xc, 0xd, 0xe, 0xf };
@@ -16,7 +17,12 @@ uint8_t ega_palette_reg[16] = { 0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9
 #define DS_CGA_PALETTE_TBL  0x1853
 
 void bios_color_select(uint8_t bh, uint8_t bl) {
-    if (bh == 0x0) cga_color_select = (uint8_t)((cga_color_select & 0xe0) | (bl & 0x1f));
+    if (bh == 0x0) {
+        cga_color_select = (uint8_t)((cga_color_select & 0xe0) | (bl & 0x1f));
+        /* TANDYCAT (hook de INT 10h): en Tandy/PCjr el fondo (AH=0Bh BH=0) tambien se escribe en el registro de paleta 0
+         * (INT 10h AX=1000h, BL=0, BH=color), para que los pixeles de indice 0 cambien y no solo el borde. */
+        if (tandy_mode) ega_palette_reg[0] = (uint8_t)(bl & 0xf);
+    }
     else if (bh == 0x1) cga_color_select = (uint8_t)((cga_color_select & 0xdf) | (bl ? 0x20 : 0x00));
 }
 

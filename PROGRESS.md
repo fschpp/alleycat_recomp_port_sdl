@@ -36,6 +36,7 @@ Ninguno. Descubrimiento reciente (§6bs): los tests con reloj simulado que parte
 
 ### Completed
 
+- [x] Opción `--tandy`/`--pcjr` (color del parche TANDYCAT; sin sonido de 3 voces, §6cb)
 - [x] Pájaro del nivel 3: `l3_start_escape` ahora bloquea 9 ticks BIOS con `update_buzz_sound` como el original (antes se repartía en pasadas con estado oculto `l3_bird_escaping`, eliminado); `buzz_phase` ya no diverge en el diferencial (§6ca)
 - [x] Paridad N4 en minijuegos: los minijuegos son los niveles interiores 1-7, ya comparados con vídeo CGA por iteración (§6ca)
 - [x] Paridad reinicio tras game over: `game_alley_frame` devuelve `GF_TO_0081` y `game_flow_run` (lab_0081 → lab_00ae: `update_high_score`, título, `lives_count=3`) es traducción literal de entry.asm L74-96; el par `lives_count` 1→3 del diferencial es esa transición fuera de la pasada, no un bug (§6ca)
@@ -4851,6 +4852,13 @@ fondo y sonido dependiente del reloj; ver el plan):
 `STATE_k2` (grabación antigua con otro formato de ventana B) se descarta.
 
 Tests: `make test-t85` (falla sin el arreglo 1; cubre también `buffer_size`). Suggested commit: `Paridad B4: diferencial con teclas; gravedad del proyectil con recorte de altura; activate_enemy_chase; buffer_size de setup_alley; test-t85`
+
+## 6cb. Opción `--tandy` / `--pcjr` (parche TANDYCAT, 2026-10-13)
+
+https://github.com/bjt42/tandycat es un parche DEBUG (`PATCH.SCR`) para otra versión del juego (`ALLEYCAT.EXE` de 61 568 bytes, no nuestro `cat.exe` de 55 067): hace que el juego crea estar en un PCjr (fuerza `rom_id = 0xFD` en lugar de leer F000:FFFE, salta comprobaciones de hardware) y cuelga un gancho en INT 10h: `AH=0Bh BH=0` (fondo) además escribe el color en el borde (`AX=1001h`) y en el registro de paleta 0 (`AX=1000h BL=0`). No se puede aplicar el parche binario (offsets de otra versión), así que se reproduce su efecto:
+- `build/alleycat --tandy` (alias `--pcjr`): `rom_id = 0xFD` (el port ya tenía todas las ramas PCjr: registros de paleta EGA por nivel, tiempos, teclado) y `tandy_mode`, que en `bios_color_select(0, c)` también fija `ega_palette_reg[0] = c`, de modo que el color de fondo cambia los píxeles de índice 0 y no solo el borde (era la limitación T78c). Sin la opción, nada cambia. `--help` lista las opciones; una opción desconocida sale con código 2.
+- **Sonido de 3 voces: NO disponible.** El `cat.exe` de 55 067 bytes (nuestro desensamblado) no contiene código SN76496 (puerto 0xC0); sus ramas `rom_id == 0xFD` solo ajustan tiempos del altavoz PIT. Esa música sale del código extra de la versión de 61 568 bytes, que no tenemos. Para tenerla haría falta ese `ALLEYCAT.EXE` (desensamblarlo) o una reimplementación propia de la música a 3 voces (no sería paridad).
+- Comprobado: `make`/`make test` limpios; ambos modos arrancan; en modo Tandy `palette_rgb(0)` sigue al fondo.
 
 ## 6ca. Paridad 1 a 1: bucles interiores, niveles 1-7 (plan §9, 2026-10-13)
 

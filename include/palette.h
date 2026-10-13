@@ -1,6 +1,7 @@
 #ifndef PALETTE_H
 #define PALETTE_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 /* enemy.asm L242-274 (T44, PROGRESS.md §6ao): set_palette / set_ega_palette y el modelo de los registros
@@ -17,6 +18,7 @@ extern uint8_t cga_color_select;          /* valor actual del puerto 0x3D9 */
 /* PCjr (rom_id == 0xfd): registros de paleta EGA 0..15 (INT 10h AX=1000h, BL=registro, BH=valor RGBI). */
 extern uint8_t ega_palette_reg[16];
 
+extern bool tandy_mode;   /* --tandy: rom_id=0xFD + fondo en el registro de paleta 0 (parche TANDYCAT) */
 void bios_color_select(uint8_t bh, uint8_t bl);   /* INT 10h AH=0Bh */
 void set_ega_palette(uint8_t bl, uint8_t bh);     /* INT 10h AX=1000h */
 /* set_palette: paleta del nivel `level_number` (tabla cga_palette_table DS 0x1853, o pcjr_palette_1/2/3 DS
