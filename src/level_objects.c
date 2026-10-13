@@ -49,31 +49,31 @@ static uint8_t objects_random_byte(void) {
 #define L1_FOOTPRINT_ROW_BASE  0x1e00 /* dat_1e00 — a CGA offset constant, not sprite data */
 
 /* --- runtime state --- */
-static uint16_t l1_sprite_data[60]; /* dat_31e8-equivalent: 2 words x 30 rows background save */
+uint16_t l1_sprite_data[60]; /* dat_31e8-equivalent: 2 words x 30 rows background save */
 static uint8_t  l1_bg_sprite[40];   /* per-column footprint/impact wear counter, 0-4 */
-static uint16_t l1_last_col;        /* dat_32b6 */
-static uint16_t l1_anim_frame;      /* dat_327a — index (0,2,4,...) into L1_THROWN_SPRITE_PTRS */
-static uint8_t  l1_dir_x;           /* dat_3280: 0=none, 1=right, 0xff=left */
-static uint8_t  l1_dir_y;           /* dat_3281: 0=none, 1=down, 0xff=up */
-static uint16_t l1_draw_addr;       /* dat_3282 — last drawn CGA addr, for erase */
-static uint16_t l1_next_draw_addr;  /* dat_3284 */
-static uint8_t  l1_undrawn;         /* dat_3286: nonzero = nothing drawn yet, skip erase */
-static uint16_t l1_saved_x;         /* dat_32ef */
-static uint8_t  l1_saved_y;         /* dat_32f1 */
-static uint16_t l1_last_tick;       /* dat_328c */
-static uint16_t l1_col_index;       /* dat_328a — clamped [0, 0x26] column into l1_bg_sprite */
-static uint8_t  l1_noise_counter;   /* dat_32ea */
-static uint8_t  l1_noise_accum;     /* dat_32eb */
-static uint8_t  l1_bias_mag;        /* dat_32ec */
-static uint8_t  l1_bias_x;          /* dat_32ed */
-static uint8_t  l1_bias_y;          /* dat_32ee */
+uint16_t l1_last_col;        /* dat_32b6 */
+uint16_t l1_anim_frame;      /* dat_327a — index (0,2,4,...) into L1_THROWN_SPRITE_PTRS */
+uint8_t  l1_dir_x;           /* dat_3280: 0=none, 1=right, 0xff=left */
+uint8_t  l1_dir_y;           /* dat_3281: 0=none, 1=down, 0xff=up */
+uint16_t l1_draw_addr;       /* dat_3282 — last drawn CGA addr, for erase */
+uint16_t l1_next_draw_addr;  /* dat_3284 */
+uint8_t  l1_undrawn;         /* dat_3286: nonzero = nothing drawn yet, skip erase */
+uint16_t l1_saved_x;         /* dat_32ef */
+uint8_t  l1_saved_y;         /* dat_32f1 */
+uint16_t l1_last_tick;       /* dat_328c */
+uint16_t l1_col_index;       /* dat_328a — clamped [0, 0x26] column into l1_bg_sprite */
+uint8_t  l1_noise_counter;   /* dat_32ea */
+uint8_t  l1_noise_accum;     /* dat_32eb */
+uint8_t  l1_bias_mag;        /* dat_32ec */
+uint8_t  l1_bias_x;          /* dat_32ed */
+uint8_t  l1_bias_y;          /* dat_32ee */
 
 /* dat_410 — a slow-drift "how long since the level started" tick
  * reference, read but never written by tick_thrown_objects itself, so it
  * must be set elsewhere (unported). Latched here at init_thrown_objects
  * time (called once per level entry, per entry.asm) as the closest
  * faithful equivalent — a documented simplification, see PROGRESS.md. */
-static uint16_t l1_level_start_tick;
+uint16_t l1_level_start_tick;
 
 /* check_thrown_cat_hit (level_objects.asm L33B9-3402). Devuelve CF. Antes los tres saltos estaban como "simplificaciones"
  * (sin start_auto_walk, sin check_thrown_near_cat): al tocar al gato la escoba se quedaba pegada (volvia a chocar en cada
@@ -228,7 +228,9 @@ void tick_thrown_objects(void) {
          * biased, possibly random) new bounce direction --- */
         l1_col_index = (uint16_t)(l1_col_index - 1);
 
-        uint16_t elapsed = (uint16_t)((tick_now - l1_level_start_tick) >> 3);
+        /* the original issues a second int 1Ah here (not reusing the gate's
+         * reading); keep the read count identical */
+        uint16_t elapsed = (uint16_t)((read_bios_tick() - l1_level_start_tick) >> 3);
         uint8_t al = l1_bias_mag;
         if (al < (uint8_t)elapsed) {
             al = 0;

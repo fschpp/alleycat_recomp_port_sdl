@@ -16,7 +16,7 @@
 #define DS_CUPID_SPRITE_END        0x7120   /* 7 bytes: y del tile de cada fila (bf a7 8f 77 5f 47 2f) */
 
 /* DS 0x70cc (dat_70cc, 16 words = 2 words x 8 filas): fondo que blit_transparent guarda al dibujar al cupido. */
-static uint16_t cupid_bg_save[16];
+uint16_t cupid_bg_save[16];   /* no static: tools/parity/gen_iter_map.py lo carga desde DS:70cc */
 
 /* --- T57 (ui.asm L676-791): dibujo, borrado, ventanas y colision. PROGRESS.md §6ba. --- */
 

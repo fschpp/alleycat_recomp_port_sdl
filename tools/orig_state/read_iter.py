@@ -5,6 +5,7 @@
     import read_iter; for n, tick, ds, changed in read_iter.records(path): ...   # ds se reutiliza (no guardar la referencia)
 
 Cada registro: [contador:2][tick:2][nd:2]; nd == 0xFFFF -> ventana A + ventana B completas; si no, nd pares [offset:2][palabra:2].
+Con full=True / --full (STATE.BIN de --interior) la ventana es todo DS:0000..712F.
 Con video=True / --video (STATE.BIN de build_dump_exe.py --iter ... --video; plan N4) cada registro lleva detras la RAM de video CGA B800:0000..3FFF:
 registro completo -> 0x4000 bytes; registro delta -> [nv:2] y nv pares [offset 0..3FFE:2][palabra:2]. records(path, video=True) rinde (n, tick, ds, changed, vid)."""
 import struct, sys, os
@@ -14,10 +15,13 @@ import read_state as rs
 A_LEN, B_BASE, B_LEN = 0x2e40, 0x5900, 0x220      # ventanas de DS (cave_iter.asm)
 IMG_LEN = B_BASE + B_LEN                           # la imagen se indexa por offset de DS (el hueco queda a 0)
 REC_LEN = A_LEN + B_LEN
+FULL = (0x7130, 0x7130, 0)                         # modo FULLDS (--interior): una sola ventana DS:0000..712F
 VID_LEN = 0x4000
 
 
-def records(path, video=False):
+def records(path, video=False, full=False):
+    A_LEN, B_BASE, B_LEN = FULL if full else (globals()['A_LEN'], globals()['B_BASE'], globals()['B_LEN'])
+    IMG_LEN = B_BASE + B_LEN; REC_LEN = A_LEN + B_LEN
     d = open(path, 'rb').read(); i = 0; ds = bytearray(IMG_LEN); vid = bytearray(VID_LEN)
     while i + 6 <= len(d):
         n, tick, nd = struct.unpack_from('<3H', d, i); i += 6
@@ -42,11 +46,11 @@ def records(path, video=False):
 
 
 if __name__ == '__main__':
-    argv = [a for a in sys.argv if a != '--video']; video = len(argv) != len(sys.argv)
+    argv = [a for a in sys.argv if a not in ('--video', '--full')]; video = '--video' in sys.argv; full = '--full' in sys.argv
     if len(argv) < 4: sys.exit(__doc__)
     m = rs.build_map(argv[2]); names = argv[3:]
     print('n tick ' + ' '.join(names) + (' vid_md5' if video else ''))
     import hashlib
-    for r in records(argv[1], video):
+    for r in records(argv[1], video, full):
         n, tick, ds = r[:3]
         print(n, tick, *[rs.get(m, v, ds) for v in names], *([hashlib.md5(r[4]).hexdigest()[:8]] if video else []))

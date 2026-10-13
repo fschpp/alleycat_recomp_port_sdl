@@ -52,7 +52,7 @@ uint16_t l6_dat_44c1 = 0;
 uint8_t  l6_dat_44c3 = 0;
 uint8_t  l6_dat_44d5 = 0;
 
-static uint16_t l6_tracker_save[30];   /* DS 0x43a0..0x43dc = 0x3c bytes = 3 words x 10 filas */
+uint16_t l6_tracker_save[30];   /* DS 0x43a0..0x43dc = 0x3c bytes = 3 words x 10 filas */
 
 /* `sub ah,ah / int 0x1a` -> dx (mismo sustituto que level4.c, 55 ms por tick). */
 static uint16_t read_bios_tick(void) {

@@ -21,7 +21,10 @@
  * se carga en cga_mem del port antes de la pasada y se compara cga_mem con el video del registro k+1 (un par con bytes de video distintos
  * cuenta como no coincidente, igual que una variable). Los *_save_buf dejan de necesitar --ignore.
  *
- * Uso: iter_diff STATE.BIN [--video] [--ignore a,b,c] [--from K] [--to K] [--show N] */
+ * Con --level (STATE.BIN de build_dump_exe.py --interior): los registros son del bucle de un nivel interior (enganche en play_sound, tras
+ * process_keyboard/poll_joystick) y una pasada es game_level_frame() del nivel del primer registro (level_number, DS:0004).
+ *
+ * Uso: iter_diff STATE.BIN [--video] [--level] [--ignore a,b,c] [--from K] [--to K] [--show N] */
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -37,9 +40,15 @@
 #include "iter_map.h"
 
 /* ventanas de DS registradas por tools/orig_state/cave_iter.asm: A = 0000..2E3F, B = 5900..5B1F (estado de sonido) */
+#ifdef FULLDS                                       /* build/iter_diff_full: STATE.BIN de build_dump_exe.py --interior (una ventana: todo DS:0000..712F) */
+#define A_LEN 0x7130
+#define B_BASE 0x7130
+#define B_LEN 0
+#else
 #define A_LEN 0x2e40
 #define B_BASE 0x5900
 #define B_LEN 0x220
+#endif
 #define REC_LEN (A_LEN + B_LEN)                   /* bytes de un registro completo */
 #define DUMP_LEN (B_BASE + B_LEN)                 /* imagen en memoria indexada por offset de DS (el hueco queda a 0) */
 #define NGATES 5                                  /* portones de retrazo por pasada (update_animation, enemies, thrown, jump, falling) */
@@ -61,6 +70,18 @@ static uint16_t tick_read(void) { return (uint16_t)((nreads++ < cur_tk.sw ? cur_
 uint16_t __wrap_read_bios_tick(void) { return tick_read(); }
 void __wrap_poll_joystick(void) { }                 /* el registro ya trae el resultado de poll_joystick */
 
+/* ITER_TRACE=k: traza (a stderr) los blits del intento que se reinforma para el par k (ver ITER_VBOX); solo diagnostico */
+static int trace_on;
+#define TR(name, dst, w, h) do { if (trace_on) fprintf(stderr, "    [%s dst=%04zx(fila %zu col %zu) w=%u h=%u desde %p]\n", name, (size_t)(dst), ((size_t)(dst) & 0x1fff) / 80 * 2 + ((size_t)(dst) >= 0x2000), ((size_t)(dst) & 0x1fff) % 80, (unsigned)(w), (unsigned)(h), __builtin_return_address(0)); } while (0)
+extern void __real_blit_to_cga(const uint8_t *, size_t, uint8_t, uint8_t);
+extern void __real_blit_masked(const uint8_t *, size_t, uint8_t, uint8_t, uint16_t *);
+extern void __real_blit_transparent(const uint8_t *, size_t, uint8_t, uint8_t, uint16_t *);
+extern void __real_save_from_cga(uint8_t *, size_t, uint8_t, uint8_t);
+void __wrap_blit_to_cga(const uint8_t *a, size_t d, uint8_t w, uint8_t h) { TR("blit_to_cga", d, w, h); __real_blit_to_cga(a, d, w, h); }
+void __wrap_blit_masked(const uint8_t *a, size_t d, uint8_t w, uint8_t h, uint16_t *b) { TR("blit_masked", d, w, h); __real_blit_masked(a, d, w, h, b); }
+void __wrap_blit_transparent(const uint8_t *a, size_t d, uint8_t w, uint8_t h, uint16_t *b) { TR("blit_transparent", d, w, h); __real_blit_transparent(a, d, w, h, b); }
+void __wrap_save_from_cga(uint8_t *a, size_t d, uint8_t w, uint8_t h) { TR("save_from_cga", d, w, h); __real_save_from_cga(a, d, w, h); }
+
 /* diagnostico (ITER_DEBUG=1): traza las llamadas a spawn_window_event de cada intento */
 extern void __real_spawn_window_event(void);
 void __wrap_spawn_window_event(void) {
@@ -80,7 +101,8 @@ static bool vs_hook(const char *site, bool need_retrace) {
 }
 
 typedef struct { uint16_t n, tick; uint32_t pos, nd, vpos; } rec_t;
-static bool use_video;                               /* --video: los registros llevan la RAM de video */
+static bool use_video, use_level;                   /* --level: bucle de nivel interior (game_level_frame) */
+                              /* --video: los registros llevan la RAM de video */
 #define VID_LEN 0x4000
 static uint8_t *file; static long flen; static rec_t *recs; static int nrecs;
 
@@ -122,6 +144,14 @@ static void load_state(const uint8_t *img) {
     uint16_t vdims = img[0x567] | img[0x568] << 8, vdata = img[0x569] | img[0x56a] << 8;
     vs_frame.data = vdata < DS_POOL_SIZE ? &ds_pool[vdata] : ds_pool; vs_frame.width_words = (uint8_t)vdims; vs_frame.height = (uint8_t)(vdims >> 8);
     vert_sprite = &vs_frame;
+    /* nivel 7: l7_save_buf_ptrs (DS:45a8) = 7 punteros a los slots de 12 bytes (l7_cat_x..l7_cat_delay) que load/save_l7_slot intercambian */
+    { extern void l7_slot_load_raw(int, const uint8_t *);
+      for (int sl = 0; sl < 7; sl++) { uint16_t pt = img[0x45a8 + 2 * sl] | img[0x45a9 + 2 * sl] << 8; if (pt && pt + 12u <= DUMP_LEN) l7_slot_load_raw(sl, img + pt); } }
+    /* nivel 3: el original bloquea 9 ticks en el pajaro; el port lo reparte en pasadas (estado oculto) */
+    { extern bool l3_bird_escaping; l3_bird_escaping = false; }
+    /* l5_obj_save_buf: 4 punteros DS (0x3ec2) a buffers de 48 bytes (niveles 4/5) */
+    { extern uint8_t *l5_obj_save_buf[4];
+      for (int sl = 0; sl < 4; sl++) { uint16_t pt = img[0x3ec2 + 2 * sl] | img[0x3ec3 + 2 * sl] << 8; if (pt && pt + 48u <= DUMP_LEN) memcpy(l5_obj_save_buf[sl], img + pt, 48); } }
     /* obj_save_buf: tabla de 3 punteros DS (0x1f59) a buffers de 32 bytes (pixeles guardados de los objetos del callejon) */
     for (int sl = 0; sl < 3; sl++) { uint16_t pt = img[0x1f59 + 2 * sl] | img[0x1f5a + 2 * sl] << 8; if (pt + 32u <= DUMP_LEN) memcpy(obj_save_buf[sl], img + pt, 32); }
 }
@@ -141,8 +171,9 @@ static int attempt(const uint8_t *img_k, const uint8_t *img_n, tk_t tk, unsigned
     if (getenv("ITER_DEBUG") && rep == false && k == atol(getenv("ITER_DEBUG"))) fprintf(stderr, "intento mask=%x hook=%d tick=%u->%u sw=%d\n", mask, hook, tk.a, tk.b, tk.sw);
     vs_mask = mask; vs_idx = 0; vsync_hook = hook ? vs_hook : NULL;
     if (vid_k) memcpy(cga_mem, vid_k, VID_LEN);
+    trace_on = rep && getenv("ITER_TRACE") != NULL;
     load_state(img_k); cur_tk = tk; nreads = 0; spins = 0;
-    gf_next_t nx = game_alley_frame(); last_left = nx != GF_STAY;
+    if (use_level) last_left = game_level_frame() != GL_STAY; else last_left = game_alley_frame() != GF_STAY;
     int bad = 0;
     if (rep) memset(pair_cls, 0, sizeof pair_cls);
     if (vid_n) {
@@ -188,6 +219,7 @@ int main(int argc, char **argv) {
         else if (!strcmp(argv[i], "--to") && i + 1 < argc) to = atol(argv[++i]);
         else if (!strcmp(argv[i], "--show") && i + 1 < argc) show = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--video")) use_video = true;
+        else if (!strcmp(argv[i], "--level")) use_level = true;
     }
     if (load_file(argv[1])) { fprintf(stderr, "no se pudo leer %s\n", argv[1]); return 2; }
     if (recs[0].nd != 0xFFFF) { fprintf(stderr, "el primer registro no es completo\n"); return 2; }
@@ -201,6 +233,10 @@ int main(int argc, char **argv) {
     game_flow_run(GF_LAB_00AE);                       /* nueva partida -> callejon listo (tablas y fondo inicializados) */
     static uint8_t img[DUMP_LEN], nxt[DUMP_LEN], vimg[VID_LEN], vnxt[VID_LEN];
     apply(img, &recs[0]); if (use_video) apply_vid(vimg, &recs[0]);
+    if (use_level) {                                  /* init del nivel del primer registro (despacho + init, como lab_0238) */
+        level_number = img[4] | img[5] << 8; fprintf(stderr, "nivel %u\n", level_number);
+        if (!game_level_enter()) { fprintf(stderr, "game_level_enter fallo\n"); return 2; }
+    }
     long pairs = 0, exact = 0, vsync = 0, diverge = 0, amb[3] = {0, 0, 0}, left = 0; int shown = 0;
     long site_closed[NGATES * 4]; const char *site_name[NGATES * 4]; int nsite = 0; memset(site_closed, 0, sizeof site_closed);
     if (to < 0 || to > nrecs - 2) to = nrecs - 2;

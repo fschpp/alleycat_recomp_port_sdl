@@ -54,8 +54,8 @@ static uint16_t l3_bird_next_draw_addr; /* dat_39ca */
  * is spread across per-frame calls instead — same simplification style
  * as int 0x1a itself (see PROGRESS.md). sound.asm isn't ported yet, so
  * the buzz plays silently either way. */
-static bool     l3_bird_escaping = false;
-static uint16_t l3_bird_escape_start_tick;
+bool     l3_bird_escaping = false;   /* non-static: harness resets it (the original blocks) */
+uint16_t l3_bird_escape_start_tick;
 
 /* check_l3_enemy_thrown / check_l3_enemy_cat — literal ports, both
  * reusing the already-verified check_rect_collision with the exact

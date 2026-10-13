@@ -283,3 +283,7 @@ Limitaciones: solo bucle del callejón; vídeo (N4) ausente; `*_save_buf` sin co
 
 Veredicto N4 callejón: **idéntico** (≈57 000 pares; estado + vídeo). Las divergencias iniciales (46 y 97) eran del arnés: `obj_save_buf` (tabla de punteros en el original) y `fall_save_buf` (52 B, 32 bajo `dat_1d38`). Ver PROGRESS.md §6bz.
 Limitaciones: solo el bucle del callejón; la paleta no se compara (índices 0-3). Siguiente: cueva en bucles interiores (niveles 1-7) con vídeo, `current_floor`, reinicio tras game over.
+
+
+### 2026-10-13 — bucles interiores (niveles 1-7)
+Cueva `--interior`, DS completo + vídeo por iteración; ver PROGRESS.md §6ca. Sin bug de lógica nuevo; el residuo (<1,7 %) está en bordes de tick y estado oculto. Pendiente: `current_floor`, reinicio tras game over, N4 en minijuegos.
