@@ -157,8 +157,11 @@ void apply_cat_gravity(void) {
     gravity_restore_dims = gravity_save_dims;
 
     if (gravity_cur_sprite != NULL) {
+        /* lab_18fd: `mov cx,[gravity_save_dims]` -> se dibuja con la altura RECORTADA (la misma que luego restaura
+         * restore_gravity_bg). Dibujar la altura completa dejaba filas sin restaurar: el contorno de la bota se quedaba
+         * pegado a la medianera en vez de hundirse detras. */
         blit_transparent(gravity_cur_sprite->data, gravity_cga_addr,
-                          gravity_cur_sprite->width_words, gravity_cur_sprite->height,
+                          (uint8_t)(gravity_save_dims & 0xff), (uint8_t)(gravity_save_dims >> 8),
                           gravity_save_buf);
     }
 }
