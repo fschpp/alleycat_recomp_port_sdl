@@ -147,8 +147,6 @@ static void load_state(const uint8_t *img) {
     /* nivel 7: l7_save_buf_ptrs (DS:45a8) = 7 punteros a los slots de 12 bytes (l7_cat_x..l7_cat_delay) que load/save_l7_slot intercambian */
     { extern void l7_slot_load_raw(int, const uint8_t *);
       for (int sl = 0; sl < 7; sl++) { uint16_t pt = img[0x45a8 + 2 * sl] | img[0x45a9 + 2 * sl] << 8; if (pt && pt + 12u <= DUMP_LEN) l7_slot_load_raw(sl, img + pt); } }
-    /* nivel 3: el original bloquea 9 ticks en el pajaro; el port lo reparte en pasadas (estado oculto) */
-    { extern bool l3_bird_escaping; l3_bird_escaping = false; }
     /* l5_obj_save_buf: 4 punteros DS (0x3ec2) a buffers de 48 bytes (niveles 4/5) */
     { extern uint8_t *l5_obj_save_buf[4];
       for (int sl = 0; sl < 4; sl++) { uint16_t pt = img[0x3ec2 + 2 * sl] | img[0x3ec3 + 2 * sl] << 8; if (pt && pt + 48u <= DUMP_LEN) memcpy(l5_obj_save_buf[sl], img + pt, 48); } }

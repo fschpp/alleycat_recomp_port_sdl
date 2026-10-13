@@ -7,6 +7,7 @@
 #include "video.h"
 #include "input.h"
 #include "cat_state.h"
+#include "palette.h"
 #include "game_setup.h"
 #include "alley_movement.h"
 #include "enemy.h"
@@ -87,7 +88,21 @@ static void frame_present(void) {
 }
 
 int main(int argc, char **argv) {
-    (void)argc; (void)argv;
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--tandy") == 0 || strcmp(argv[i], "--pcjr") == 0) {
+            tandy_mode = true;
+            rom_id = 0xfd;   /* como el parche TANDYCAT: el juego cree estar en un PCjr (paleta de 16 colores, tiempos PCjr) */
+        } else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
+            printf("uso: %s [--tandy|--pcjr]\n"
+                   "  --tandy  modo Tandy/PCjr (rom_id=0xFD): paleta personalizada por registros EGA, fondo en el registro 0\n"
+                   "           (equivale al parche TANDYCAT para el color; el sonido de 3 voces NO esta: esta version del juego\n"
+                   "           no contiene codigo SN76496, ver PROGRESS.md)\n", argv[0]);
+            return 0;
+        } else {
+            fprintf(stderr, "opcion desconocida: %s (usa --help)\n", argv[i]);
+            return 2;
+        }
+    }
 
     cga_init();
     input_init();
