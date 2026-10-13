@@ -21,7 +21,7 @@ de los 8 niveles; resultados por nivel en `docs/NIVELES.md`.
 
 ### Todo (abierto)
 
-- [ ] Paridad: bloqueo de 9 ticks del pájaro del nivel 3 (el original bloquea, el port lo reparte en pasadas; §6ca) y pares de borde de tick sin modelo (<1,7 %)
+- [ ] Paridad: pares de borde de tick sin modelo (<1,7 %)
 - [ ] T75b — decidir D1: quitar `immune_flag = 0` de `game_alley_frame` (hay que actualizar E4 de `tests/test_game_flow_loop.c`; ver `docs/NIVELES.md` D1)
 - [ ] T78b — flash de borde del nivel 2 (`l2_set_border`/`l2_border_color` siguen siendo un stub con nombre; cablear a `bios_color_select` mueve el fondo del nivel completo y puede cambiar los conteos de píxeles de `test-level2*`) (§6bp)
 - [ ] T78c — PCjr (`rom_id == 0xfd`): el borde cambia pero los píxeles de índice 0 no (el borde de la PCjr es un registro aparte) (§6bp)
@@ -36,6 +36,7 @@ Ninguno. Descubrimiento reciente (§6bs): los tests con reloj simulado que parte
 
 ### Completed
 
+- [x] Pájaro del nivel 3: `l3_start_escape` ahora bloquea 9 ticks BIOS con `update_buzz_sound` como el original (antes se repartía en pasadas con estado oculto `l3_bird_escaping`, eliminado); `buzz_phase` ya no diverge en el diferencial (§6ca)
 - [x] Paridad N4 en minijuegos: los minijuegos son los niveles interiores 1-7, ya comparados con vídeo CGA por iteración (§6ca)
 - [x] Paridad reinicio tras game over: `game_alley_frame` devuelve `GF_TO_0081` y `game_flow_run` (lab_0081 → lab_00ae: `update_high_score`, título, `lives_count=3`) es traducción literal de entry.asm L74-96; el par `lives_count` 1→3 del diferencial es esa transición fuera de la pasada, no un bug (§6ca)
 - [x] Paridad `current_floor` (DS 0x052f, mapeada y comparada en cada par): valores 0/1/2, 8 transiciones en las grabaciones k1/k2 (≈54 000 pares), todas coinciden con el original (§6ca)
@@ -4866,7 +4867,7 @@ Tests: `make test-t85` (falla sin el arreglo 1; cubre también `buffer_size`). S
 
 Nivel 5: `tick_thrown_objects` comparado línea a línea con el ASM: lógica idéntica; todos los pares están en "tick k+1/mitad" (el tick BIOS cambia en mitad de la pasada). Se añadió la segunda lectura de reloj del original (`elapsed`). No es bug de lógica.
 `current_floor`: ya estaba en el mapa del diferencial (DS 0x052f); en k1 pasa 0→1→2 (6 transiciones) y en k2 2 transiciones, sin divergencias; no hay discrepancia que aclarar.
-Nivel 3: el original bloquea 9 ticks en el aleteo del pájaro (`update_buzz_sound`); el port lo reparte en pasadas (desviación deliberada, `level3_enemy.c`); `buzz_phase` se ignora y `l3_bird_escaping` se resetea por pasada en el arnés.
+Nivel 3: el original bloquea 9 ticks en el aleteo del pájaro (`update_buzz_sound`); el port antes lo repartía en pasadas (1 586 pares `buzz_phase`); ahora bloquea igual (`level3_enemy.c`, `speaker_spin_cycles(300)` por vuelta) y esos pares desaparecen.
 
 ## 6bz. Paridad 1 a 1: N4, vídeo CGA comparado por iteración (plan `docs/PLAN_PARIDAD_1A1.md` §9, 2026-10-12)
 

@@ -1,6 +1,7 @@
 #include "bios_clock.h"
 #include "cat_state.h"
 #include "sound.h"
+#include "speaker.h"
 #include "cga.h"
 #include "level_collision.h"
 #include "level3_enemy.h"
@@ -47,15 +48,9 @@ static uint16_t l3_bird_next_draw_addr; /* dat_39ca */
 
 /* [0x552] = object_hit, [0x553] = cat_caught (cat_state.h) — ver nota en level3_enemy.h (T20). */
 
-/* Non-blocking stand-in for the original's synchronous 9-tick busy-wait
- * (init_buzz_sound + a spin loop on int 0x1a calling update_buzz_sound
- * until 9 ticks elapse). Blocking the render loop for ~0.5s isn't
- * compatible with this port's externally-paced frame loop, so the wait
- * is spread across per-frame calls instead — same simplification style
- * as int 0x1a itself (see PROGRESS.md). sound.asm isn't ported yet, so
- * the buzz plays silently either way. */
-bool     l3_bird_escaping = false;   /* non-static: harness resets it (the original blocks) */
-uint16_t l3_bird_escape_start_tick;
+/* The original's escape is a synchronous 9-tick busy-wait (init_buzz_sound,
+ * then int 0x1a + update_buzz_sound until 9 ticks elapse); the port blocks the
+ * same way (see l3_start_escape). */
 
 /* check_l3_enemy_thrown / check_l3_enemy_cat — literal ports, both
  * reusing the already-verified check_rect_collision with the exact
@@ -102,8 +97,13 @@ static void l3_start_escape(void) {
     blit_transparent(&ds_pool[L3_BIRD_ESCAPE_SPRITE], addr, 6, 0x15, NULL);
 
     init_buzz_sound();
-    l3_bird_escaping = true;
-    l3_bird_escape_start_tick = read_bios_tick();
+    uint16_t start = read_bios_tick();                 /* dat_39c8 */
+    do {
+        update_buzz_sound();
+        /* time cost of one pass of the original loop (update_buzz_sound + int 0x1a) */
+        speaker_spin_cycles(300);
+    } while ((uint16_t)(read_bios_tick() - start) < 9);
+    object_hit = 1;                                    /* mov byte [0x552],1 */
 }
 
 void init_level3_enemy(void) {
@@ -117,15 +117,6 @@ void init_level3_enemy(void) {
 
 void update_level3_enemy(void) {
     uint16_t tick_now = read_bios_tick();
-
-    if (l3_bird_escaping) {
-        update_buzz_sound();
-        if ((uint16_t)(tick_now - l3_bird_escape_start_tick) >= 9) {
-            l3_bird_escaping = false;
-            object_hit = 1;
-        }
-        return;
-    }
 
     if ((uint16_t)(tick_now - l3_bird_last_tick) < 2) return;
     l3_bird_last_tick = tick_now;
