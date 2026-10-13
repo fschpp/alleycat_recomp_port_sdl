@@ -21,7 +21,7 @@ de los 8 niveles; resultados por nivel en `docs/NIVELES.md`.
 
 ### Todo (abierto)
 
-- [ ] Paridad: aclarar `current_floor`, reinicio tras game over fuera de `game_alley_frame` (§6by), N4 en minijuegos, estado de pasada del bloqueo del pájaro del nivel 3 (§6ca)
+- [ ] Paridad: N4 en minijuegos, estado de pasada del bloqueo del pájaro del nivel 3 (§6ca)
 - [ ] T75b — decidir D1: quitar `immune_flag = 0` de `game_alley_frame` (hay que actualizar E4 de `tests/test_game_flow_loop.c`; ver `docs/NIVELES.md` D1)
 - [ ] T78b — flash de borde del nivel 2 (`l2_set_border`/`l2_border_color` siguen siendo un stub con nombre; cablear a `bios_color_select` mueve el fondo del nivel completo y puede cambiar los conteos de píxeles de `test-level2*`) (§6bp)
 - [ ] T78c — PCjr (`rom_id == 0xfd`): el borde cambia pero los píxeles de índice 0 no (el borde de la PCjr es un registro aparte) (§6bp)
@@ -36,6 +36,8 @@ Ninguno. Descubrimiento reciente (§6bs): los tests con reloj simulado que parte
 
 ### Completed
 
+- [x] Paridad reinicio tras game over: `game_alley_frame` devuelve `GF_TO_0081` y `game_flow_run` (lab_0081 → lab_00ae: `update_high_score`, título, `lives_count=3`) es traducción literal de entry.asm L74-96; el par `lives_count` 1→3 del diferencial es esa transición fuera de la pasada, no un bug (§6ca)
+- [x] Paridad `current_floor` (DS 0x052f, mapeada y comparada en cada par): valores 0/1/2, 8 transiciones en las grabaciones k1/k2 (≈54 000 pares), todas coinciden con el original (§6ca)
 - [x] Paridad de bucles interiores (niveles 1-7, cueva `--interior --start-level N`, ventana FULLDS + vídeo): sin bug de lógica nuevo; residuo en bordes de tick (§6ca)
 - [x] Paridad N4 (vídeo por iteración, callejón): 0 divergencias en ≈57 000 pares; 2 fallos del arnés corregidos (§6bz)
 - [x] Paridad B4 con teclas: `apply_cat_gravity` aterrizaba antes y sin recortar el sprite, `activate_enemy_chase` dejaba `cat_x` invertido, `setup_alley` omitía `buffer_size`; `test-t85` (§6by)
@@ -4862,6 +4864,7 @@ Tests: `make test-t85` (falla sin el arreglo 1; cubre también `buffer_size`). S
 | 6, 7 | — | pocos | muerte / representación de `cat_sprite_data` |
 
 Nivel 5: `tick_thrown_objects` comparado línea a línea con el ASM: lógica idéntica; todos los pares están en "tick k+1/mitad" (el tick BIOS cambia en mitad de la pasada). Se añadió la segunda lectura de reloj del original (`elapsed`). No es bug de lógica.
+`current_floor`: ya estaba en el mapa del diferencial (DS 0x052f); en k1 pasa 0→1→2 (6 transiciones) y en k2 2 transiciones, sin divergencias; no hay discrepancia que aclarar.
 Nivel 3: el original bloquea 9 ticks en el aleteo del pájaro (`update_buzz_sound`); el port lo reparte en pasadas (desviación deliberada, `level3_enemy.c`); `buzz_phase` se ignora y `l3_bird_escaping` se resetea por pasada en el arnés.
 
 ## 6bz. Paridad 1 a 1: N4, vídeo CGA comparado por iteración (plan `docs/PLAN_PARIDAD_1A1.md` §9, 2026-10-12)
