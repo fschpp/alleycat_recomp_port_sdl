@@ -81,14 +81,14 @@ static uint16_t ds_word(uint16_t ofs) {
 /* --- "current" heart-cat scratch state (dat_4548.. in the original —
  * see the header comment; swapped in/out of the 7 slots below by
  * save/load_l7_slot). --- */
-static int16_t  l7_cat_x;
-static uint8_t  l7_cat_dir;      /* 0=idle, 1=right, 0xff=left */
-static uint8_t  l7_cat_y;
-static uint16_t l7_cat_save_addr;
-static uint8_t  l7_cat_moving;
-static uint16_t l7_cat_last_tick;
-static uint16_t l7_cat_anim_idx;
-static uint8_t  l7_cat_delay;
+int16_t  l7_cat_x;
+uint8_t  l7_cat_dir;      /* 0=idle, 1=right, 0xff=left */
+uint8_t  l7_cat_y;
+uint16_t l7_cat_save_addr;
+uint8_t  l7_cat_moving;
+uint16_t l7_cat_last_tick;
+uint16_t l7_cat_anim_idx;
+uint8_t  l7_cat_delay;
 
 typedef struct {
     int16_t  x;
@@ -102,11 +102,11 @@ typedef struct {
 } l7_cat_slot_t;
 
 static l7_cat_slot_t l7_slots[7];
-static uint16_t l7_heart_index;
-static uint16_t l7_heart_cga_addr;
-static uint16_t l7_heart_tick;    /* 0x45b8 — pacing reference tick */
-static uint16_t l7_heart_speed;   /* 0x45bc — current per-tick move step */
-static uint8_t  l7_heart_caught;  /* 0x45be */
+uint16_t l7_heart_index;
+uint16_t l7_heart_cga_addr;
+uint16_t l7_heart_tick;    /* 0x45b8 — pacing reference tick */
+uint16_t l7_heart_speed;   /* 0x45bc — current per-tick move step */
+uint8_t  l7_heart_caught;  /* 0x45be */
 
 /* A 3-word x 12-row buffer of the CGA "0x5555" dither/fill pattern —
  * clear_l7_sprite fills with this constant rather than restoring a saved
@@ -118,6 +118,14 @@ static const uint16_t l7_clear_pattern[3 * 12] = {
     0x5555, 0x5555, 0x5555, 0x5555, 0x5555, 0x5555, 0x5555, 0x5555, 0x5555,
     0x5555, 0x5555, 0x5555, 0x5555, 0x5555, 0x5555, 0x5555, 0x5555, 0x5555,
 };
+
+/* Gancho del arnes de paridad (tools/parity/iter_diff.c): carga el slot `idx` desde los 12 bytes crudos del original
+ * (l7_cat_x .. l7_cat_delay, DS:4548.., mismo orden que l7_cat_slot_t). Sin efecto en el juego. */
+void l7_slot_load_raw(int idx, const uint8_t *p) {
+    l7_cat_slot_t *s = &l7_slots[idx];
+    s->x = (int16_t)(p[0] | p[1] << 8); s->dir = p[2]; s->y = p[3]; s->save_addr = (uint16_t)(p[4] | p[5] << 8);
+    s->moving = p[6]; s->last_tick = (uint16_t)(p[7] | p[8] << 8); s->anim_idx = (uint16_t)(p[9] | p[10] << 8); s->delay = p[11];
+}
 
 static void save_l7_slot(uint16_t idx) {
     l7_cat_slot_t *s = &l7_slots[idx];

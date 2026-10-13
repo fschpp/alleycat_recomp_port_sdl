@@ -13,6 +13,8 @@
 ;     si no        : nd pares [offset en DS:2][palabra nueva:2]
 ; Todos los registros son del mismo punto del bucle (tras process_keyboard y poll_joystick, antes de update_animation).
 ; Lector: tools/orig_state/read_iter.py.
+; Modo INTERIOR (build_dump_exe.py --interior): el enganche esta en la llamada a play_sound de los 7 bucles de nivel (mismo punto: tras
+;   process_keyboard y poll_joystick), de modo que UNA pasada del original = game_level_frame() del port con la entrada ya cargada.
 ; Modo VIDEO (build_dump_exe.py --video, N4 del plan): ademas de DS se registra la RAM de video CGA (B800:0000..3FFF, 16 KB).
 ;   Cada registro lleva DETRAS de la parte de DS una seccion de video:
 ;     registro completo (nd == 0xFFFF): 0x4000 bytes de video
@@ -27,9 +29,29 @@ VSEG         equ 0x3000                 ; VPREV = VSEG:0000..3FFF ; VOUT = VSEG:
 VOUT         equ 0x4000
 %endif
 org CAVE_ORG
+%ifdef FULLDS
+; Modo FULLDS (--interior): UNA ventana = todo DS:0000..712F (estado de los niveles interiores en 3400..4500, nivel 7 en 70EC, sonido en 5900...).
+; PREVBUF y OUTBUF viven en el segmento DOS libre PSEG (no caben en CS); el tope de OUTBUF es OUT_MAX (si se supera se deja de registrar).
+A_LEN        equ 0x7130
+B_BASE       equ 0x7130
+B_LEN        equ 0
+PSEG         equ 0x4000
+prevbuf      equ 0
+outbuf       equ 0x7200
+OUT_MAX      equ 0xfff0
+%macro BUFSEG 1
+    mov ax,PSEG
+    mov %1,ax
+%endmacro
+%else
 A_LEN        equ 0x2e40                 ; ventana A: DS:0000..2E3F (juego, enemigo, nivel actual, window_open_state hasta 0x2e1f)
 B_BASE       equ 0x5900                 ; ventana B: DS:5900..5B1F (estado de sonido: chase_*, tone_*, ambient_*, ...)
 B_LEN        equ 0x220
+%macro BUFSEG 1
+    push cs
+    pop %1
+%endmacro
+%endif
 DUMP_LEN     equ A_LEN+B_LEN            ; tamano del registro completo = ventana A seguida de ventana B
 MAXREC       equ CAVE_MAXREC
 TICKLIM      equ CAVE_TICKLIM
@@ -56,9 +78,9 @@ cave:
     jne .delta
     cmp byte [ENEMY_ACTIVE],0           ; DS = DS del juego aqui
     jne .start
+.copy:
     ; sin perro: copiar esta iteracion a PREVBUF
-    push cs
-    pop es
+    BUFSEG es
     xor si,si
     mov di,prevbuf
     mov cx,A_LEN/2
@@ -84,7 +106,11 @@ cave:
     jmp .out
 .start:
     cmp word [cs:have_prev],0
+%ifdef INTERIOR
+    je .copy                            ; modo interior: la cueva solo corre en bucles de nivel; la 1.a iteracion se copia y se registra desde la 2.a
+%else
     je .out                             ; el perro ya estaba: sin iteracion anterior que registrar
+%endif
     mov word [cs:recording],1
     mov ax,[cs:prev_tick]
     mov [cs:first_tick],ax
@@ -97,6 +123,7 @@ cave:
     mov dx,hdr_count
     mov cx,6
     call append
+    BUFSEG ds
     mov dx,prevbuf
     mov cx,DUMP_LEN
     call append
@@ -116,8 +143,7 @@ cave:
     cmp ax,TICKLIM
     jae .stop
     ; construir el delta (DS actual contra PREVBUF) en OUTBUF y dejar PREVBUF = DS actual
-    push cs
-    pop es
+    BUFSEG es
     mov di,outbuf+6
     xor si,si
     mov bx,prevbuf
@@ -126,9 +152,13 @@ cave:
     mov byte [cs:pass],0
 .l:
     lodsw                               ; ax = [ds:si]; si += 2
-    cmp ax,[cs:bx]
+    cmp ax,[es:bx]
     je .same
-    mov [cs:bx],ax
+    mov [es:bx],ax
+%ifdef FULLDS
+    cmp di,OUT_MAX-4
+    jae .overflow
+%endif
     mov [es:di+2],ax
     mov ax,si
     sub ax,2
@@ -138,6 +168,9 @@ cave:
 .same:
     add bx,2
     loop .l
+%ifdef FULLDS
+    jmp .done
+%endif
     cmp byte [cs:pass],0
     jne .done
     mov byte [cs:pass],1                ; segunda pasada: ventana B (bx, di y dx continuan)
@@ -147,12 +180,11 @@ cave:
 .done:
     inc word [cs:hdr_count]
     mov ax,[cs:hdr_count]
-    mov [cs:outbuf],ax
+    mov [es:outbuf],ax
     mov ax,[cs:cur_tick]
-    mov [cs:outbuf+2],ax
-    mov [cs:outbuf+4],dx
-    push cs
-    pop ds
+    mov [es:outbuf+2],ax
+    mov [es:outbuf+4],dx
+    BUFSEG ds
     mov dx,outbuf
     mov cx,di
     sub cx,outbuf
@@ -195,6 +227,7 @@ cave:
     inc word [cs:nrec]
     cmp word [cs:nrec],MAXREC
     jb .out
+.overflow:
 .stop:
     mov word [cs:finished],1
 .out:
@@ -275,5 +308,7 @@ hdr_count:  dw 0
 hdr_tick:   dw 0
 hdr_nd:     dw 0
 fname:      db 'STATE.BIN',0
+%ifndef FULLDS
 prevbuf:    times DUMP_LEN db 0
 outbuf:     times (6 + 4 * (DUMP_LEN / 2)) db 0
+%endif
