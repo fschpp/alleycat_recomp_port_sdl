@@ -7,12 +7,14 @@
 
 #include "audio.h"
 #include "speaker.h"
+#include "sn76496.h"
 
 static SDL_AudioDeviceID audio_dev = 0;
 
 static void SDLCALL audio_callback(void *userdata, Uint8 *stream, int len) {
     (void)userdata;
     speaker_render((int16_t *)stream, (size_t)len / sizeof(int16_t));
+    sn76496_mix((int16_t *)stream, (size_t)len / sizeof(int16_t));
 }
 
 bool audio_init(void) {
@@ -30,6 +32,7 @@ bool audio_init(void) {
     SDL_AudioSpec have;
 
     speaker_reset();
+    sn76496_reset();
     audio_dev = SDL_OpenAudioDevice(NULL, 0, &want, &have, 0);
     if (audio_dev == 0) return false;
 
