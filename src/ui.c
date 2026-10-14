@@ -3,6 +3,8 @@
 #include <stddef.h>
 #include <string.h>
 #include "ui.h"
+#include "tandy_music.h"
+#include "palette.h"
 #include "cat_state.h"
 #include "cga.h"
 #include "bios_text.h"
@@ -144,6 +146,42 @@ lab_5e1c:
     update_animation();                               /* update_animation (T74) */
 }
 
+/* Bucle del titulo de la compilacion de 3 voces (CS:0x6044..0x6149 de alleycat61568.exe), con --tandy/--pcjr. Difiere del
+ * bucle normal: motor de 3 voces (tandy_music), animacion cada 0x2c ticks, gato cada 0x16, tiempo de espera 0x50a desde el
+ * init de la musica (solo si attract_shown == 0), y Del conmuta la musica. Ver docs/TANDY_MOTOR.md. */
+static void tandy_title_loop(void) {
+    uint16_t dx;
+lab_6044:
+    tandy_music_init(score_tick());                        /* call 0x16a0 */
+lab_606d:
+    if (ui_wait_hook) ui_wait_hook();
+    dx = score_tick();
+    if ((uint16_t)(dx - attract_frame_tick) >= 0x2c) { attract_frame_tick = dx; animate_title_icon(); }
+    if ((uint16_t)(dx - tandy_music_start_tick()) >= 0x50a && attract_shown == 0x0) goto lab_613d;
+    tandy_music_tick(score_tick());                        /* call 0x173e */
+    move_title_cat();
+    if (use_joystick != 0x0) {
+        uint8_t al = joy_port_fn ? joy_port_fn() : 0xff;
+        if ((al & 0x10) != 0) attract_key_pressed = 0x1;
+        else if (attract_key_pressed != 0x0) goto lab_613d;
+    }
+    if (attract_save_int == keyboard_counter) goto lab_606d;
+    attract_save_int = keyboard_counter;
+    if (key_matrix[KEY_IDX_CHEAT] & 0x80) goto lab_613d;   /* test [0x6cc],0x80 / jnz */
+    if ((key_matrix[KEY_IDX_DEL] & 0x80) == 0) {           /* Del pulsada: not byte [1] */
+        if (tandy_music_toggle()) goto lab_6044;
+        silence_speaker();
+        tandy_music_silence();
+        goto lab_606d;
+    }
+    if ((key_matrix[KEY_IDX_DEMO] & 0x80) == 0) goto lab_613d;
+    goto lab_606d;                                         /* [0x6ce] se toma como suelta (jnz 0x6127) */
+lab_613d:
+    tandy_music_silence();
+    tandy_music_stop();
+    silence_speaker();                                     /* call 0x5e11; call 0x16f0 (PIT) sin efecto en el port */
+}
+
 /* show_title_screen (L55-156). Bloqueante como el original; ui_wait_hook presenta/bombea en cada vuelta. */
 void show_title_screen(void) {
     uint16_t dx, ax;
@@ -173,6 +211,7 @@ void show_title_screen(void) {
     input_vertical = 0x0;
     attract_key_pressed = 0x0;
     attract_save_int = keyboard_counter;
+    if (tandy_mode) { tandy_title_loop(); return; }
 lab_5d54:
     dx = score_tick();                                     /* sub ah,ah / int 0x1a */
     attract_last_tick = dx;
