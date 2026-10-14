@@ -14,12 +14,15 @@ graphics assets, so it is not meant to be published or redistributed.
 
 ## 0. Current focus / todo / blockers
 
-**Current focus:** Plan de paridad 1 a 1 (`docs/PLAN_PARIDAD_1A1.md`): diferencial por iteración del callejón hecho **también con teclas** (saltos, ventanas, muerte; 3 grabaciones de 60 000 iteraciones, 0/1/2 pares sin explicar, §6by; 3 bugs de lógica corregidos); siguiente: RAM de vídeo en el registro (N4), bucles interiores, `current_floor`. Antes: T81 (la pecera / nivel 2 volvía al callejón, §6bs) hecho; falta confirmarlo en PC real. T80 (ventanas del callejón, §6br) hecho. `tareas.md` está hecho hasta **T79** (ver abajo). Todo el flujo real corre en `main.c` -> `game_run()`
+**Current focus:** (2026-10-14) música de 3 voces `--tandy` implementada y verificada contra el original en unicorn; falta oírla en PC real. Antes: Plan de paridad 1 a 1 (`docs/PLAN_PARIDAD_1A1.md`): diferencial por iteración del callejón hecho **también con teclas** (saltos, ventanas, muerte; 3 grabaciones de 60 000 iteraciones, 0/1/2 pares sin explicar, §6by; 3 bugs de lógica corregidos); siguiente: RAM de vídeo en el registro (N4), bucles interiores, `current_floor`. Antes: T81 (la pecera / nivel 2 volvía al callejón, §6bs) hecho; falta confirmarlo en PC real. T80 (ventanas del callejón, §6br) hecho. `tareas.md` está hecho hasta **T79** (ver abajo). Todo el flujo real corre en `main.c` -> `game_run()`
 (título -> callejón -> niveles 0-7 -> resultado), con `update_animation()` real. Lo único que queda son las tareas abiertas de
 "Todo". Estado de verificación: `make` y `make test` limpios, sin warnings (`-Wall -Wextra`); `make test-soak-levels` entra y sale
 de los 8 niveles; resultados por nivel en `docs/NIVELES.md`.
 
 ### Todo (abierto)
+
+- [x] Música de 3 voces Tandy/PCjr (`docs/PLAN_TANDY_3VOCES.md`, `docs/TANDY_MOTOR.md`): oráculo unicorn (F2), `sn76496.c` (F3), `tandy_music.c` literal (F4), bucle del título con `--tandy` (F5), test 0 diferencias en 3000 ticks (F6)
+- [ ] Tandy: oír en PC real (timbre/volúmenes del emulador del chip son aproximados); `[0x6ce]` del título tomado como "suelta"; teclas/PCjr con sonido externo (INT 1Ah AH=81h) sin tratar; ¿música en otras pantallas? (solo título/attract en la compilación 3v)
 
 - [ ] Paridad: pares de borde de tick sin modelo (<1,7 %)
 - [ ] T75b — decidir D1: quitar `immune_flag = 0` de `game_alley_frame` (hay que actualizar E4 de `tests/test_game_flow_loop.c`; ver `docs/NIVELES.md` D1)

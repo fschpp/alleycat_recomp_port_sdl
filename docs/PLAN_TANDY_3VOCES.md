@@ -32,3 +32,6 @@ con `791CE265.DIF` del parche de NewRisingSun (`tools/tandy/`), y el parche TAND
 - No se versionan ejecutables ni `.DIF`. Sin sonido real de la tarjeta PS/1 ni de los chips en `0x1E0` (la 3v base solo usa `0xC0`; el parche de NewRisingSun
   añade detección de puerto: se evalúa después de F6).
 - El resto de la lógica del juego sigue siendo la de nuestra build (la paridad con `cat.exe` ya verificada).
+
+## Estado (2026-10-14)
+F1 (docs/TANDY_MOTOR.md), F2 (tools/tandy/oracle.py + make_trace.py), F3 (src/sn76496.c, mezcla en audio.c), F4 (src/tandy_music.c, datos generados), F5 (bucle del titulo bajo `--tandy`) y F6 (`make build/test_tandy_music`, 0 diferencias, 10632 escrituras) hechos. Pendiente: escucha en PC real y los puntos de PROGRESS.md.
