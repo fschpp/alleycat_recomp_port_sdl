@@ -4860,6 +4860,10 @@ https://github.com/bjt42/tandycat es un parche DEBUG (`PATCH.SCR`) para otra ver
 - **Sonido de 3 voces: NO disponible.** El `cat.exe` de 55 067 bytes (nuestro desensamblado) no contiene código SN76496 (puerto 0xC0); sus ramas `rom_id == 0xFD` solo ajustan tiempos del altavoz PIT. Esa música sale del código extra de la versión de 61 568 bytes, que no tenemos. Para tenerla haría falta ese `ALLEYCAT.EXE` (desensamblarlo) o una reimplementación propia de la música a 3 voces (no sería paridad).
 - Comprobado: `make`/`make test` limpios; ambos modos arrancan; en modo Tandy `palette_rgb(0)` sigue al fondo.
 
+### 6cb-bis. Hallazgo: la compilación de 3 voces SÍ se puede obtener (2026-10-13)
+
+El zip de NewRisingSun (`alleycat_patch_nrs.zip`) trae `791CE265.DIF`; nuestro `cat.exe` tiene justo ese CRC32 (`791CE265`). Aplicado (`tools/tandy/bspatch.py`) da una compilación de 56 624 B (CRC32 `6B65D8B3`) con el motor de sonido de 3 voces (escrituras a `out 0xC0`); el parche TANDYCAT la activa (la cifra 61 568 B del README de TANDYCAT no coincide con nuestra copia: 56 624 B). Es otra compilación (≈2 600 B insertados, 63 bloques), no un parche pequeño: portar la música exige desensamblar ese motor (CS:0x1732-0x182a, estado de voz de 9 bytes en DS:0x1228, tablas DS:0x124c/0x1014, llamadores CS:0x60d1/0x6124/0x613d/0x6140), un emulador SN76496 en `audio.c` y cablear los eventos de sonido de `--tandy`. Pendiente de decidir; ver `tools/tandy/README.md`.
+
 ## 6ca. Paridad 1 a 1: bucles interiores, niveles 1-7 (plan §9, 2026-10-13)
 
 `build_dump_exe.py --interior --start-level N` engancha el `call play_sound` de los 7 bucles de nivel; `read_iter.py --full` / `build/iter_diff_full --video --level` carga DS completo (0x7130) + vídeo del registro k, ejecuta UNA pasada de `game_level_frame` y compara con k+1. Estado oculto del port expuesto (no static + ALIASES por offset DS) y punteros a buffers cargados desde el DS (`l5_obj_save_buf` 0x3ec2, `l7` slots 0x45a8, `obj_save_buf` 0x1f59).
