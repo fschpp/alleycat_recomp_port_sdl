@@ -8,5 +8,7 @@
 bool video_init(int window_scale);
 void video_present(void);   /* uploads cga_mem -> texture, and renders it */
 void video_shutdown(void);
+void video_set_fullscreen(bool on);   /* pantalla completa a la resolucion del escritorio (mantiene la relacion de aspecto) */
+void video_toggle_fullscreen(void);
 
 #endif

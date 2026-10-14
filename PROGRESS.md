@@ -21,6 +21,8 @@ de los 8 niveles; resultados por nivel en `docs/NIVELES.md`.
 
 ### Todo (abierto)
 
+- [x] Pantalla completa: `--fullscreen`/`-f` al iniciar; F11 o Alt+Enter la alternan en juego (Alt+F4 sigue cerrando la ventana, lo gestiona el SO)
+
 - [x] Música de 3 voces Tandy/PCjr (`docs/PLAN_TANDY_3VOCES.md`, `docs/TANDY_MOTOR.md`): oráculo unicorn (F2), `sn76496.c` (F3), `tandy_music.c` literal (F4), bucle del título con `--tandy` (F5), test 0 diferencias en 3000 ticks (F6)
 - [ ] Tandy: oír en PC real (timbre/volúmenes del emulador del chip son aproximados); `[0x6ce]` del título tomado como "suelta"; teclas/PCjr con sonido externo (INT 1Ah AH=81h) sin tratar; ¿música en otras pantallas? (solo título/attract en la compilación 3v)
 

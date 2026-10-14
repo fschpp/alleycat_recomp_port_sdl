@@ -40,6 +40,15 @@ bool video_init(int window_scale) {
     return true;
 }
 
+void video_set_fullscreen(bool on) {
+    if (g_window) SDL_SetWindowFullscreen(g_window, on ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0);
+}
+void video_toggle_fullscreen(void) {
+    if (!g_window) return;
+    bool is_fs = (SDL_GetWindowFlags(g_window) & SDL_WINDOW_FULLSCREEN_DESKTOP) != 0;
+    video_set_fullscreen(!is_fs);
+}
+
 /* Unpack cga_mem (2bpp, bank-interleaved) into g_pixels (32bpp, linear) */
 static void unpack_cga(void) {
     /* Colores segun el estado de paleta del juego (palette.c: puerto 0x3D9 / registros PCjr), una vez por frame. */

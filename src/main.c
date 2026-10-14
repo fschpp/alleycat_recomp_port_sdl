@@ -39,11 +39,20 @@ static void l7_present_step(void) {
     video_present();
 }
 
+/* F11 o Alt+Enter alternan pantalla completa (en cualquier momento). */
+static void handle_window_hotkeys(const SDL_Event *ev) {
+    if (ev->type != SDL_KEYDOWN || ev->key.repeat) return;
+    SDL_Keycode k = ev->key.keysym.sym;
+    if (k == SDLK_F11 || ((k == SDLK_RETURN || k == SDLK_KP_ENTER) && (ev->key.keysym.mod & KMOD_ALT)))
+        video_toggle_fullscreen();
+}
+
 /* T50: las esperas bloqueantes de ui.asm (wait_for_input) necesitan bombear SDL, contar pulsaciones (lo que hacia la
  * ISR de INT 9 con keyboard_counter) y presentar. */
 static void ui_wait_pump(void) {
     SDL_Event ev;
     while (SDL_PollEvent(&ev)) {
+        handle_window_hotkeys(&ev);
         if (ev.type == SDL_QUIT) {
             silence_speaker();
             audio_shutdown();
@@ -75,6 +84,7 @@ static void ui_wait_pump(void) {
 static bool frame_poll(void) {
     SDL_Event ev;
     while (SDL_PollEvent(&ev)) {
+        handle_window_hotkeys(&ev);
         if (ev.type == SDL_QUIT) return false;
     }
     if (!use_joystick) input_poll();           /* read_keyboard_dirs (port: SDL); con joystick lo pisaria poll_joystick (T60) */
@@ -88,15 +98,18 @@ static void frame_present(void) {
 }
 
 int main(int argc, char **argv) {
+    bool start_fullscreen = false;
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--tandy") == 0 || strcmp(argv[i], "--pcjr") == 0) {
             tandy_mode = true;
             rom_id = 0xfd;   /* como el parche TANDYCAT: el juego cree estar en un PCjr (paleta de 16 colores, tiempos PCjr) */
+        } else if (strcmp(argv[i], "--fullscreen") == 0 || strcmp(argv[i], "-f") == 0) {
+            start_fullscreen = true;
         } else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
-            printf("uso: %s [--tandy|--pcjr]\n"
+            printf("uso: %s [--tandy|--pcjr] [--fullscreen|-f]\n"
+                   "  --fullscreen, -f  inicia en pantalla completa (F11 o Alt+Enter la alternan en juego)\n"
                    "  --tandy  modo Tandy/PCjr (rom_id=0xFD): paleta personalizada por registros EGA, fondo en el registro 0\n"
-                   "           (equivale al parche TANDYCAT para el color; el sonido de 3 voces NO esta: esta version del juego\n"
-                   "           no contiene codigo SN76496, ver PROGRESS.md)\n", argv[0]);
+                   "           (como TANDYCAT: color + musica de 3 voces SN76496 en el titulo, ver docs/TANDY_MOTOR.md)\n", argv[0]);
             return 0;
         } else {
             fprintf(stderr, "opcion desconocida: %s (usa --help)\n", argv[i]);
@@ -110,6 +123,8 @@ int main(int argc, char **argv) {
         fprintf(stderr, "video_init failed\n");
         return 1;
     }
+
+    if (start_fullscreen) video_set_fullscreen(true);
 
     /* entry.asm opens with sound on and the music engine reset; the audio device is this port's stand-in for
      * "the speaker exists". If no device can be opened the game just runs silent. */
